@@ -3,6 +3,8 @@ name = "open_exact_scars"
 version = "0.1.0"
 edition = "2021"
 description = "Exact Lindblad evolution of the ferromagnetic scar tower under bulk dephasing"
+# `cargo run --release` is the exact density-matrix evolution; trajectories: `--bin trajectories`
+default-run = "open_exact_scars"
 
 [dependencies]
 rayon = "1.10"

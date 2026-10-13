@@ -1,0 +1,11 @@
+[package]
+name = "open_exact_scars"
+version = "0.1.0"
+edition = "2021"
+description = "Exact Lindblad evolution of the ferromagnetic scar tower under bulk dephasing"
+
+[dependencies]
+rayon = "1.10"
+
+[profile.release]
+opt-level = 3

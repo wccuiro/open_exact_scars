@@ -1,0 +1,11 @@
+# generated output (csv, images); regenerate with the rust binaries and plot_scripts
+/data/
+
+# build artifacts
+/rust/target/
+__pycache__/
+*.pyc
+.venv/
+
+# Windows download markers (WSL)
+*:Zone.Identifier

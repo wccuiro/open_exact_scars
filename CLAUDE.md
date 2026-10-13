@@ -145,3 +145,67 @@ Later knobs:
 - H.-R. Wang et al., Embedding quantum many-body scars into decoherence-free subspaces, arXiv:2304.08515.
 - A. M. Alhambra, H. Wilming, Revivals imply quantum many-body scars, arXiv:1911.05637.
 - B. Buča, J. Tindall, D. Jaksch, Non-stationary coherent quantum many-body dynamics through dissipation, Nat. Commun. 10, 1730 (2019).
+
+---
+
+# Code and results (state of 2026-10-14)
+
+## Working rules
+
+- Do only the computation that is asked for, simplest case first (γ = 0 as a check, then one parameter at a time). No extra observables, spectra or analyses unless requested.
+- The standard measurement is ⟨σˣ⟩, ⟨σʸ⟩, ⟨σᶻ⟩ (site averages) against time from |−⟩^⊗L, at a fixed small γ, comparing sizes L.
+- Rust computes and writes CSV to `data/`; Python in `plot_scripts/` reads the CSV and writes figures to `data/`. `data/` is not tracked by git; everything else is.
+- Plot scripts need numpy, pandas, matplotlib (on the WSL laptop: `~/anaconda3/bin/python`; the system `python3` has no numpy).
+
+## Layout and commands
+
+```
+rust/src/pauli.rs        Pauli strings as bit masks (x, z), products with exact phases
+rust/src/model.rs        Params (baseline coefficients) and H as a real sum of Pauli strings
+rust/src/liouville.rs    Lindbladian in the translation-invariant Pauli basis, propagator, magnetization
+rust/src/main.rs         exact evolution of ρ (default binary)
+rust/src/trajectory.rs   state-vector trajectories
+rust/src/bin/trajectories.rs
+rust/tests/checks.rs     exact references 1 and 2
+julia/lindblad_tdvp.jl   ITensor: ρ as an MPS, two-site TDVP
+plot_scripts/            plot_evolution.py, fit_decay.py, compare_methods.py, resource_tables.py
+```
+
+```bash
+cd rust
+cargo run --release -- [--gamma 0.01] [--lmin 4] [--lmax 8] [--t-max 100] [--dt 0.1]
+cargo run --release --bin trajectories -- [--lmin 4] [--lmax 8] [--gamma 0.01] [--trajectories 1000] [--t-max 100] [--dt 0.1] [--seed 1]
+cargo test --release
+cd ../julia && julia --project=. lindblad_tdvp.jl L maxdims [gamma] [tmax] [dt] [cutoff]     # e.g. 8 16,32,64
+```
+
+Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
+- `evolution_L<L>.csv`: L, gamma, t, mx, my, mz. Contains the γ = 0 run and the run at the chosen γ.
+- `trajectories_L<L>.csv`: L, gamma, trajectories, t, mx, my, mz, then `*_err` (standard error) and `*_std` (spread of one trajectory).
+- `tdvp_L<L>_chi<χ>_dt<dt>.csv`: L, gamma, maxdim, t, mx, my, mz, bond_dim, seconds.
+
+## Conventions in the code (do not change silently)
+
+- Basis states are bit strings, bit j = 0 for |↑⟩ and 1 for |↓⟩. Translation shifts site j → j + 1.
+- A Pauli string is two masks: bit j of `x` set for σˣ or σʸ, bit j of `z` set for σᶻ or σʸ; P = i^{|x & z|} X^x Z^z.
+- `Params.c[α][β]` multiplies σ^β_{j−1} R_{j,j+1} σ^α_{j+2} (same index order as c_{αβ} above).
+- Exact method: ρ = 2^(−L) Σ_P r_P P with r_P = Tr[ρ P] real. The generator is a real matrix: the Hamiltonian part is antisymmetric, dephasing is diagonal, −2γ per site carrying σˣ or σʸ. Only translation orbits of Pauli strings are kept (one orthonormal vector per orbit O of size p_O, coordinate √p_O · r_O); dimension ≈ 4^L / L. Time stepping is a Taylor series of exp(𝓛 dt) summed to round-off. The code is limited to L ≤ 12 by the orbit table.
+- Trajectories: σᶻ_j is Hermitian, so the dephasing is unravelled as a real-noise diffusion that keeps the state normalized (a fluctuating z field on every spin). One step is e^{−iH dt/2} · Π_j e^{−i√γ ΔW_j σᶻ_j} · e^{−iH dt/2}, ΔW_j ~ N(0, dt); the error of the average is O(dt²). This is not the jump unravelling described under "Numerical methods".
+- TDVP: site type `PauliVec` with states (1, σˣ, σʸ, σᶻ). Left multiplication by σ^a is A^a + iB^a on the coefficients, so −i[P, ·] = 2 Im ⊗_j (A^{a_j} + iB^{a_j}), a real MPO; the periodic boundary enters as long-range terms. Observables are divided by the trace coefficient.
+
+## Results so far (γ = 0.01, t ≤ 100, dt = 0.1)
+
+- **γ = 0 check.** Perfect oscillations ⟨σˣ⟩ = −cos(ht), ⟨σʸ⟩ = −sin(ht), ⟨σᶻ⟩ = 0 to 4e-14 for L = 4 … 10.
+- **Decay rate against L.** Amplitude √(⟨σˣ⟩² + ⟨σʸ⟩²) fitted with A₀e^(−Γt) while above 0.05:
+
+  | L | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+  |---|---|---|---|---|---|---|---|
+  | Γ / γ | 3.06 | 3.80 | 4.66 | 5.75 | 6.68 | 7.61 | 8.39 |
+
+  Power law Γ ≈ 0.63 γ L^1.13 (rms residual 1.6 %); exponential in L fits worse (4.6 %). The decay is not a single exponential, so Γ is an average over the fit window (exponent 1.00 – 1.14 depending on the window).
+- **Bound.** Every Liouvillian eigenvalue has −2γL ≤ Re λ ≤ 0 (antisymmetric plus diagonal generator), so the rate cannot grow exponentially with L.
+- **⟨σᶻ⟩** stays below 0.04 in magnitude.
+- **Larger γ** (first-pass runs for L ≤ 8; that code was removed, its outputs are in the untracked `data/first_pass/`): the 1/e rate of the amplitude saturates with L, about 3.8γ at γ = 0.1 and 2.9γ at γ = 0.2, while it grows with L for γ ≤ 0.05. For γ → 0 at fixed L, first-order perturbation theory gives tower coherences |Φ_n⟩⟨Φ_{n+1}| decaying at γL(1 − m_n m_{n+1}), m_n = 1 − 2n/L, with weights C(L−1, n)/2^(L−1); this matched the L = 7, γ = 0.01 spectrum. So the growth with L at small γ is the perturbative finite-size regime, and L ≤ 10 does not decide the L → ∞-first limit.
+- **Trajectories** agree with the exact evolution within the statistical error for L = 4 … 8 (2000 trajectories; 20000 at L = 4, 5, error ≈ 1e-3). The spread of one trajectory is ≈ 0.97 / L at its largest.
+- **TDVP** does not converge below the full bond dimension 4^(L/2): at L = 6 the error is 1e-2 at χ = 32 and 8e-5 at χ = 64; at L = 8 it is 2e-2 at χ = 64 (t ≤ 10). The bond dimension reaches its cap by t ≈ 0.5.
+- **Cost** (one run; `python plot_scripts/resource_tables.py` prints the full tables). Exact: 4.8 min and 0.2 GB at L = 10, about 4× per added site in both, 12.7 GB at L = 13. Trajectories: 31 core-minutes each at L = 16, 10.5 core-hours at L = 20, 48 B × 2^L of RAM each. Cluster figures in those tables rest on assumed, not measured, speedups.

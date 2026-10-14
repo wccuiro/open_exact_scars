@@ -11,21 +11,21 @@
 //! L, the evolution time, dt, γ and the seed are command-line options of the binaries.
 
 /// Lifting field h (tower spacing and precession frequency).
-pub const H: f64 = 0.5;
+pub const H: f64 = 1.0;
 
 /// a = (a_x, a_y, a_z): a_α multiplies R_{j,j+1} σ^α_{j+2}.
-pub const A: [f64; 3] = [0.73, 0.41, 0.29];
+pub const A: [f64; 3] = [1.0, 1.0, 1.0];
 
 /// b = (b_x, b_y, b_z): b_α multiplies σ^α_{j−1} R_{j,j+1}.
-pub const B: [f64; 3] = [0.58, -0.37, 0.66];
+pub const B: [f64; 3] = [1.0, 1.0, 1.0];
 
 /// C[α][β] = c_{αβ} multiplies σ^β_{j−1} R_{j,j+1} σ^α_{j+2}.
 /// Rows α (the right dressing σ^α_{j+2}), columns β (the left dressing σ^β_{j−1}), order x, y, z.
 pub const C: [[f64; 3]; 3] = [
     //  β = x   β = y   β = z
-    [0.00, 0.00, 0.31],  // α = x   (c_xz = 0.31)
-    [0.27, 0.00, 0.00],  // α = y   (c_yx = 0.27)
-    [0.00, -0.44, 0.00], // α = z   (c_zy = −0.44)
+    [1.00, 0.00, 0.00], // α = x   (c_xx)
+    [0.00, 1.00, 0.00], // α = y   (c_yy)
+    [0.00, 0.00, 1.00], // α = z   (c_zz)
 ];
 
 /// Random c (`Params::random_c`): on every bond, each c_{αβ} is multiplied by an independent factor

@@ -28,8 +28,7 @@ pub struct Params {
 }
 
 impl Params {
-    /// Uniform couplings from `parameters.rs` (default: the generic coefficients of CLAUDE.md, which
-    /// break every symmetry except translation).
+    /// Uniform couplings from `parameters.rs` (the current coefficients of CLAUDE.md).
     pub fn baseline(l: usize) -> Self {
         Params {
             l,

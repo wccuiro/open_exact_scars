@@ -174,11 +174,13 @@ rust/src/trajectory.rs   state-vector trajectories
 rust/src/bin/trajectories.rs
 rust/src/bin/disorder.rs random c, initial states on a cone around −x with random azimuths
 rust/src/bin/probes.rs   plan probes P1 (scar), P2 (energy H̃), P3 (thermal, k = π), free-spin check
+rust/src/bin/states.rs   scar |−⟩^⊗L or z-Néel ρ₀, random c, a list of γ; stops once the signal has decayed
 rust/src/bin/ed.rs       full ED of 𝓛 (dense, LAPACK from Intel MKL); linked by rust/build.rs
 rust/tests/checks.rs     exact references 1 and 2, random product states, full basis vs orbits, random c at γ = 0
 julia/lindblad_tdvp.jl   ITensor: ρ as an MPS, two-site TDVP
 plot_scripts/            plot_evolution.py, fit_decay.py, compare_methods.py, resource_tables.py,
-                         compare_initial_states.py, plot_disorder.py, fit_probes.py, plot_spectrum.py
+                         compare_initial_states.py, plot_disorder.py, fit_probes.py, plot_spectrum.py,
+                         fit_states.py
 ```
 
 ```bash
@@ -188,6 +190,7 @@ cargo run --release -- [--gamma 0.01] [--lmin 4] [--lmax 8] [--t-max 100] [--dt 
 cargo run --release --bin trajectories -- [--lmin 4] [--lmax 8] [--gamma 0.01] [--trajectories 1000] [--t-max 100] [--dt 0.1] [--seed 1]
 cargo run --release --bin disorder -- [--lmin 4] [--lmax 8] [--gamma 0.01] [--thetas 0,0.125,0.25,0.375,0.5] [--seed 1]   # thetas in units of π
 cargo run --release --bin probes -- [--lmin 4] [--lmax 8] [--gamma 0.01 | --gammas 0.002,0.01] [--dt 0.1] [--t-max T] [--tag name] [--seed 1]
+cargo run --release --bin states -- --state minus-x|neel [--lmin 4] [--lmax 8] [--gammas 0,0.01,0.1] [--dt 0.1] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1]
 cargo run --release --bin ed -- [--lmin 4] [--lmax 6] [--gamma 0.01] [--seed 1]    # needs MKL: $MKL_LIB_DIR or ~/anaconda3/lib
 cargo test --release
 cd ../julia && julia --project=. lindblad_tdvp.jl L maxdims [gamma] [tmax] [dt] [cutoff]     # e.g. 8 16,32,64
@@ -203,6 +206,11 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
 - `probe_P1.csv` (L, gamma, t, mx, my, mz, m_perp, w), `probe_P2.csv` (L, gamma, t, C), `probe_P3.csv`
   (L, gamma, k, t, C_xx, C_re, C_im, C_abs), `probe_free.csv` (L, gamma, t, m_perp, exact).
   `rates.csv` (from fit_probes.py): probe, L, gamma, k, Gamma, sigma_Gamma, t_fit_min, t_fit_max.
+- `states_<state>_L<L>_g<γ>.csv` (state minus-x or neel): L, gamma, t, mx, my, mz, sx, sy, sz, with s_α = (1/L) Σ_j (−1)^j ⟨σ^α_j⟩;
+  `states_realization_L<L>.csv`: j and the c of bond (j, j+1). `fit_states.py [dir]` reads them from `data/states/`
+  (default) and writes `states_rates.csv` (state, L, gamma, Gamma_e, Gamma_tail, sigma_tail, t_tail_min, t_tail_max)
+  and `states_rates.png` (Γ against γ). Cluster jobs (Leonardo, untracked): `data/bashes/make_states_jobs.sh` writes
+  one Slurm script per run and `submit_states.sh`.
 - `spectrum_L<L>.csv`: L, gamma, re, im, tower, mixed, bulk, energy_overlap; one row per Liouvillian mode, at γ = 0 and the chosen γ.
 
 ## Conventions in the code (do not change silently)
@@ -210,7 +218,7 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
 - Basis states are bit strings, bit j = 0 for |↑⟩ and 1 for |↓⟩. Translation shifts site j → j + 1.
 - A Pauli string is two masks: bit j of `x` set for σˣ or σʸ, bit j of `z` set for σᶻ or σʸ; P = i^{|x & z|} X^x Z^z.
 - `Params.c[α][β]` multiplies σ^β_{j−1} R_{j,j+1} σ^α_{j+2} (same index order as c_{αβ} above). `Params::baseline` and `Params::random_c` take h, a, b, c, the random-c range and the boundary condition from `src/parameters.rs`; changing them there changes every binary.
-- Random c (`Params::random_c`, field `c_bond`): on every bond j, each nonzero baseline c[α][β] is multiplied by an independent factor uniform in [0.5, 1.5]; a and b stay uniform. One realization per L, generator `Rng::new(1000 · seed + L)`: first the c factors, then the cone azimuths φ_j. `disorder`, `probes` and `ed` all use this same realization.
+- Random c (`Params::random_c`, field `c_bond`): on every bond j, each nonzero baseline c[α][β] is multiplied by an independent factor uniform in [0.5, 1.5]; a and b stay uniform. One realization per L, generator `Rng::new(1000 · seed + L)`: first the c factors, then the cone azimuths φ_j. `disorder`, `probes`, `ed` and `states` all use this same realization.
 - Cone states: spin j along n_j = (−cos θ, sin θ cos φ_j, sin θ sin φ_j); θ = 0 is the scar state |−⟩^⊗L.
 - Without translation (random c or open chain) the exact method uses the full Pauli basis (`Sector::full`, every string its own orbit, coordinate r_P, dimension 4^L); index of a string = x | z << L.
 - Operators in `probes` are evolved forward with 𝓛 in the same coordinates (x_P = Tr(X P)/2^L); autocorrelations use Tr[A e^{𝓛†t}(B)] = Tr[e^{𝓛t}(A) B] for Hermitian A. P3 evolves O^x_π and O^y_π separately and combines them into C⁺ for O⁺ = Σ_j (−1)^j σ⁺_j, so |C⁺| has no precession.

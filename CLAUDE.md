@@ -71,7 +71,7 @@ Lindblad equation with uniform σᶻ dephasing (jump operators √γ σᶻ_j):
 - With this normalization, a single free spin's transverse coherence decays as e^(−2γt).
 - The dissipator does **not** respect the scars. That is intentional: it is the generic-bath case.
 - σᶻ_j commutes with h S^z_tot, but not with H_I.
-- The dynamics is unital, so the infinite-temperature state 𝟙/2^L is stationary. For generic coefficients it should be the unique steady state.
+- The dynamics is unital, so the infinite-temperature state 𝟙/2^L is stationary. It is **not** the unique steady state: |↑…↑⟩ = |Φ_0⟩ and |↓…↓⟩ = |Φ_L⟩ are eigenstates of H and of every σᶻ_j, so they are dark states. The kernel of 𝓛 is spanned by 𝟙, |Φ_0⟩⟨Φ_0| and |Φ_L⟩⟨Φ_L| (3 zero eigenvalues in ED for every L checked).
 
 ## Initial state
 
@@ -150,6 +150,8 @@ Later knobs:
 
 # Code and results (state of 2026-10-14)
 
+The current measurement plan is `scar-vs-thermal-decay-plan.md` (scar vs non-scar probes, random c).
+
 ## Working rules
 
 - Do only the computation that is asked for, simplest case first (γ = 0 as a check, then one parameter at a time). No extra observables, spectra or analyses unless requested.
@@ -160,21 +162,33 @@ Later knobs:
 ## Layout and commands
 
 ```
+rust/src/parameters.rs   model coefficients h, a, b, c (full 3×3), random-c range, boundary condition: edit here
+rust/src/cli.rs          shared --key value options (--L or --lmin/--lmax; unknown options are an error)
 rust/src/pauli.rs        Pauli strings as bit masks (x, z), products with exact phases
-rust/src/model.rs        Params (baseline coefficients) and H as a real sum of Pauli strings
-rust/src/liouville.rs    Lindbladian in the translation-invariant Pauli basis, propagator, magnetization
-rust/src/main.rs         exact evolution of ρ (default binary)
+rust/src/model.rs        Params (baseline coefficients, optional random c per bond) and H as a real sum of Pauli strings
+rust/src/liouville.rs    Lindbladian in the Pauli basis (translation orbits, or the full basis without translation),
+                         propagator, dense export for ED, magnetization (site averages and per site)
+rust/src/tower.rs        Dicke states |Φ_n⟩ and Tr(Σ_n w_n |Φ_n⟩⟨Φ_n| P) for every Pauli string P
+rust/src/main.rs         exact evolution of ρ (default binary); --init minus-x | random (random Bloch vectors)
 rust/src/trajectory.rs   state-vector trajectories
 rust/src/bin/trajectories.rs
-rust/tests/checks.rs     exact references 1 and 2
+rust/src/bin/disorder.rs random c, initial states on a cone around −x with random azimuths
+rust/src/bin/probes.rs   plan probes P1 (scar), P2 (energy H̃), P3 (thermal, k = π), free-spin check
+rust/src/bin/ed.rs       full ED of 𝓛 (dense, LAPACK from Intel MKL); linked by rust/build.rs
+rust/tests/checks.rs     exact references 1 and 2, random product states, full basis vs orbits, random c at γ = 0
 julia/lindblad_tdvp.jl   ITensor: ρ as an MPS, two-site TDVP
-plot_scripts/            plot_evolution.py, fit_decay.py, compare_methods.py, resource_tables.py
+plot_scripts/            plot_evolution.py, fit_decay.py, compare_methods.py, resource_tables.py,
+                         compare_initial_states.py, plot_disorder.py, fit_probes.py, plot_spectrum.py
 ```
 
 ```bash
 cd rust
+# every binary takes --L 6 (one size) or --lmin/--lmax; model coefficients come from src/parameters.rs
 cargo run --release -- [--gamma 0.01] [--lmin 4] [--lmax 8] [--t-max 100] [--dt 0.1]
 cargo run --release --bin trajectories -- [--lmin 4] [--lmax 8] [--gamma 0.01] [--trajectories 1000] [--t-max 100] [--dt 0.1] [--seed 1]
+cargo run --release --bin disorder -- [--lmin 4] [--lmax 8] [--gamma 0.01] [--thetas 0,0.125,0.25,0.375,0.5] [--seed 1]   # thetas in units of π
+cargo run --release --bin probes -- [--lmin 4] [--lmax 8] [--gamma 0.01 | --gammas 0.002,0.01] [--dt 0.1] [--t-max T] [--tag name] [--seed 1]
+cargo run --release --bin ed -- [--lmin 4] [--lmax 6] [--gamma 0.01] [--seed 1]    # needs MKL: $MKL_LIB_DIR or ~/anaconda3/lib
 cargo test --release
 cd ../julia && julia --project=. lindblad_tdvp.jl L maxdims [gamma] [tmax] [dt] [cutoff]     # e.g. 8 16,32,64
 ```
@@ -183,12 +197,24 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
 - `evolution_L<L>.csv`: L, gamma, t, mx, my, mz. Contains the γ = 0 run and the run at the chosen γ.
 - `trajectories_L<L>.csv`: L, gamma, trajectories, t, mx, my, mz, then `*_err` (standard error) and `*_std` (spread of one trajectory).
 - `tdvp_L<L>_chi<χ>_dt<dt>.csv`: L, gamma, maxdim, t, mx, my, mz, bond_dim, seconds.
+- `evolution_random_L<L>.csv`: as `evolution_L<L>.csv`, from a product state with random Bloch vectors.
+- `disorder_L<L>.csv`: L, gamma, theta, t, mx, my, mz, then per site x0 … x{L−1}, y0 …, z0 … (site j = bit j).
+  `disorder_realization_L<L>.csv`: j, phi, c_xz, c_yx, c_zy (the c of bond (j, j+1)).
+- `probe_P1.csv` (L, gamma, t, mx, my, mz, m_perp, w), `probe_P2.csv` (L, gamma, t, C), `probe_P3.csv`
+  (L, gamma, k, t, C_xx, C_re, C_im, C_abs), `probe_free.csv` (L, gamma, t, m_perp, exact).
+  `rates.csv` (from fit_probes.py): probe, L, gamma, k, Gamma, sigma_Gamma, t_fit_min, t_fit_max.
+- `spectrum_L<L>.csv`: L, gamma, re, im, tower, mixed, bulk, energy_overlap; one row per Liouvillian mode, at γ = 0 and the chosen γ.
 
 ## Conventions in the code (do not change silently)
 
 - Basis states are bit strings, bit j = 0 for |↑⟩ and 1 for |↓⟩. Translation shifts site j → j + 1.
 - A Pauli string is two masks: bit j of `x` set for σˣ or σʸ, bit j of `z` set for σᶻ or σʸ; P = i^{|x & z|} X^x Z^z.
-- `Params.c[α][β]` multiplies σ^β_{j−1} R_{j,j+1} σ^α_{j+2} (same index order as c_{αβ} above).
+- `Params.c[α][β]` multiplies σ^β_{j−1} R_{j,j+1} σ^α_{j+2} (same index order as c_{αβ} above). `Params::baseline` and `Params::random_c` take h, a, b, c, the random-c range and the boundary condition from `src/parameters.rs`; changing them there changes every binary.
+- Random c (`Params::random_c`, field `c_bond`): on every bond j, each nonzero baseline c[α][β] is multiplied by an independent factor uniform in [0.5, 1.5]; a and b stay uniform. One realization per L, generator `Rng::new(1000 · seed + L)`: first the c factors, then the cone azimuths φ_j. `disorder`, `probes` and `ed` all use this same realization.
+- Cone states: spin j along n_j = (−cos θ, sin θ cos φ_j, sin θ sin φ_j); θ = 0 is the scar state |−⟩^⊗L.
+- Without translation (random c or open chain) the exact method uses the full Pauli basis (`Sector::full`, every string its own orbit, coordinate r_P, dimension 4^L); index of a string = x | z << L.
+- Operators in `probes` are evolved forward with 𝓛 in the same coordinates (x_P = Tr(X P)/2^L); autocorrelations use Tr[A e^{𝓛†t}(B)] = Tr[e^{𝓛t}(A) B] for Hermitian A. P3 evolves O^x_π and O^y_π separately and combines them into C⁺ for O⁺ = Σ_j (−1)^j σ⁺_j, so |C⁺| has no precession.
+- ED (`ed`): γ > 0 diagonalizes the dense real 4^L generator with `LAPACKE_dgeev` (right and left vectors). γ = 0 is degenerate (every |E⟩⟨E| has λ = 0), so it diagonalizes H with `zheevd` and uses the modes |m⟩⟨n|, λ = −i(E_m − E_n). Weights of a right eigenvector R: tower = ‖PRP‖/‖R‖, mixed = √(‖PRQ‖² + ‖QRP‖²)/‖R‖, bulk = ‖QRQ‖/‖R‖ (squares sum to 1); energy_overlap = |Tr(H U)|/(‖H‖‖U‖) for the left eigenvector U. Dense ED is limited to L ≤ 6 here (L = 7 needs ≈ 7 GB, L = 8 ≈ 100 GB).
 - Exact method: ρ = 2^(−L) Σ_P r_P P with r_P = Tr[ρ P] real. The generator is a real matrix: the Hamiltonian part is antisymmetric, dephasing is diagonal, −2γ per site carrying σˣ or σʸ. Only translation orbits of Pauli strings are kept (one orthonormal vector per orbit O of size p_O, coordinate √p_O · r_O); dimension ≈ 4^L / L. Time stepping is a Taylor series of exp(𝓛 dt) summed to round-off. The code is limited to L ≤ 12 by the orbit table.
 - Trajectories: σᶻ_j is Hermitian, so the dephasing is unravelled as a real-noise diffusion that keeps the state normalized (a fluctuating z field on every spin). One step is e^{−iH dt/2} · Π_j e^{−i√γ ΔW_j σᶻ_j} · e^{−iH dt/2}, ΔW_j ~ N(0, dt); the error of the average is O(dt²). This is not the jump unravelling described under "Numerical methods".
 - TDVP: site type `PauliVec` with states (1, σˣ, σʸ, σᶻ). Left multiplication by σ^a is A^a + iB^a on the coefficients, so −i[P, ·] = 2 Im ⊗_j (A^{a_j} + iB^{a_j}), a real MPO; the periodic boundary enters as long-range terms. Observables are divided by the trace coefficient.
@@ -209,3 +235,23 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
 - **Trajectories** agree with the exact evolution within the statistical error for L = 4 … 8 (2000 trajectories; 20000 at L = 4, 5, error ≈ 1e-3). The spread of one trajectory is ≈ 0.97 / L at its largest.
 - **TDVP** does not converge below the full bond dimension 4^(L/2): at L = 6 the error is 1e-2 at χ = 32 and 8e-5 at χ = 64; at L = 8 it is 2e-2 at χ = 64 (t ≤ 10). The bond dimension reaches its cap by t ≈ 0.5.
 - **Cost** (one run; `python plot_scripts/resource_tables.py` prints the full tables). Exact: 4.8 min and 0.2 GB at L = 10, about 4× per added site in both, 12.7 GB at L = 13. Trajectories: 31 core-minutes each at L = 16, 10.5 core-hours at L = 20, 48 B × 2^L of RAM each. Cluster figures in those tables rest on assumed, not measured, speedups.
+
+## Results with random c (no translation; γ = 0.01, one realization per L)
+
+- **Scar state with random c** decays like the uniform baseline: amplitude fit while above 0.05 gives Γ/γ = 3.06, 3.89, 4.68, 5.81, 6.69 for L = 4 … 8 (baseline 3.06 … 6.68). γ = 0 oscillations stay perfect on every site (4e-14).
+- **Cone states** (`disorder`, θ = 0 … π/2): at γ = 0 the oscillations of ⟨σˣ⟩, ⟨σʸ⟩ persist with a reduced amplitude at θ = π/8, π/4 and are nearly gone for θ ≥ 3π/8, L ≥ 5; with γ they die within a few periods. Site averages at small L carry a sampling offset sin θ · mean(cos φ_j), sin θ · mean(sin φ_j) (visible in ⟨σᶻ⟩); use the per-site columns.
+- **Plan checks** (`probes`, L = 4 … 8): H_I = 0 gives e^(−2γt) to 3e-15; dw/dt(0) = −γ(L−1) exactly; P2's C stays 1 at γ = 0 to 2e-15; Tr(O_π H) = 0 exactly (single-σˣ content of H is uniform). Identity 4: at γ = 0 the late-time m_z is not just the tower part (L = 5, θ = π/2: tower part 0.031, late-time mean ≈ 0.15), because the bulk thermalizes at an energy that fixes a nonzero Sᶻ (H contains h Sᶻ).
+- **Decay rates against L** (Γ/γ; `python plot_scripts/fit_probes.py` prints this table):
+
+  | probe | L = 4 | 5 | 6 | 7 | 8 | power law |
+  |---|---|---|---|---|---|---|
+  | P1 scar m_⊥, window [5, 60] | 3.22 | 4.01 | 4.69 | 5.67 | 6.51 | L^(1.01 ± 0.03) |
+  | P1 scar m_⊥, window [5, until 1e-3] | 2.61 | 2.94 | 3.28 | 3.87 | 4.77 | L^(0.84 ± 0.12) |
+  | P2 energy H̃ | 1.83 | 1.84 | 2.00 | 2.22 | 2.32 | L^(0.37 ± 0.07) |
+  | P3 thermal ΔΓ, window [0, 0.5] | 1.43 | – | 1.59 | – | 1.61 | L^(0.18 ± 0.06) |
+  | P3 thermal ΔΓ, window [0, 1] | 2.25 | – | 2.25 | – | 1.85 | L^(−0.27 ± 0.19) |
+
+  The scar rate grows about linearly in L; the non-scar rates stay near the single-spin value 2γ with a weak or no L-dependence. With L = 4 … 8 (a factor 2) power law and exponential fit about equally well, so the exponents are descriptive. P3: the thermal decay at γ = 0 is over by t ≈ 1 (Γ₀ ≈ 2–2.4 at L = 4, 6), then |C⁺| sits at a finite-size floor (0.17, 0.05, 0.015 for L = 4, 6, 8). The automatic window (until twice the floor) grows with L and gives a spurious growth of ΔΓ (1.43, 2.25, 4.39); compare on common windows.
+- **Scar decay is multi-exponential**, so Γ_scar depends on the window: early times are dominated by mid-tower coherences (rate ≈ γL), late times by the edges. Exact: |Φ_0⟩⟨Φ_n| and |Φ_L⟩⟨Φ_{L−n}| are Liouvillian eigenmodes with Re λ = −2nγ for every L (σᶻ_j|Φ_0⟩ = |Φ_0⟩, so D acts on them as −2nγ). ED confirms the slowest tower modes at exactly 2γ.
+- **Spectrum** (ED, L = 4, 5, 6): 3 zero modes; most bulk modes near −Re λ ≈ γL; slowest bulk mode at 1.67γ, 1.66γ, 1.88γ (comparable to the P2 rate); modes with tower weight > 0.9: 22/25, 32/36, 38/49.
+- **Cost**: `probes` up to L = 8 took 30 min on the laptop (16 threads); `ed` at L = 6 takes ≈ 1 min.

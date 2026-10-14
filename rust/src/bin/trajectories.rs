@@ -2,7 +2,9 @@
 //!
 //!     dρ/dt = −i[H, ρ] + γ Σ_j (σᶻ_j ρ σᶻ_j − ρ),     ρ(0) = |ψ₀⟩⟨ψ₀|, |ψ₀⟩ = |−⟩^⊗L.
 //!
-//!     cargo run --release --bin trajectories -- [--lmin 4] [--lmax 8] [--gamma 0.01]
+//! Model coefficients: src/parameters.rs.
+//!
+//!     cargo run --release --bin trajectories -- [--L 6 | --lmin 4 --lmax 8] [--gamma 0.01]
 //!                         [--trajectories 1000] [--t-max 100] [--dt 0.1] [--seed 1]
 //!
 //! Output: data/trajectories_L<L>.csv with columns
@@ -10,7 +12,6 @@
 //! m_α = (1/L) Σ_j ⟨σ^α_j⟩ averaged over the trajectories, *_err its standard error, *_std the
 //! spread of a single trajectory (so that err = std / √trajectories).
 
-use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
@@ -18,19 +19,17 @@ use std::time::Instant;
 
 use rayon::prelude::*;
 
+use open_exact_scars::cli::Options;
 use open_exact_scars::model::Params;
 use open_exact_scars::trajectory::{Hamiltonian, Trajectory};
 
 fn main() {
-    let args = options();
-    let get = |key: &str, default: f64| -> f64 {
-        args.get(key).map_or(default, |s| s.parse().unwrap_or_else(|_| panic!("cannot parse --{key} {s}")))
-    };
-    let (lmin, lmax) = (get("lmin", 4.0) as usize, get("lmax", 8.0) as usize);
-    let gamma = get("gamma", 0.01);
-    let n_traj = get("trajectories", 1000.0) as usize;
-    let (t_max, dt) = (get("t-max", 100.0), get("dt", 0.1));
-    let seed = get("seed", 1.0) as u64;
+    let args = Options::parse(&["L", "lmin", "lmax", "gamma", "trajectories", "t-max", "dt", "seed"]);
+    let sizes = args.sizes(4, 8);
+    let gamma = args.f64("gamma", 0.01);
+    let n_traj = args.usize("trajectories", 1000);
+    let (t_max, dt) = (args.f64("t-max", 100.0), args.f64("dt", 0.1));
+    let seed = args.usize("seed", 1) as u64;
     let steps = (t_max / dt).round() as usize;
 
     // output goes to <repo>/data, or to $SCARS_DATA_DIR if set
@@ -38,7 +37,7 @@ fn main() {
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data"), PathBuf::from);
     fs::create_dir_all(&data).expect("cannot create data/");
 
-    for l in lmin..=lmax {
+    for l in sizes {
         let start = Instant::now();
         let ham = Hamiltonian::new(&Params::baseline(l));
 
@@ -86,15 +85,4 @@ fn main() {
             wall * rayon::current_num_threads().min(n_traj) as f64 / n_traj as f64
         );
     }
-}
-
-/// `--key value` pairs from the command line.
-fn options() -> HashMap<String, String> {
-    let argv: Vec<String> = std::env::args().skip(1).collect();
-    argv.chunks(2)
-        .map(|pair| match pair {
-            [key, value] if key.starts_with("--") => (key[2..].to_string(), value.clone()),
-            _ => panic!("options are given as --key value, got {pair:?}"),
-        })
-        .collect()
 }

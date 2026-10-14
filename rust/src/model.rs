@@ -6,7 +6,9 @@
 
 use std::collections::BTreeMap;
 
+use crate::parameters;
 use crate::pauli::Pauli;
+use crate::trajectory::Rng;
 
 #[derive(Clone, Debug)]
 pub struct Params {
@@ -19,24 +21,45 @@ pub struct Params {
     pub b: [f64; 3],
     /// c[α][β] multiplies σ^β_{j−1} R_{j,j+1} σ^α_{j+2}.
     pub c: [[f64; 3]; 3],
+    /// Site-dependent c: if set, c_bond[j] replaces c in the term on bond (j, j+1). Breaks translation.
+    pub c_bond: Option<Vec<[[f64; 3]; 3]>>,
     /// Periodic ring (needs L ≥ 4). Open chain: a term is kept only if all its sites exist.
     pub periodic: bool,
 }
 
 impl Params {
-    /// Default coefficients of CLAUDE.md: generic, they break every symmetry except translation.
+    /// Uniform couplings from `parameters.rs` (default: the generic coefficients of CLAUDE.md, which
+    /// break every symmetry except translation).
     pub fn baseline(l: usize) -> Self {
-        let (x, y, z) = (0, 1, 2);
-        let mut c = [[0.0; 3]; 3];
-        c[x][z] = 0.31;
-        c[z][y] = -0.44;
-        c[y][x] = 0.27;
-        Params { l, h: 0.5, a: [0.73, 0.41, 0.29], b: [0.58, -0.37, 0.66], c, periodic: true }
+        Params {
+            l,
+            h: parameters::H,
+            a: parameters::A,
+            b: parameters::B,
+            c: parameters::C,
+            c_bond: None,
+            periodic: parameters::PERIODIC,
+        }
+    }
+
+    /// Baseline with random c: on every bond, each c[α][β] is multiplied by an independent factor
+    /// uniform in `parameters::C_RANDOM_RANGE` (default [0.5, 1.5]; signs kept, zero entries stay zero).
+    /// One uniform number is drawn per entry and bond, zero or not, so a realization depends only on
+    /// the seed and L.
+    pub fn random_c(l: usize, rng: &mut Rng) -> Self {
+        let base = Self::baseline(l);
+        let (low, high) = parameters::C_RANDOM_RANGE;
+        let c_bond = (0..l).map(|_| base.c.map(|row| row.map(|c| c * (low + (high - low) * rng.uniform())))).collect();
+        Params { c_bond: Some(c_bond), ..base }
+    }
+
+    pub fn translation_invariant(&self) -> bool {
+        self.periodic && self.c_bond.is_none()
     }
 
     /// H_I = 0: independent spins in the field h (exact reference 2).
     pub fn free_spins(l: usize) -> Self {
-        Params { a: [0.0; 3], b: [0.0; 3], c: [[0.0; 3]; 3], ..Self::baseline(l) }
+        Params { a: [0.0; 3], b: [0.0; 3], c: [[0.0; 3]; 3], c_bond: None, ..Self::baseline(l) }
     }
 }
 
@@ -68,6 +91,7 @@ pub fn hamiltonian_terms(p: &Params) -> Vec<(Pauli, f64)> {
             }
         };
         let (left, right) = (site(j - 1), site(j + 2));
+        let c = p.c_bond.as_ref().map_or(&p.c, |c_bond| &c_bond[j as usize]);
         for alpha in 0..3 {
             if let Some(r) = right {
                 add_dressed(p.a[alpha], Pauli::single(alpha, r));
@@ -77,7 +101,7 @@ pub fn hamiltonian_terms(p: &Params) -> Vec<(Pauli, f64)> {
             }
             if let (Some(lf), Some(r)) = (left, right) {
                 for beta in 0..3 {
-                    add_dressed(p.c[alpha][beta], Pauli::single(beta, lf).times_disjoint(Pauli::single(alpha, r)));
+                    add_dressed(c[alpha][beta], Pauli::single(beta, lf).times_disjoint(Pauli::single(alpha, r)));
                 }
             }
         }

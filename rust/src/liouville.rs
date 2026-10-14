@@ -8,9 +8,11 @@
 //! so the generator is a REAL matrix: an antisymmetric Hamiltonian part plus a diagonal dephasing
 //! part (σᶻ dephasing damps a string at rate 2γ per site carrying X or Y).
 //!
-//! H, the dissipator and ρ(0) are translation invariant, so r_P is constant on translation orbits.
-//! The basis used here is one orthonormal vector per orbit O of size p_O, with coordinate
-//! v_O = √p_O · r_O. The dimension is ≈ 4^L / L (8230 for L = 8).
+//! For the translation-invariant baseline, H, the dissipator and ρ(0) are translation invariant,
+//! so r_P is constant on translation orbits. The basis used then is one orthonormal vector per
+//! orbit O of size p_O, with coordinate v_O = √p_O · r_O. The dimension is ≈ 4^L / L (8230 for L = 8).
+//! Without translation (site-dependent coefficients, open chain) every string is its own orbit
+//! ([`Sector::full`]): p_O = 1, v_P = r_P, dimension 4^L.
 
 use rayon::prelude::*;
 
@@ -53,6 +55,15 @@ impl Sector {
         Sector { l, reps, period, lookup }
     }
 
+    /// No symmetry: every Pauli string is its own orbit.
+    pub fn full(l: usize) -> Self {
+        assert!((1..=12).contains(&l), "the orbit table has 4^L entries");
+        let mask = (1usize << l) - 1;
+        let n = 1usize << (2 * l);
+        let reps = (0..n).map(|code| Pauli { x: (code & mask) as u32, z: (code >> l) as u32 }).collect();
+        Sector { l, reps, period: vec![1; n], lookup: (0..n as u32).collect() }
+    }
+
     pub fn dim(&self) -> usize {
         self.reps.len()
     }
@@ -74,10 +85,14 @@ pub struct Liouvillian {
 }
 
 impl Liouvillian {
+    /// Translation orbits if `params` is translation invariant, the full Pauli basis otherwise.
     pub fn new(params: &Params) -> Self {
-        assert!(params.periodic, "the translation sector needs periodic boundaries");
+        let sector = if params.translation_invariant() { Sector::new(params.l) } else { Sector::full(params.l) };
+        Self::with_sector(params, sector)
+    }
+
+    pub fn with_sector(params: &Params, sector: Sector) -> Self {
         let terms = hamiltonian_terms(params);
-        let sector = Sector::new(params.l);
         let n = sector.dim();
 
         let mut row_ptr = Vec::with_capacity(n + 1);
@@ -132,6 +147,19 @@ impl Liouvillian {
         });
     }
 
+    /// 𝓛 as a dense real matrix in column-major order (entry (i, c) at c · dim + i), for ED.
+    pub fn dense(&self, gamma: f64) -> Vec<f64> {
+        let n = self.dim();
+        let mut m = vec![0.0; n * n];
+        for i in 0..n {
+            for k in self.row_ptr[i]..self.row_ptr[i + 1] {
+                m[self.col[k] as usize * n + i] += self.val[k];
+            }
+            m[i * n + i] -= 2.0 * gamma * self.n_xy[i];
+        }
+        m
+    }
+
     /// Largest absolute row sum (equal to the largest column sum, by antisymmetry).
     pub fn norm_bound(&self, gamma: f64) -> f64 {
         (0..self.dim())
@@ -153,6 +181,34 @@ impl Liouvillian {
                 } else {
                     (s.period[o] as f64).sqrt() * if p.x.count_ones() % 2 == 0 { 1.0 } else { -1.0 }
                 }
+            })
+            .collect()
+    }
+
+    /// ρ(0) = ⊗_j (1 + n_j·σ_j)/2, a product of pure states with Bloch vectors n_j, averaged over
+    /// translations (no averaging in the full basis). In the translation sector, H, the dissipator
+    /// and the site-averaged magnetization are translation invariant, so the averaged state gives
+    /// the same m_α(t) as the state itself.
+    /// r_P = Π_j n_j^{a_j}, and the orbit coordinate is √p_O times the mean of r_P over the orbit.
+    pub fn product_state(&self, n: &[[f64; 3]]) -> Vec<f64> {
+        let s = &self.sector;
+        assert_eq!(n.len(), s.l, "one Bloch vector per site");
+        (0..s.dim())
+            .into_par_iter()
+            .map(|o| {
+                let (mut p, mut sum) = (s.reps[o], 0.0);
+                for _ in 0..s.period[o] {
+                    sum += (0..s.l)
+                        .map(|j| match ((p.x >> j) & 1, (p.z >> j) & 1) {
+                            (0, 0) => 1.0,
+                            (1, 0) => n[j][0],
+                            (1, 1) => n[j][1],
+                            _ => n[j][2],
+                        })
+                        .product::<f64>();
+                    p = p.translate(s.l);
+                }
+                sum / (s.period[o] as f64).sqrt()
             })
             .collect()
     }
@@ -198,21 +254,30 @@ impl<'a> Propagator<'a> {
     }
 }
 
-/// Site-averaged magnetization m_α = (1/L) Σ_j Tr[σ^α_j ρ], α = x, y, z, read off the orbit vector v:
-/// the orbit of a single-site σ^α has L members, so m_α = v[orbit] / √L.
+/// Magnetization ⟨σ^α_j⟩ = Tr[σ^α_j ρ], α = x, y, z, read off the orbit vector v: the coordinate of
+/// the orbit O containing σ^α_j is √p_O · ⟨σ^α_j⟩ (p_O = L in the translation sector, 1 in the full basis).
 pub struct Magnetization {
-    orbit: [usize; 3],
-    norm: f64,
+    /// orbit[α][j] of σ^α_j
+    orbit: [Vec<usize>; 3],
+    /// 1 / √p_O
+    norm: [Vec<f64>; 3],
 }
 
 impl Magnetization {
     pub fn new(liou: &Liouvillian) -> Self {
         let s = &liou.sector;
-        Magnetization { orbit: [0, 1, 2].map(|axis| s.orbit(Pauli::single(axis, 0))), norm: 1.0 / (s.l as f64).sqrt() }
+        let orbit = [0, 1, 2].map(|axis| (0..s.l).map(|j| s.orbit(Pauli::single(axis, j))).collect::<Vec<_>>());
+        let norm = orbit.clone().map(|o| o.iter().map(|&o| 1.0 / (s.period[o] as f64).sqrt()).collect());
+        Magnetization { orbit, norm }
     }
 
-    /// [m_x, m_y, m_z].
+    /// Site averages [m_x, m_y, m_z], m_α = (1/L) Σ_j ⟨σ^α_j⟩.
     pub fn measure(&self, v: &[f64]) -> [f64; 3] {
-        self.orbit.map(|o| v[o] * self.norm)
+        self.per_site(v).map(|m| m.iter().sum::<f64>() / m.len() as f64)
+    }
+
+    /// [⟨σˣ_j⟩, ⟨σʸ_j⟩, ⟨σᶻ_j⟩] for j = 0 … L − 1.
+    pub fn per_site(&self, v: &[f64]) -> [Vec<f64>; 3] {
+        [0, 1, 2].map(|a| self.orbit[a].iter().zip(&self.norm[a]).map(|(&o, &n)| v[o] * n).collect())
     }
 }

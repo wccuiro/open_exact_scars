@@ -203,7 +203,7 @@ impl Rng {
     }
 
     /// Uniform in (0, 1].
-    fn uniform(&mut self) -> f64 {
+    pub fn uniform(&mut self) -> f64 {
         ((self.next_u64() >> 11) as f64 + 1.0) / (1u64 << 53) as f64
     }
 
@@ -217,4 +217,11 @@ impl Rng {
         self.spare = Some(r * sin);
         r * cos
     }
+}
+
+/// Uniformly random unit vector (normalized Gaussian vector).
+pub fn random_direction(rng: &mut Rng) -> [f64; 3] {
+    let v = [0; 3].map(|_| rng.gaussian());
+    let norm = v.iter().map(|x| x * x).sum::<f64>().sqrt();
+    v.map(|x| x / norm)
 }

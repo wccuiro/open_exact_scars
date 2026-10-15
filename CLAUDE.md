@@ -153,9 +153,11 @@ Later knobs:
 
 ---
 
-# Code and results (state of 2026-10-14)
+# Code and results (state of 2026-10-15)
 
-The current measurement plan is `scar-vs-thermal-decay-plan.md` (scar vs non-scar probes, random c).
+Current focus: time evolution only. The `states` binary evolves ρ exactly (full Pauli basis, random c, current
+coefficients) from product states over a γ grid, and the decay rates are extrapolated to 1/L → 0. Plan:
+`time-evolution-plan.md` (the earlier probe/ED plan `scar-vs-thermal-decay-plan.md` is in git history).
 
 ## Working rules
 
@@ -179,13 +181,13 @@ rust/src/trajectory.rs   state-vector trajectories
 rust/src/bin/trajectories.rs
 rust/src/bin/disorder.rs random c, initial states on a cone around −x with random azimuths
 rust/src/bin/probes.rs   plan probes P1 (scar), P2 (energy H̃), P3 (thermal, k = π), free-spin check
-rust/src/bin/states.rs   scar |−⟩^⊗L or z-Néel ρ₀, random c, a list of γ; stops once the signal has decayed
+rust/src/bin/states.rs   scar |−⟩^⊗L, z-Néel or x-Néel ρ₀, random c, a list of γ; stops once the signal has decayed
 rust/src/bin/ed.rs       full ED of 𝓛 (dense, LAPACK from Intel MKL); linked by rust/build.rs
 rust/tests/checks.rs     exact references 1 and 2, random product states, full basis vs orbits, random c at γ = 0
 julia/lindblad_tdvp.jl   ITensor: ρ as an MPS, two-site TDVP
 plot_scripts/            plot_evolution.py, fit_decay.py, compare_methods.py, resource_tables.py,
                          compare_initial_states.py, plot_disorder.py, fit_probes.py, plot_spectrum.py,
-                         fit_states.py
+                         fit_states.py, fit_states_inverse_L.py, plot_states.py
 ```
 
 ```bash
@@ -195,7 +197,7 @@ cargo run --release -- [--gamma 0.01] [--lmin 4] [--lmax 8] [--t-max 100] [--dt 
 cargo run --release --bin trajectories -- [--lmin 4] [--lmax 8] [--gamma 0.01] [--trajectories 1000] [--t-max 100] [--dt 0.1] [--seed 1]
 cargo run --release --bin disorder -- [--lmin 4] [--lmax 8] [--gamma 0.01] [--thetas 0,0.125,0.25,0.375,0.5] [--seed 1]   # thetas in units of π
 cargo run --release --bin probes -- [--lmin 4] [--lmax 8] [--gamma 0.01 | --gammas 0.002,0.01] [--dt 0.1] [--t-max T] [--tag name] [--seed 1]
-cargo run --release --bin states -- --state minus-x|neel [--lmin 4] [--lmax 8] [--gammas 0,0.01,0.1] [--dt 0.1] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1]
+cargo run --release --bin states -- --state minus-x|neel|neel-x [--lmin 4] [--lmax 8] [--gammas 0,0.01,0.1] [--dt 0.1] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1]
 cargo run --release --bin ed -- [--lmin 4] [--lmax 6] [--gamma 0.01] [--seed 1]    # needs MKL: $MKL_LIB_DIR or ~/anaconda3/lib
 cargo test --release
 cd ../julia && julia --project=. lindblad_tdvp.jl L maxdims [gamma] [tmax] [dt] [cutoff]     # e.g. 8 16,32,64
@@ -211,12 +213,65 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
 - `probe_P1.csv` (L, gamma, t, mx, my, mz, m_perp, w), `probe_P2.csv` (L, gamma, t, C), `probe_P3.csv`
   (L, gamma, k, t, C_xx, C_re, C_im, C_abs), `probe_free.csv` (L, gamma, t, m_perp, exact).
   `rates.csv` (from fit_probes.py): probe, L, gamma, k, Gamma, sigma_Gamma, t_fit_min, t_fit_max.
-- `states_<state>_L<L>_g<γ>.csv` (state minus-x or neel): L, gamma, t, mx, my, mz, sx, sy, sz, with s_α = (1/L) Σ_j (−1)^j ⟨σ^α_j⟩;
-  `states_realization_L<L>.csv`: j and the c of bond (j, j+1). `fit_states.py [dir]` reads them from `data/states/`
-  (default) and writes `states_rates.csv` (state, L, gamma, Gamma_e, Gamma_tail, sigma_tail, t_tail_min, t_tail_max)
-  and `states_rates.png` (Γ against γ). Cluster jobs (Leonardo, untracked): `data/bashes/make_states_jobs.sh` writes
-  one Slurm script per run and `submit_states.sh`.
+- `states_<state>_L<L>_g<γ>.csv` (state minus-x, neel or neel-x): L, gamma, t, mx, my, mz, sx, sy, sz, with s_α = (1/L) Σ_j (−1)^j ⟨σ^α_j⟩;
+  `states_realization_L<L>.csv`: j and the c of bond (j, j+1). States: minus-x = |−⟩^⊗L (stop signal m_⊥),
+  neel = z-Néel |↑↓↑↓…⟩ (even L, stop signal |s_z|), neel-x = x-Néel |+−+−…⟩ (even L, stop signal s_⊥ = √(s_x² + s_y²)).
+  The cluster output is in `data/states/` (unpacked from `data/states.tar.gz`). Scripts reading `data/states/` (default dir):
+  - `fit_states.py [dir]` (any number of sizes): `states_rates.csv` (state, L, gamma, Gamma_e, Gamma_tail, sigma_tail,
+    t_tail_min, t_tail_max) and `states_rates.png` (Γ against γ).
+  - `fit_states_inverse_L.py`: Γ_e against 1/L, linear A + B/L on L ≥ 8 (Γ_∞ = A), quadratic check on L ≥ 6 for the scar;
+    Néel at γ ≤ 0.02 drops L = 6, 8 (finite-size revivals). Writes `states_inverse_L.csv`, `states_inverse_L.png`,
+    `states_thermodynamic_rate.png` (Γ_∞ against γ).
+  - `plot_states.py [dir]`: time series `states_scar.png`, `states_neel.png`, `states_neel-x.png`, `states_neel_n.png`
+    (⟨n⟩/L for z-Néel).
 - `spectrum_L<L>.csv`: L, gamma, re, im, tower, mixed, bulk, energy_overlap; one row per Liouvillian mode, at γ = 0 and the chosen γ.
+
+## Cluster (Leonardo)
+
+Repo on Leonardo: `/leonardo/home/userexternal/wccuirom/repos/open_exact_scars` (`$REPO`); partition `dcgp_usr_prod`
+(112 cores per node, 24 h limit), account `sis26_collura`. Code goes through git (origin, branch master). The job
+scripts live in `data/bashes/`, which is untracked like all of `data/`, so they are copied by hand.
+
+Job generators in `data/bashes/` (each writes one Slurm script per job and a `submit_*.sh`):
+- `make_states_jobs.sh`: scar and z-Néel, L = 4 … 12 (done; output in `data/states.tar.gz`).
+- `make_states_neel-x_jobs.sh`: x-Néel, even L = 4 … 14, one job per γ at L = 12 (16G) and L = 14 (64G).
+- `make_bench_jobs.sh`: short runs (γ = 0.1) at L = 10, 12, 13, 14 with 8 … 112 threads, numactl on/off;
+  one CSV line per run in `$REPO/data/bench/bench_results_<job>.csv`, binary output in `data/bench/out` and `logs`.
+- `jobs_common.sh` (sourced by the two new generators): every job prints the machine (`lscpu`, `numactl --hardware`,
+  `free -g`), runs each command under `/usr/bin/time -v` (peak memory, wall and CPU time in the `.err`), and ends
+  with `sacct`/`seff`. Final `sacct` numbers only exist after the job ends: rerun
+  `sacct -j <id> --format=JobID,Elapsed,TotalCPU,MaxRSS,State -P` from the login node.
+- `summarize_bench.py [bench_dir] [--logs dir]` (standard library only): table per bench run, growth per added
+  site, and with `--logs` the elapsed time, peak memory and final t of the production jobs.
+
+Sending jobs:
+
+```bash
+# laptop: push the code, copy the job generators (data/ is not in git)
+git push
+tar czf data/bashes.tar.gz -C data bashes
+scp data/bashes.tar.gz <user>@login.leonardo.cineca.it:/leonardo/home/userexternal/wccuirom/repos/open_exact_scars/data/
+
+# Leonardo, login node
+cd $REPO && git pull
+cd data && tar xzf bashes.tar.gz
+cd $REPO/rust && cargo build --release --bin states        # once per code change; jobs call target/release/states
+cd $REPO/data/bashes
+bash make_bench_jobs.sh && bash submit_bench.sh            # first: benchmark
+squeue -u $USER                                            # job state
+python3 summarize_bench.py ../bench                        # after the bench jobs end
+bash make_states_neel-x_jobs.sh && bash submit_states_neel-x.sh
+python3 summarize_bench.py ../bench --logs .               # progress / cost of the production jobs
+
+# Leonardo -> laptop: results
+cd $REPO/data && tar czf states_neel-x.tar.gz states/states_neel-x_* states/states_realization_*
+scp <user>@login.leonardo.cineca.it:$REPO/data/states_neel-x.tar.gz data/   # then unpack into data/
+```
+
+- Run the generators on Leonardo (they write paths under `$REPO`); `bash -n` a generated script if unsure.
+- The CSV is written while a job runs, so a job cut at 24 h keeps its early part; there is no restart.
+- Cost: matrix-free 𝓛v at L = 11 takes 0.56 s on the laptop (16 threads); per added site ≈ 4.5–5× time and 4× memory.
+  L = 14 at small γ is not expected to reach the stop criterion within 24 h; check with the benchmark first.
 
 ## Conventions in the code (do not change silently)
 
@@ -225,12 +280,57 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
 - `Params.c[α][β]` multiplies σ^β_{j−1} R_{j,j+1} σ^α_{j+2} (same index order as c_{αβ} above). `Params::baseline` and `Params::random_c` take h, a, b, c, the random-c range and the boundary condition from `src/parameters.rs`; changing them there changes every binary.
 - Random c (`Params::random_c`, field `c_bond`): on every bond j, each nonzero baseline c[α][β] is multiplied by an independent factor uniform in [0.5, 1.5]; a and b stay uniform. One realization per L, generator `Rng::new(1000 · seed + L)`: first the c factors, then the cone azimuths φ_j. `disorder`, `probes`, `ed` and `states` all use this same realization.
 - Cone states: spin j along n_j = (−cos θ, sin θ cos φ_j, sin θ sin φ_j); θ = 0 is the scar state |−⟩^⊗L.
-- Without translation (random c or open chain) the exact method uses the full Pauli basis (`Sector::full`, every string its own orbit, coordinate r_P, dimension 4^L); index of a string = x | z << L.
+- Without translation (random c or open chain) the exact method uses the full Pauli basis (`Sector::full`, every string its own orbit, coordinate r_P, dimension 4^L); index of a string = x | z << L. Full basis: L ≤ 14, with a matrix-free application of H for L ≥ 11 (`MATRIX_FREE_MIN_L`; faster than the sparse matrix from L = 11 on the laptop, and the only option at L = 13, 14, where the sparse matrix would need 170–750 GB) (translation orbits remain limited to L ≤ 12).
 - Operators in `probes` are evolved forward with 𝓛 in the same coordinates (x_P = Tr(X P)/2^L); autocorrelations use Tr[A e^{𝓛†t}(B)] = Tr[e^{𝓛t}(A) B] for Hermitian A. P3 evolves O^x_π and O^y_π separately and combines them into C⁺ for O⁺ = Σ_j (−1)^j σ⁺_j, so |C⁺| has no precession.
 - ED (`ed`): γ > 0 diagonalizes the dense real 4^L generator with `LAPACKE_dgeev` (right and left vectors). γ = 0 is degenerate (every |E⟩⟨E| has λ = 0), so it diagonalizes H with `zheevd` and uses the modes |m⟩⟨n|, λ = −i(E_m − E_n). Weights of a right eigenvector R: tower = ‖PRP‖/‖R‖, mixed = √(‖PRQ‖² + ‖QRP‖²)/‖R‖, bulk = ‖QRQ‖/‖R‖ (squares sum to 1); energy_overlap = |Tr(H U)|/(‖H‖‖U‖) for the left eigenvector U. Dense ED is limited to L ≤ 6 here (L = 7 needs ≈ 7 GB, L = 8 ≈ 100 GB).
-- Exact method: ρ = 2^(−L) Σ_P r_P P with r_P = Tr[ρ P] real. The generator is a real matrix: the Hamiltonian part is antisymmetric, dephasing is diagonal, −2γ per site carrying σˣ or σʸ. Only translation orbits of Pauli strings are kept (one orthonormal vector per orbit O of size p_O, coordinate √p_O · r_O); dimension ≈ 4^L / L. Time stepping is a Taylor series of exp(𝓛 dt) summed to round-off, in substeps with row-sum norm ‖𝓛 dt_sub‖_∞ ≤ 4 (`SUBSTEP_NORM`). The matrix-vector product is limited by memory bandwidth (no speedup beyond ≈ 4 threads on the laptop). The code is limited to L ≤ 12 by the orbit table.
+- Exact method: ρ = 2^(−L) Σ_P r_P P with r_P = Tr[ρ P] real. The generator is a real matrix: the Hamiltonian part is antisymmetric, dephasing is diagonal, −2γ per site carrying σˣ or σʸ. Only translation orbits of Pauli strings are kept (one orthonormal vector per orbit O of size p_O, coordinate √p_O · r_O); dimension ≈ 4^L / L. Time stepping is a Taylor series of exp(𝓛 dt) summed to round-off, in substeps with row-sum norm ‖𝓛 dt_sub‖_∞ ≤ 4 (`SUBSTEP_NORM`). The matrix-vector product is limited by memory bandwidth (no speedup beyond ≈ 4 threads on the laptop). The orbit code is limited to L ≤ 12 by the orbit table (full basis: L ≤ 14, see above).
 - Trajectories: σᶻ_j is Hermitian, so the dephasing is unravelled as a real-noise diffusion that keeps the state normalized (a fluctuating z field on every spin). One step is e^{−iH dt/2} · Π_j e^{−i√γ ΔW_j σᶻ_j} · e^{−iH dt/2}, ΔW_j ~ N(0, dt); the error of the average is O(dt²). This is not the jump unravelling described under "Numerical methods".
 - TDVP: site type `PauliVec` with states (1, σˣ, σʸ, σᶻ). Left multiplication by σ^a is A^a + iB^a on the coefficients, so −i[P, ·] = 2 Im ⊗_j (A^{a_j} + iB^{a_j}), a real MPO; the periodic boundary enters as long-range terms. Observables are divided by the trace coefficient.
+
+## Results with the new coefficients (states binary, random c, L = 4 … 12)
+
+Current coefficients (h = 1, a = b = (1, 1, 1), c = 𝟙 with random factors), data in `data/states/`, γ grid
+0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10. Scar for L = 4 … 12, z-Néel for even L. Rates from
+`fit_states.py` (Γ_e = 1/t_e at envelope E = 1/e; tail slope between 1e-2 and 1e-3) and `fit_states_inverse_L.py`
+(Γ_∞ from A + B/L on L ≥ 8; error = max(fit error, |linear − quadratic on L ≥ 6|)).
+
+- **All runs completed** (stop criterion reached). γ = 0 scar: perfect oscillations.
+- **Scar m_⊥, Γ_e/γ:**
+
+  | γ | L = 4 | 6 | 8 | 10 | 12 |
+  |---|---|---|---|---|---|
+  | 0.01 | 3.40 | 5.24 | 6.73 | 7.84 | 8.49 |
+  | 0.05 | 3.37 | 5.45 | 5.76 | 6.03 | 6.24 |
+  | 0.1 | 3.52 | 4.31 | 4.36 | 4.45 | 4.48 |
+
+  γ = 0.2: 2.94 … 3.30; γ = 1: 2.21 – 2.24; γ = 10: 2.01. For γ ≥ 0.1 the curves are L-independent from L ≈ 8.
+  Tail slope at small γ ≈ 2 – 3.5γ (tower-edge modes). Large γ: after the 2γ drop a shoulder at the 1e-2 level
+  decaying at ≈ 0.6 (in 1/t), the same at γ = 5 and 10. The tail fit at γ = 2 (Γ_tail ≈ 6.6) is an artifact (fit
+  window on the initial drop).
+- **Scar Γ_∞:**
+
+  | γ | 0.01 | 0.02 | 0.05 | 0.1 | 0.2 | 0.5 | 1 | 2 | 5 | 10 |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | Γ_∞ | 0.12 ± 0.02 | 0.22 ± 0.06 | 0.36 ± 0.02 | 0.47 ± 0.02 | 0.67 ± 0.02 | 1.28 | 2.26 | 4.21 | 10.1 | 20.1 |
+  | Γ_∞/γ | 12 | 11 | 7.2 | 4.7 | 3.3 | 2.55 | 2.26 | 2.1 | 2.02 | 2.01 |
+
+  Local exponent d ln Γ_∞/d ln γ ≈ 0.4 – 0.5 for 0.05 ≤ γ ≤ 0.2 (lifetime ~ γ^(−1/2), over only a factor 4 in γ),
+  → 1 at large γ (Γ_∞ → 2γ). At γ ≤ 0.02 the extrapolation is unreliable: slope B ≈ −43γ, and linear and quadratic
+  intercepts differ by 2 – 3γ.
+- **z-Néel |↑↓↑↓…⟩, |s_z|.** γ = 0: thermal decay Γ_e ≈ 5 (L ≥ 10); L = 4 has strong revivals. Γ_∞ ≈ 5.0, flat for
+  γ ≤ 0.05 (= closed-system thermalization); 4.89 (γ = 0.1), 4.72 (0.2), 4.28 (0.5), 3.77 (1), 2.91 (2), 1.71 (5),
+  0.98 (10): Zeno slowdown ∝ 1/γ at large γ. Scar and z-Néel Γ_∞ cross at γ ≈ 1.5; at γ = 0.01 the scar decays
+  ≈ 40× slower.
+- **⟨n⟩ for z-Néel** (number of down spins, ⟨n⟩/L = (1 − m_z)/2). γ = 0: rises from 1/2 to ≈ 0.55 (m_z ≈ −0.1,
+  converged for L = 8 … 12; the thermal value is fixed by the energy since H contains h Sᶻ). With γ: overshoot, then
+  relaxation back to 1/2 at ≈ 1.5 – 2.3γ, L-independent for L ≥ 8. The runs stop on |s_z|, so ⟨n⟩ is not fully
+  relaxed at small γ.
+- **Caveat: z-Néel is a biased reference.** It is a fixed point of the dissipator (diagonal in the z basis,
+  D(ρ₀) = 0), and s_z is invisible to it (D†(σᶻ_j) = 0); the bath acts only after H_I rotates weight into σˣ/σʸ.
+  With H_I = 0, s_z does not decay at all, and at large γ it is Zeno-protected. So it is not like-for-like with the
+  scar's m_⊥ (e^(−2γt) at H_I = 0). The thermal reference is now the x-Néel |+−+−…⟩ with s_⊥ = √(s_x² + s_y²):
+  same e^(−2γt) baseline at H_I = 0, zero tower overlap of the k = π observable (P_tower O_π P_tower = 0). It is not
+  a dark state of 𝓛 (only |↑…↑⟩ and |↓…↓⟩ are). x-Néel runs (L = 4 … 14) are next; see `time-evolution-plan.md`.
 
 ## Results so far (γ = 0.01, t ≤ 100, dt = 0.1)
 

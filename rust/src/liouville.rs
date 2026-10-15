@@ -13,6 +13,11 @@
 //! orbit O of size p_O, with coordinate v_O = √p_O · r_O. The dimension is ≈ 4^L / L (8230 for L = 8).
 //! Without translation (site-dependent coefficients, open chain) every string is its own orbit
 //! ([`Sector::full`]): p_O = 1, v_P = r_P, dimension 4^L.
+//!
+//! The Hamiltonian part is stored as a sparse matrix, except in the full basis for L ≥ MATRIX_FREE_MIN_L.
+//! There the row of string b is generated on the fly from the Hamiltonian terms P_a that anticommute
+//! with P_b (column P_a P_b). The sparse matrix has ≈ 16 L · 4^L nonzeros of 12 bytes (40 GB at L = 12,
+//! 750 GB at L = 14).
 
 use rayon::prelude::*;
 
@@ -31,7 +36,7 @@ pub struct Sector {
 
 impl Sector {
     pub fn new(l: usize) -> Self {
-        assert!((1..=12).contains(&l), "the orbit table has 4^L entries");
+        assert!((1..=12).contains(&l), "the orbit table has 4^L entries (translation orbits: L ≤ 12)");
         let mask = (1usize << l) - 1;
         let mut lookup = vec![u32::MAX; 1usize << (2 * l)];
         let (mut reps, mut period) = (Vec::new(), Vec::new());
@@ -57,7 +62,7 @@ impl Sector {
 
     /// No symmetry: every Pauli string is its own orbit.
     pub fn full(l: usize) -> Self {
-        assert!((1..=12).contains(&l), "the orbit table has 4^L entries");
+        assert!((1..=MAX_L_FULL).contains(&l), "the full basis has 4^L entries (L ≤ {MAX_L_FULL})");
         let mask = (1usize << l) - 1;
         let n = 1usize << (2 * l);
         let reps = (0..n).map(|code| Pauli { x: (code & mask) as u32, z: (code >> l) as u32 }).collect();
@@ -74,23 +79,49 @@ impl Sector {
     }
 }
 
+/// Largest L of the full basis (4^L coordinates; 2 GB per vector at L = 14).
+pub const MAX_L_FULL: usize = 14;
+/// From this L on, the full basis applies the Hamiltonian part matrix-free. Laptop (16 threads), one 𝓛v:
+/// L = 10 sparse 67 ms, matrix-free 107 ms; L = 11 sparse 1.7 s, matrix-free 0.56 s (and the sparse
+/// matrix takes 27 s to build, against 0.4 s).
+pub const MATRIX_FREE_MIN_L: usize = 11;
+
 pub struct Liouvillian {
     pub sector: Sector,
-    // Hamiltonian part −i[H, ·] in CSR form (real antisymmetric in the orthonormal orbit basis)
-    row_ptr: Vec<usize>,
-    col: Vec<u32>,
-    val: Vec<f64>,
+    hamiltonian: HamiltonianPart,
     /// Number of X/Y sites of each orbit; the dephasing part is −2γ times this, on the diagonal.
     pub n_xy: Vec<f64>,
 }
 
+/// The Hamiltonian part −i[H, ·] (real antisymmetric in the orthonormal orbit basis).
+enum HamiltonianPart {
+    Csr { row_ptr: Vec<usize>, col: Vec<u32>, val: Vec<f64> },
+    /// Full basis only (index of a string = x | z << L): the terms (x, z, number of Y, coefficient) of H.
+    MatrixFree { terms: Vec<(u32, u32, u32, f64)> },
+}
+
 impl Liouvillian {
     /// Translation orbits if `params` is translation invariant, the full Pauli basis otherwise.
+    /// Matrix-free from MATRIX_FREE_MIN_L on in the full basis.
     pub fn new(params: &Params) -> Self {
-        let sector = if params.translation_invariant() { Sector::new(params.l) } else { Sector::full(params.l) };
-        Self::with_sector(params, sector)
+        if params.translation_invariant() {
+            Self::with_sector(params, Sector::new(params.l))
+        } else if params.l >= MATRIX_FREE_MIN_L {
+            Self::matrix_free(params)
+        } else {
+            Self::with_sector(params, Sector::full(params.l))
+        }
     }
 
+    /// Full basis, Hamiltonian part applied matrix-free.
+    pub fn matrix_free(params: &Params) -> Self {
+        let sector = Sector::full(params.l);
+        let terms = hamiltonian_terms(params).into_iter().map(|(p, h)| (p.x, p.z, p.n_y(), h)).collect();
+        let n_xy = sector.reps.par_iter().map(|p| p.n_xy() as f64).collect();
+        Liouvillian { sector, hamiltonian: HamiltonianPart::MatrixFree { terms }, n_xy }
+    }
+
+    /// Sparse Hamiltonian part in the given sector.
     pub fn with_sector(params: &Params, sector: Sector) -> Self {
         let terms = hamiltonian_terms(params);
         let n = sector.dim();
@@ -130,7 +161,38 @@ impl Liouvillian {
             row_ptr.push(col.len());
         }
         let n_xy = sector.reps.iter().map(|p| p.n_xy() as f64).collect();
-        Liouvillian { sector, row_ptr, col, val, n_xy }
+        Liouvillian { sector, hamiltonian: HamiltonianPart::Csr { row_ptr, col, val }, n_xy }
+    }
+
+    pub fn is_matrix_free(&self) -> bool {
+        matches!(self.hamiltonian, HamiltonianPart::MatrixFree { .. })
+    }
+
+    /// Calls f(column, value) for every nonzero of row i of the Hamiltonian part.
+    #[inline]
+    fn for_each_in_row(&self, i: usize, mut f: impl FnMut(usize, f64)) {
+        match &self.hamiltonian {
+            HamiltonianPart::Csr { row_ptr, col, val } => {
+                for k in row_ptr[i]..row_ptr[i + 1] {
+                    f(col[k] as usize, val[k]);
+                }
+            }
+            HamiltonianPart::MatrixFree { terms } => {
+                let l = self.sector.l;
+                let (bx, bz) = ((i & ((1 << l) - 1)) as u32, (i >> l) as u32);
+                let b_ny = (bx & bz).count_ones();
+                for &(ax, az, a_ny, h) in terms {
+                    // anticommute iff |a.x & b.z| + |a.z & b.x| is odd
+                    if ((ax & bz) ^ (az & bx)).count_ones() & 1 == 0 {
+                        continue;
+                    }
+                    // P_a P_b = i^k P_c, k = 1 or 3, and i[P_a, P_b] = ∓2 P_c (as in Pauli::mul)
+                    let (cx, cz) = (ax ^ bx, az ^ bz);
+                    let k = (a_ny + b_ny + 3 * (cx & cz).count_ones() + 2 * (az & bx).count_ones()) % 4;
+                    f(cx as usize | (cz as usize) << l, if k == 1 { -2.0 * h } else { 2.0 * h });
+                }
+            }
+        }
     }
 
     pub fn dim(&self) -> usize {
@@ -141,8 +203,8 @@ impl Liouvillian {
     pub fn apply(&self, gamma: f64, v: &[f64], out: &mut [f64]) {
         // rows in parallel; small sectors stay on one thread
         out.par_iter_mut().enumerate().with_min_len(1024).for_each(|(i, o)| {
-            let range = self.row_ptr[i]..self.row_ptr[i + 1];
-            let acc: f64 = self.col[range.clone()].iter().zip(&self.val[range]).map(|(&c, &x)| x * v[c as usize]).sum();
+            let mut acc = 0.0;
+            self.for_each_in_row(i, |c, x| acc += x * v[c]);
             *o = acc - 2.0 * gamma * self.n_xy[i] * v[i];
         });
     }
@@ -152,9 +214,7 @@ impl Liouvillian {
         let n = self.dim();
         let mut m = vec![0.0; n * n];
         for i in 0..n {
-            for k in self.row_ptr[i]..self.row_ptr[i + 1] {
-                m[self.col[k] as usize * n + i] += self.val[k];
-            }
+            self.for_each_in_row(i, |c, x| m[c * n + i] += x);
             m[i * n + i] -= 2.0 * gamma * self.n_xy[i];
         }
         m
@@ -163,11 +223,14 @@ impl Liouvillian {
     /// Largest absolute row sum (equal to the largest column sum, by antisymmetry).
     pub fn norm_bound(&self, gamma: f64) -> f64 {
         (0..self.dim())
+            .into_par_iter()
+            .with_min_len(1024)
             .map(|i| {
-                let h: f64 = self.val[self.row_ptr[i]..self.row_ptr[i + 1]].iter().map(|x| x.abs()).sum();
+                let mut h = 0.0;
+                self.for_each_in_row(i, |_, x| h += x.abs());
                 h + 2.0 * gamma * self.n_xy[i]
             })
-            .fold(0.0, f64::max)
+            .reduce(|| 0.0, f64::max)
     }
 
     /// ρ(0) = |ψ₀⟩⟨ψ₀| with |ψ₀⟩ = |−⟩^⊗L: r_P = (−1)^{#X} for strings made of 1 and X only.

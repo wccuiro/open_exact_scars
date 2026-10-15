@@ -1,7 +1,8 @@
 """
-Decay rates against γ for the scar state |−⟩^⊗L and the z-Néel state (exact evolution, `states` binary).
+Decay rates against γ for the scar state |−⟩^⊗L and the z- and x-Néel states (exact evolution, `states` binary).
 
   signal  minus-x: m_⊥(t) = √(m_x² + m_y²)       neel: |s_z(t)|, s_z = (1/L) Σ_j (−1)^j ⟨σᶻ_j⟩
+          neel-x: s_⊥(t) = √(s_x² + s_y²)
   envelope E(t) = max_{t' ≥ t} signal(t'), non-increasing (removes the zero crossings of s_z)
 
 Two rates per (state, L, γ):
@@ -10,7 +11,7 @@ Two rates per (state, L, γ):
               slope. NaN if E never reaches TAIL_LO (e.g. Néel at γ = 0, which stops at a finite-size floor).
 
 Input:  states_<state>_L<L>_g<γ>.csv in data/states/ (or the directory given as the first argument)
-        (cd rust && cargo run --release --bin states -- --state minus-x|neel ...)
+        (cd rust && cargo run --release --bin states -- --state minus-x|neel|neel-x ...)
 Output: in the same directory
         states_rates.csv   state, L, gamma, Gamma_e, Gamma_tail, sigma_tail, t_tail_min, t_tail_max
         states_rates.png   Γ against γ (log-log), one panel per state, one line per L
@@ -23,6 +24,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.colors import LinearSegmentedColormap
 
 TAIL_HI, TAIL_LO = 1e-2, 1e-3
 
@@ -55,7 +57,8 @@ def crossing(t, e, level):
 
 def rates(state, run):
     t = run["t"].to_numpy()
-    s = np.hypot(run["mx"], run["my"]).to_numpy() if state == "minus-x" else run["sz"].abs().to_numpy()
+    s = {"minus-x": lambda: np.hypot(run["mx"], run["my"]), "neel": lambda: run["sz"].abs(),
+         "neel-x": lambda: np.hypot(run["sx"], run["sy"])}[state]().to_numpy()
     e = np.maximum.accumulate(s[::-1])[::-1]
     t_e = crossing(t, e, np.exp(-1))
     t0, t1 = crossing(t, e, TAIL_HI), crossing(t, e, TAIL_LO)
@@ -82,11 +85,12 @@ def main():
     with pd.option_context("display.width", 200):
         print(table.to_string(index=False, float_format="%.4g"))
 
-    states = [s for s in ("minus-x", "neel") if s in set(table["state"])]
+    states = [s for s in ("minus-x", "neel", "neel-x") if s in set(table["state"])]
     sizes = sorted(table["L"].unique())
-    colors = dict(zip(sizes, RAMP[-len(sizes):]))
+    blues = LinearSegmentedColormap.from_list("blues", RAMP[1:])
+    colors = {l: blues(i / max(len(sizes) - 1, 1)) for i, l in enumerate(sizes)}
     fig, axes = plt.subplots(1, len(states), figsize=(4.2 * len(states), 3.4), squeeze=False)
-    titles = {"minus-x": "Scar |−⟩^⊗L: m_⊥", "neel": "z-Néel: |s_z|"}
+    titles = {"minus-x": "Scar |−⟩^⊗L: m_⊥", "neel": "z-Néel: |s_z|", "neel-x": "x-Néel: s_⊥"}
     for ax, state in zip(axes[0], states):
         d = table[(table["state"] == state) & (table["gamma"] > 0)]
         g = np.array(sorted(d["gamma"].unique()))

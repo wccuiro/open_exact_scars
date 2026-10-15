@@ -2,10 +2,11 @@
 //!
 //!     minus-x   ρ₀ = |−⟩⟨−|^⊗L        (in the tower: the scar)
 //!     neel      ρ₀ = |Néel⟩⟨Néel|,  |Néel⟩ = |↑↓↑↓…⟩, spin j up for even j (even L; not a scar)
+//!     neel-x    ρ₀ = |+−+−…⟩⟨+−+−…|, spin j along +x for even j, −x for odd j (even L; not a scar)
 //!
 //! with dρ/dt = −i[H, ρ] + γ Σ_j (σᶻ_j ρ σᶻ_j − ρ), one run per γ, in the full Pauli basis (4^L).
 //!
-//!     cargo run --release --bin states -- --state minus-x|neel [--L 8 | --lmin 4 --lmax 8]
+//!     cargo run --release --bin states -- --state minus-x|neel|neel-x [--L 8 | --lmin 4 --lmax 8]
 //!                                         [--gammas 0,0.01,0.1] [--dt 0.1] [--t-max 1000] [--t-zero 50]
 //!                                         [--stop 1e-3] [--seed 1]
 //!
@@ -13,7 +14,11 @@
 //! 1000 · seed + L, the same realization as `disorder`, `probes` and `ed` for the same parameters).
 //!
 //! Run length: γ = 0 runs to --t-zero. γ > 0 runs until the decay signal (m_⊥ = √(m_x² + m_y²) for
-//! minus-x, |s_z| for neel) has stayed below --stop for a time STOP_WINDOW, or to --t-max.
+//! minus-x, |s_z| for neel, s_⊥ = √(s_x² + s_y²) for neel-x) has stayed below --stop for a time
+//! STOP_WINDOW, or to --t-max.
+//!
+//! z-Néel is diagonal in the σᶻ basis, so the dissipator leaves it (and s_z) alone until H_I rotates weight
+//! into σˣ, σʸ. x-Néel is transverse like the scar: with H_I = 0 its s_⊥ decays as e^(−2γt), as m_⊥ does.
 //! Output step: min(dt, DT_GAMMA / γ), so that the fast decay at large γ is resolved.
 //!
 //! Output (data/ or $SCARS_DATA_DIR), written while the run goes on:
@@ -42,6 +47,7 @@ const DT_GAMMA: f64 = 0.05;
 enum State {
     MinusX,
     Neel,
+    NeelX,
 }
 
 fn main() {
@@ -50,9 +56,14 @@ fn main() {
     let state = match args.str("state") {
         Some("minus-x") => State::MinusX,
         Some("neel") => State::Neel,
-        s => panic!("--state minus-x or --state neel, got {s:?}"),
+        Some("neel-x") => State::NeelX,
+        s => panic!("--state minus-x, neel or neel-x, got {s:?}"),
     };
-    let name = if state == State::MinusX { "minus-x" } else { "neel" };
+    let name = match state {
+        State::MinusX => "minus-x",
+        State::Neel => "neel",
+        State::NeelX => "neel-x",
+    };
     let sizes = args.sizes(4, 8);
     let gammas = args.list("gammas").unwrap_or_else(|| vec![0.0, 0.01]);
     assert!(gammas.iter().all(|&g| g >= 0.0), "γ must be ≥ 0");
@@ -65,7 +76,7 @@ fn main() {
     fs::create_dir_all(&data).expect("cannot create the data directory");
 
     for l in sizes {
-        if state == State::Neel && l % 2 == 1 {
+        if state != State::MinusX && l % 2 == 1 {
             println!("L = {l}: skipped, the Néel state needs even L");
             continue;
         }
@@ -74,12 +85,18 @@ fn main() {
         let params = Params::random_c(l, &mut rng);
         write_realization(&data, &params);
         let liou = Liouvillian::new(&params);
-        println!("L = {l}: dimension {}, Liouvillian built in {:.1?}", liou.dim(), start.elapsed());
+        println!(
+            "L = {l}: dimension {}, Liouvillian built in {:.1?}{}",
+            liou.dim(),
+            start.elapsed(),
+            if liou.is_matrix_free() { " (matrix-free)" } else { "" }
+        );
 
         let bloch: Vec<[f64; 3]> = (0..l)
             .map(|j| match state {
                 State::MinusX => [-1.0, 0.0, 0.0],
                 State::Neel => [0.0, 0.0, if j % 2 == 0 { 1.0 } else { -1.0 }],
+                State::NeelX => [if j % 2 == 0 { 1.0 } else { -1.0 }, 0.0, 0.0],
             })
             .collect();
         let rho0 = liou.product_state(&bloch);
@@ -137,7 +154,11 @@ fn run(
             }
         }
         if gamma > 0.0 {
-            let signal = if state == State::MinusX { mx.hypot(my) } else { sz.abs() };
+            let signal = match state {
+                State::MinusX => mx.hypot(my),
+                State::Neel => sz.abs(),
+                State::NeelX => sx.hypot(sy),
+            };
             if signal >= stop {
                 below_since = None;
             } else if t - *below_since.get_or_insert(t) >= STOP_WINDOW {

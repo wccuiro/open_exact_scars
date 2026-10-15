@@ -109,3 +109,34 @@ fn random_c_keeps_the_scar_oscillations() {
     }
     assert!(worst < 1e-10, "deviation {worst:e}");
 }
+
+/// The matrix-free Hamiltonian part (full basis, used from L = 13) gives the same generator, norm bound
+/// and evolution as the sparse matrix.
+#[test]
+fn matrix_free_matches_sparse() {
+    let p = Params::random_c(6, &mut Rng::new(5));
+    let sparse = Liouvillian::with_sector(&p, Sector::full(p.l));
+    let free = Liouvillian::matrix_free(&p);
+    assert!(free.is_matrix_free() && !sparse.is_matrix_free());
+    let gamma = 0.3;
+    let (a, b) = (sparse.dense(gamma), free.dense(gamma));
+    let worst = a.iter().zip(&b).map(|(x, y)| (x - y).abs()).fold(0.0, f64::max);
+    assert!(worst < 1e-14, "generator deviation {worst:e}");
+    assert!((sparse.norm_bound(gamma) - free.norm_bound(gamma)).abs() < 1e-12);
+
+    let mut rng = Rng::new(9);
+    let n: Vec<[f64; 3]> = (0..p.l).map(|_| random_direction(&mut rng)).collect();
+    let (mut v, mut w) = (sparse.product_state(&n), free.product_state(&n));
+    let (mut prop_v, mut prop_w) = (Propagator::new(&sparse, gamma, 0.1), Propagator::new(&free, gamma, 0.1));
+    let m = Magnetization::new(&sparse);
+    let mut worst = 0.0f64;
+    for _ in 0..100 {
+        prop_v.step(&mut v);
+        prop_w.step(&mut w);
+        let (x, y) = (m.per_site(&v), m.per_site(&w));
+        for a in 0..3 {
+            worst = x[a].iter().zip(&y[a]).map(|(s, t)| (s - t).abs()).fold(worst, f64::max);
+        }
+    }
+    assert!(worst < 1e-12, "deviation {worst:e}");
+}

@@ -5,6 +5,9 @@
 //! with the singlet projector R_{j,j+1} = (1 − σ_j·σ_{j+1}) / 4.
 
 use std::collections::BTreeMap;
+use std::fs::{self, File};
+use std::io::{BufWriter, Write};
+use std::path::Path;
 
 use crate::parameters;
 use crate::pauli::Pauli;
@@ -110,4 +113,25 @@ pub fn hamiltonian_terms(p: &Params) -> Vec<(Pauli, f64)> {
     }
     terms.remove(&Pauli::IDENTITY);
     terms.into_iter().filter(|&(_, coef)| coef != 0.0).collect()
+}
+
+/// Writes `states_realization_L<L>.csv` in `data`: the c coefficients of bond (j, j+1), one row per bond
+/// (only the entries nonzero in parameters.rs).
+pub fn write_realization(data: &Path, params: &Params) {
+    let c_bond = params.c_bond.as_ref().unwrap();
+    let axes = ["x", "y", "z"];
+    let entries: Vec<(usize, usize)> =
+        (0..3).flat_map(|a| (0..3).map(move |b| (a, b))).filter(|&(a, b)| params.c[a][b] != 0.0).collect();
+    // several jobs can write the same file at once: write a private copy and rename it (atomic)
+    let file = data.join(format!("states_realization_L{}.csv", params.l));
+    let tmp = data.join(format!("states_realization_L{}.csv.{}", params.l, std::process::id()));
+    let mut csv = BufWriter::new(File::create(&tmp).unwrap());
+    let names: Vec<String> = entries.iter().map(|&(a, b)| format!("c_{}{}", axes[a], axes[b])).collect();
+    writeln!(csv, "j,{}", names.join(",")).unwrap();
+    for (j, c) in c_bond.iter().enumerate() {
+        let c: Vec<String> = entries.iter().map(|&(a, b)| format!("{:.12}", c[a][b])).collect();
+        writeln!(csv, "{j},{}", c.join(",")).unwrap();
+    }
+    csv.into_inner().unwrap().sync_all().unwrap();
+    fs::rename(&tmp, &file).unwrap();
 }

@@ -13,20 +13,29 @@
 //!
 //! States are vectors of 2^L amplitudes over bit strings, bit j = 0 for |↑⟩ and 1 for |↓⟩.
 
+use rayon::prelude::*;
+
 use crate::model::{hamiltonian_terms, Params};
+
+/// H psi is split over threads from this many amplitudes per chunk (only for large states).
+const APPLY_CHUNK: usize = 1 << 14;
+/// Taylor substeps of e^{−iH τ} have 1.5 · (estimated ‖H‖) · τ ≤ SUBSTEP_NORM (as in `liouville.rs`).
+const SUBSTEP_NORM: f64 = 4.0;
 
 /// Complex amplitude [re, im].
 pub type Amp = [f64; 2];
 
 struct Term {
-    x: usize,
     z: usize,
     coef: Amp,
 }
 
-/// H as a sum of Pauli strings acting on state vectors.
+/// H as a sum of Pauli strings acting on state vectors, grouped by flip mask x: (H ψ)(t) =
+/// Σ_x [Σ_{terms of x} coef (−1)^{|z & s|}] ψ(s), s = t ^ x, so ψ(s) is read once per group.
 pub struct Hamiltonian {
     pub l: usize,
+    /// (x, range of `terms` with that x)
+    groups: Vec<(usize, std::ops::Range<usize>)>,
     terms: Vec<Term>,
     /// Estimate of the spectral radius of H, used to size the Taylor steps.
     norm: f64,
@@ -35,14 +44,23 @@ pub struct Hamiltonian {
 impl Hamiltonian {
     pub fn new(params: &Params) -> Self {
         // P|s⟩ = i^{n_y} (−1)^{|z & s|} |s ^ x⟩: fold i^{n_y} into the coefficient
-        let terms = hamiltonian_terms(params)
+        let mut by_x: Vec<(usize, Term)> = hamiltonian_terms(params)
             .into_iter()
             .map(|(p, h)| {
                 let coef = [[h, 0.0], [0.0, h], [-h, 0.0], [0.0, -h]][(p.n_y() % 4) as usize];
-                Term { x: p.x as usize, z: p.z as usize, coef }
+                (p.x as usize, Term { z: p.z as usize, coef })
             })
             .collect();
-        let mut ham = Hamiltonian { l: params.l, terms, norm: 0.0 };
+        by_x.sort_by_key(|&(x, _)| x);
+        let mut groups: Vec<(usize, std::ops::Range<usize>)> = Vec::new();
+        for (k, &(x, _)) in by_x.iter().enumerate() {
+            match groups.last_mut() {
+                Some((gx, range)) if *gx == x => range.end = k + 1,
+                _ => groups.push((x, k..k + 1)),
+            }
+        }
+        let terms = by_x.into_iter().map(|(_, term)| term).collect();
+        let mut ham = Hamiltonian { l: params.l, groups, terms, norm: 0.0 };
 
         // power iteration from a fixed pseudo-random vector
         let dim = 1usize << params.l;
@@ -59,18 +77,36 @@ impl Hamiltonian {
         ham
     }
 
-    /// out = H psi.
+    /// out = H psi. Large states are split over threads (nested inside the parallel trajectories,
+    /// rayon balances the two levels).
     pub fn apply(&self, psi: &[Amp], out: &mut [Amp]) {
-        for (t, o) in out.iter_mut().enumerate() {
+        if out.len() >= 2 * APPLY_CHUNK {
+            out.par_chunks_mut(APPLY_CHUNK)
+                .enumerate()
+                .for_each(|(c, chunk)| self.apply_rows(psi, chunk, c * APPLY_CHUNK));
+        } else {
+            self.apply_rows(psi, out, 0);
+        }
+    }
+
+    /// out[i] = (H psi)[offset + i].
+    fn apply_rows(&self, psi: &[Amp], out: &mut [Amp], offset: usize) {
+        for (i, o) in out.iter_mut().enumerate() {
+            let t = offset + i;
             let (mut re, mut im) = (0.0, 0.0);
-            for term in &self.terms {
-                let s = t ^ term.x;
+            for (x, range) in &self.groups {
+                let s = t ^ x;
+                let (mut cr, mut ci) = (0.0, 0.0);
+                for term in &self.terms[range.clone()] {
+                    if (term.z & s).count_ones() & 1 == 0 {
+                        cr += term.coef[0];
+                        ci += term.coef[1];
+                    } else {
+                        cr -= term.coef[0];
+                        ci -= term.coef[1];
+                    }
+                }
                 let [pr, pi] = psi[s];
-                let (cr, ci) = if (term.z & s).count_ones() & 1 == 0 {
-                    (term.coef[0], term.coef[1])
-                } else {
-                    (-term.coef[0], -term.coef[1])
-                };
                 re += cr * pr - ci * pi;
                 im += cr * pi + ci * pr;
             }
@@ -101,9 +137,31 @@ impl<'a> Trajectory<'a> {
         Trajectory { ham, psi, term: vec![[0.0; 2]; dim], tmp: vec![[0.0; 2]; dim], rng: Rng::new(seed) }
     }
 
-    /// psi ← e^{−iH tau} psi, Taylor series summed to round-off in substeps of norm ≤ 1.
+    /// Starts in the product state with spin j along the unit vector bloch[j]:
+    /// cos(θ/2)|↑⟩ + e^{iφ} sin(θ/2)|↓⟩.
+    pub fn product(ham: &'a Hamiltonian, bloch: &[[f64; 3]], seed: u64) -> Self {
+        assert_eq!(bloch.len(), ham.l);
+        let spins: Vec<[Amp; 2]> = bloch
+            .iter()
+            .map(|&[x, y, z]| {
+                let (up, down) = (((1.0 + z) / 2.0).sqrt(), ((1.0 - z) / 2.0).sqrt());
+                let phi = y.atan2(x);
+                [[up, 0.0], [down * phi.cos(), down * phi.sin()]]
+            })
+            .collect();
+        let mut traj = Self::new(ham, seed);
+        for (s, a) in traj.psi.iter_mut().enumerate() {
+            *a = spins.iter().enumerate().fold([1.0, 0.0], |p, (j, spin)| {
+                let q = spin[(s >> j) & 1];
+                [p[0] * q[0] - p[1] * q[1], p[0] * q[1] + p[1] * q[0]]
+            });
+        }
+        traj
+    }
+
+    /// psi ← e^{−iH tau} psi, Taylor series summed to round-off in substeps of norm ≤ SUBSTEP_NORM.
     fn unitary(&mut self, tau: f64) {
-        let n_sub = (1.5 * self.ham.norm * tau).ceil().max(1.0) as usize;
+        let n_sub = (1.5 * self.ham.norm * tau / SUBSTEP_NORM).ceil().max(1.0) as usize;
         let tau = tau / n_sub as f64;
         for _ in 0..n_sub {
             self.term.copy_from_slice(&self.psi);
@@ -152,20 +210,26 @@ impl<'a> Trajectory<'a> {
 
     /// [m_x, m_y, m_z], m_α = (1/L) Σ_j ⟨ψ|σ^α_j|ψ⟩.
     pub fn magnetization(&self) -> [f64; 3] {
+        let l = self.ham.l as f64;
+        self.per_site().map(|m| m.iter().sum::<f64>() / l)
+    }
+
+    /// ⟨ψ|σ^α_j|ψ⟩ for α = x, y, z and every site j.
+    pub fn per_site(&self) -> [Vec<f64>; 3] {
         let l = self.ham.l;
-        let mut m = [0.0; 3];
+        let mut m = [vec![0.0; l], vec![0.0; l], vec![0.0; l]];
         for j in 0..l {
             let bit = 1usize << j;
             for s in (0..self.psi.len()).filter(|s| s & bit == 0) {
                 let (up, down) = (self.psi[s], self.psi[s | bit]);
                 // conj(down) · up
                 let (re, im) = (down[0] * up[0] + down[1] * up[1], down[0] * up[1] - down[1] * up[0]);
-                m[0] += 2.0 * re;
-                m[1] -= 2.0 * im;
-                m[2] += up[0] * up[0] + up[1] * up[1] - down[0] * down[0] - down[1] * down[1];
+                m[0][j] += 2.0 * re;
+                m[1][j] -= 2.0 * im;
+                m[2][j] += up[0] * up[0] + up[1] * up[1] - down[0] * down[0] - down[1] * down[1];
             }
         }
-        m.map(|x| x / l as f64)
+        m
     }
 }
 

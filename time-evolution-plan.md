@@ -48,5 +48,7 @@ m_α = (1/L) Σ_j ⟨σ^α_j⟩, s_α = (1/L) Σ_j (−1)^j ⟨σ^α_j⟩.
 1. x-Néel runs, L = 4 … 14 (even), full γ grid, on Leonardo; record time and memory per run (L = 14 is new:
    matrix-free H application, dimension 4^14).
 2. Scar at L = 14 if the benchmark allows.
+2b. Trajectories (`states_traj`, `make_jobs.sh`), scar and x-Néel, all γ: L = 12, 14 (check against exact),
+   16, 18, 20; L = 22 after the L = 20 timings. Γ_e(L) from these extends the 1/L extrapolation.
 3. Γ_∞(γ) scar vs x-Néel on the same figure (`states_thermodynamic_rate.png`); compare the small-γ behaviour
    (scar: Γ_∞ ∝ γ^(≈1/2) for 0.05 ≤ γ ≤ 0.2) with the thermal reference.

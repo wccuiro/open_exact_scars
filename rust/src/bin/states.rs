@@ -35,7 +35,7 @@ use rayon::prelude::*;
 
 use open_exact_scars::cli::Options;
 use open_exact_scars::liouville::{Liouvillian, Magnetization, Propagator};
-use open_exact_scars::model::Params;
+use open_exact_scars::model::{write_realization, Params};
 use open_exact_scars::trajectory::Rng;
 
 /// γ > 0: stop once the signal has stayed below --stop for this long (longer than the period 2π/h).
@@ -174,24 +174,4 @@ fn run(
         println!("L = {l}, gamma = 0: largest per-site deviation from (-cos ht, -sin ht, 0) is {check:.1e}");
     }
     t
-}
-
-/// The c coefficients of bond (j, j+1), one row per bond (only the entries nonzero in parameters.rs).
-fn write_realization(data: &Path, params: &Params) {
-    let c_bond = params.c_bond.as_ref().unwrap();
-    let axes = ["x", "y", "z"];
-    let entries: Vec<(usize, usize)> =
-        (0..3).flat_map(|a| (0..3).map(move |b| (a, b))).filter(|&(a, b)| params.c[a][b] != 0.0).collect();
-    // several jobs can write the same file at once: write a private copy and rename it (atomic)
-    let file = data.join(format!("states_realization_L{}.csv", params.l));
-    let tmp = data.join(format!("states_realization_L{}.csv.{}", params.l, std::process::id()));
-    let mut csv = BufWriter::new(File::create(&tmp).unwrap());
-    let names: Vec<String> = entries.iter().map(|&(a, b)| format!("c_{}{}", axes[a], axes[b])).collect();
-    writeln!(csv, "j,{}", names.join(",")).unwrap();
-    for (j, c) in c_bond.iter().enumerate() {
-        let c: Vec<String> = entries.iter().map(|&(a, b)| format!("{:.12}", c[a][b])).collect();
-        writeln!(csv, "{j},{}", c.join(",")).unwrap();
-    }
-    csv.into_inner().unwrap().sync_all().unwrap();
-    fs::rename(&tmp, &file).unwrap();
 }

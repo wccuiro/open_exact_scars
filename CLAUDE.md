@@ -182,6 +182,7 @@ rust/src/bin/trajectories.rs
 rust/src/bin/disorder.rs random c, initial states on a cone around −x with random azimuths
 rust/src/bin/probes.rs   plan probes P1 (scar), P2 (energy H̃), P3 (thermal, k = π), free-spin check
 rust/src/bin/states.rs   scar |−⟩^⊗L, z-Néel or x-Néel ρ₀, random c, a list of γ; stops once the signal has decayed
+rust/src/bin/states_traj.rs  the same runs with state-vector trajectories (all trajectories advance together), for L > 14
 rust/src/bin/ed.rs       full ED of 𝓛 (dense, LAPACK from Intel MKL); linked by rust/build.rs
 rust/tests/checks.rs     exact references 1 and 2, random product states, full basis vs orbits, random c at γ = 0
 julia/lindblad_tdvp.jl   ITensor: ρ as an MPS, two-site TDVP
@@ -198,6 +199,7 @@ cargo run --release --bin trajectories -- [--lmin 4] [--lmax 8] [--gamma 0.01] [
 cargo run --release --bin disorder -- [--lmin 4] [--lmax 8] [--gamma 0.01] [--thetas 0,0.125,0.25,0.375,0.5] [--seed 1]   # thetas in units of π
 cargo run --release --bin probes -- [--lmin 4] [--lmax 8] [--gamma 0.01 | --gammas 0.002,0.01] [--dt 0.1] [--t-max T] [--tag name] [--seed 1]
 cargo run --release --bin states -- --state minus-x|neel|neel-x [--lmin 4] [--lmax 8] [--gammas 0,0.01,0.1] [--dt 0.1] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1]
+cargo run --release --bin states_traj -- --state minus-x|neel|neel-x [--L 16] [--gammas 0,0.01,0.1] [--trajectories 112] [--dt 0.1] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1]
 cargo run --release --bin ed -- [--lmin 4] [--lmax 6] [--gamma 0.01] [--seed 1]    # needs MKL: $MKL_LIB_DIR or ~/anaconda3/lib
 cargo test --release
 cd ../julia && julia --project=. lindblad_tdvp.jl L maxdims [gamma] [tmax] [dt] [cutoff]     # e.g. 8 16,32,64
@@ -216,6 +218,9 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
 - `states_<state>_L<L>_g<γ>.csv` (state minus-x, neel or neel-x): L, gamma, t, mx, my, mz, sx, sy, sz, with s_α = (1/L) Σ_j (−1)^j ⟨σ^α_j⟩;
   `states_realization_L<L>.csv`: j and the c of bond (j, j+1). States: minus-x = |−⟩^⊗L (stop signal m_⊥),
   neel = z-Néel |↑↓↑↓…⟩ (even L, stop signal |s_z|), neel-x = x-Néel |+−+−…⟩ (even L, stop signal s_⊥ = √(s_x² + s_y²)).
+  `states_traj_<state>_L<L>_g<γ>.csv` (from `states_traj`): L, gamma, trajectories, t, mx, my, mz, sx, sy, sz, then
+  the standard errors mx_err … sz_err; same random-c realization as `states`. γ = 0 is one trajectory (deterministic).
+  Stop: signal below max(--stop, 3 × its standard error) for 10 time units.
   The cluster output is in `data/states/` (unpacked from `data/states.tar.gz`). Scripts reading `data/states/` (default dir):
   - `fit_states.py [dir]` (any number of sizes): `states_rates.csv` (state, L, gamma, Gamma_e, Gamma_tail, sigma_tail,
     t_tail_min, t_tail_max) and `states_rates.png` (Γ against γ).
@@ -237,7 +242,12 @@ Job generators in `data/bashes/` (each writes one Slurm script per job and a `su
 - `make_states_neel-x_jobs.sh`: x-Néel, even L = 4 … 14, one job per γ at L = 12 (16G) and L = 14 (64G).
 - `make_bench_jobs.sh`: short runs (γ = 0.1) at L = 10, 12, 13, 14 with 8 … 112 threads, numactl on/off;
   one CSV line per run in `$REPO/data/bench/bench_results_<job>.csv`, binary output in `data/bench/out` and `logs`.
-- `jobs_common.sh` (sourced by the two new generators): every job prints the machine (`lscpu`, `numactl --hardware`,
+- `make_jobs.sh`: all pending production runs, all γ. `submit_jobs.sh`: exact (`states`) x-Néel, even L = 4 … 14,
+  and scar L = 14 (jobs `exact_*`); trajectories (`states_traj`) for scar and x-Néel, L = 12, 14 (overlap with
+  exact), 16, 18, 20 (jobs `traj_*`). `submit_jobs_L22.sh`: trajectories at L = 22 (small γ cut at 24 h). Every
+  (state, L, γ) is skipped if its output CSV already exists (finished, cut or still running), so resubmitting never
+  redoes data; delete a file to redo it. Supersedes `make_states_neel-x_jobs.sh` (same exact jobs, without the check).
+- `jobs_common.sh` (sourced by the generators): every job prints the machine (`lscpu`, `numactl --hardware`,
   `free -g`), runs each command under `/usr/bin/time -v` (peak memory, wall and CPU time in the `.err`), and ends
   with `sacct`/`seff`. Final `sacct` numbers only exist after the job ends: rerun
   `sacct -j <id> --format=JobID,Elapsed,TotalCPU,MaxRSS,State -P` from the login node.
@@ -255,21 +265,25 @@ scp data/bashes.tar.gz <user>@login.leonardo.cineca.it:/leonardo/home/userextern
 # Leonardo, login node
 cd $REPO && git pull
 cd data && tar xzf bashes.tar.gz
-cd $REPO/rust && cargo build --release --bin states        # once per code change; jobs call target/release/states
+cd $REPO/rust && cargo build --release --bin states --bin states_traj   # once per code change
 cd $REPO/data/bashes
 bash make_bench_jobs.sh && bash submit_bench.sh            # first: benchmark
 squeue -u $USER                                            # job state
 python3 summarize_bench.py ../bench                        # after the bench jobs end
 bash make_states_neel-x_jobs.sh && bash submit_states_neel-x.sh
 python3 summarize_bench.py ../bench --logs .               # progress / cost of the production jobs
+bash make_jobs.sh && bash submit_jobs.sh                   # exact + trajectories (submit_jobs_L22.sh later)
 
 # Leonardo -> laptop: results
 cd $REPO/data && tar czf states_neel-x.tar.gz states/states_neel-x_* states/states_realization_*
 scp <user>@login.leonardo.cineca.it:$REPO/data/states_neel-x.tar.gz data/   # then unpack into data/
+cd $REPO/data && tar czf states_traj.tar.gz states/states_traj_* states/states_realization_*   # trajectories, same way
 ```
 
 - Run the generators on Leonardo (they write paths under `$REPO`); `bash -n` a generated script if unsure.
 - The CSV is written while a job runs, so a job cut at 24 h keeps its early part; there is no restart.
+- Trajectory cost (`states_traj`, laptop, core-seconds per trajectory per unit of time): 7 (L = 14), 40 (16),
+  210 (18), 1010 (20); ≈ 2.3× per added site. Memory 3 · 16 B · 2^L per trajectory.
 - Cost: matrix-free 𝓛v at L = 11 takes 0.56 s on the laptop (16 threads); per added site ≈ 4.5–5× time and 4× memory.
   L = 14 at small γ is not expected to reach the stop criterion within 24 h; check with the benchmark first.
 
@@ -284,6 +298,10 @@ scp <user>@login.leonardo.cineca.it:$REPO/data/states_neel-x.tar.gz data/   # th
 - Operators in `probes` are evolved forward with 𝓛 in the same coordinates (x_P = Tr(X P)/2^L); autocorrelations use Tr[A e^{𝓛†t}(B)] = Tr[e^{𝓛t}(A) B] for Hermitian A. P3 evolves O^x_π and O^y_π separately and combines them into C⁺ for O⁺ = Σ_j (−1)^j σ⁺_j, so |C⁺| has no precession.
 - ED (`ed`): γ > 0 diagonalizes the dense real 4^L generator with `LAPACKE_dgeev` (right and left vectors). γ = 0 is degenerate (every |E⟩⟨E| has λ = 0), so it diagonalizes H with `zheevd` and uses the modes |m⟩⟨n|, λ = −i(E_m − E_n). Weights of a right eigenvector R: tower = ‖PRP‖/‖R‖, mixed = √(‖PRQ‖² + ‖QRP‖²)/‖R‖, bulk = ‖QRQ‖/‖R‖ (squares sum to 1); energy_overlap = |Tr(H U)|/(‖H‖‖U‖) for the left eigenvector U. Dense ED is limited to L ≤ 6 here (L = 7 needs ≈ 7 GB, L = 8 ≈ 100 GB).
 - Exact method: ρ = 2^(−L) Σ_P r_P P with r_P = Tr[ρ P] real. The generator is a real matrix: the Hamiltonian part is antisymmetric, dephasing is diagonal, −2γ per site carrying σˣ or σʸ. Only translation orbits of Pauli strings are kept (one orthonormal vector per orbit O of size p_O, coordinate √p_O · r_O); dimension ≈ 4^L / L. Time stepping is a Taylor series of exp(𝓛 dt) summed to round-off, in substeps with row-sum norm ‖𝓛 dt_sub‖_∞ ≤ 4 (`SUBSTEP_NORM`). The matrix-vector product is limited by memory bandwidth (no speedup beyond ≈ 4 threads on the laptop). The orbit code is limited to L ≤ 12 by the orbit table (full basis: L ≤ 14, see above).
+- Trajectory H (`trajectory.rs`): Pauli terms grouped by flip mask x (101 masks for 600 strings at L = 20), so ψ(t ^ x)
+  is read once per group; H ψ is split over threads from 2^15 amplitudes on. e^{−iH τ}: Taylor substeps with
+  1.5 · ‖H‖_est · τ ≤ 4. `states_traj` validated against the exact ρ at L = 8, γ = 0.1 (scar and x-Néel, 2000
+  trajectories): rms deviation ≈ 1 standard error.
 - Trajectories: σᶻ_j is Hermitian, so the dephasing is unravelled as a real-noise diffusion that keeps the state normalized (a fluctuating z field on every spin). One step is e^{−iH dt/2} · Π_j e^{−i√γ ΔW_j σᶻ_j} · e^{−iH dt/2}, ΔW_j ~ N(0, dt); the error of the average is O(dt²). This is not the jump unravelling described under "Numerical methods".
 - TDVP: site type `PauliVec` with states (1, σˣ, σʸ, σᶻ). Left multiplication by σ^a is A^a + iB^a on the coefficients, so −i[P, ·] = 2 Im ⊗_j (A^{a_j} + iB^{a_j}), a real MPO; the periodic boundary enters as long-range terms. Observables are divided by the trace coefficient.
 

@@ -45,10 +45,49 @@ m_α = (1/L) Σ_j ⟨σ^α_j⟩, s_α = (1/L) Σ_j (−1)^j ⟨σ^α_j⟩.
 
 ## Next steps
 
-1. x-Néel runs, L = 4 … 14 (even), full γ grid, on Leonardo; record time and memory per run (L = 14 is new:
-   matrix-free H application, dimension 4^14).
-2. Scar at L = 14 if the benchmark allows.
-2b. Trajectories (`states_traj`, `make_jobs.sh`), scar and x-Néel, all γ: L = 12, 14 (check against exact),
-   16, 18, 20; L = 22 after the L = 20 timings. Γ_e(L) from these extends the 1/L extrapolation.
-3. Γ_∞(γ) scar vs x-Néel on the same figure (`states_thermodynamic_rate.png`); compare the small-γ behaviour
-   (scar: Γ_∞ ∝ γ^(≈1/2) for 0.05 ≤ γ ≤ 0.2) with the thermal reference.
+1. Done (2026-10-16 batch, `data/states2/`): x-Néel L = 4 … 14 exact; scar L = 14 exact (γ ≤ 0.02 cut at 24 h);
+   trajectories L = 12 … 20 for scar and x-Néel; measured costs in CLAUDE.md (Cluster).
+2. Done: Γ_∞(γ) scar vs x-Néel (`states_thermodynamic_rate.png`, with γ = 0); results in CLAUDE.md ("Results up
+   to L = 20"). L = 22 trajectories not run.
+3. In progress: small-γ scar runs for the single-kick test (below).
+
+## Small-γ scar: single-kick test
+
+Question: at small γ, is the decay of m_⊥ set by isolated σᶻ kicks, each damaging the coherence as one flip
+evolved with H does?
+
+Prediction. One kick on site k at time t′ (phase φ = ht′) gives, after a time τ under H, the damage
+D(τ) = Σ_j [1 − Re c_j(τ)], c_j = (⟨σˣ_j⟩ + i⟨σʸ_j⟩) / (reference-1 value at t′ + τ) (`single_flip`). Averaged
+over the kicked site and the phase, D̄(τ) gives
+
+  m_⊥(t) ≈ exp[−γ ∫₀ᵗ D̄(τ) dτ].
+
+D̄(0) = 2, so the initial rate is the free-spin 2γ; D̄ grows as the flip spreads and saturates at D_sat(L). If
+D_sat ≈ L − 1, this reproduces the finite-size cap Γ_e/γ → L − 1 seen in the γ ≤ 0.02 data (CLAUDE.md, "Results up
+to L = 20"); the L-independent part of the question is whether D̄(τ) grows linearly (ballistic spreading) before it
+saturates, which `single_flip` at L = 22, 24 checks.
+
+Runs (generators and costs: CLAUDE.md, Cluster, "Small-γ scar runs"):
+- (A) `single_flip`: L = 12 … 20, 16 phases × all sites, τ ≤ 25 (until D saturates); L = 22, 24, 16 phases ×
+  sites 0, L/4, L/2, 3L/4, τ ≤ 8.
+- (B) jump trajectories (`states_traj --unravel jump`, output step 0.25): L = 12 … 20, γ = 0.0005 … 0.007
+  (√2 spacing; ×2 below 0.002 at L = 18, 20), t-max = 3/(γ(L − 1)), 448 trajectories (224 at L = 18, 20,
+  γ < 0.002), split over `--traj-seed` where needed. Same random-c realization (`--seed 1`) as (A).
+
+References needed for the comparison:
+- Analytic: reference 1 (γ = 0: m_⊥ = 1, c_j = 1 without a kick); reference 2 (H_I = 0: m_⊥ = e^(−2γt), D = 2 at
+  all τ); D(0) = 2. All three are unit tests (`rust/tests/checks.rs`).
+- Exact ρ at small γ (new, `make_small_gamma_exact_jobs.sh`): L = 8, 10 on the whole γ grid, L = 12 for
+  γ ≥ 0.002, same t-max: checks the jump trajectories at small γ, where they have not been validated yet.
+- Diffusive cross-check (new, in tier 1): L = 12, 14, γ = 0.002, 0.005, output step 0.1: jump vs diffusive at the
+  production sizes.
+- Existing γ = 0.01 data (`data/states2/`): exact L ≤ 14 and diffusive trajectories L = 12 … 20 (not rerun; γ = 0.01
+  is left out of the new grids). Anchors the small-γ points to the earlier rates.
+- Done: jump vs exact at L = 8, γ = 0.1 and 0.01 (2000 trajectories, rms deviation ≈ 1 standard error).
+
+Expected: Γ_e/γ between 2 (initial rate) and ≈ L − 1 (saturated damage), approaching L − 1 as γ → 0 at fixed L;
+at L = 8 a laptop `single_flip` run gives D̄ ≈ 6.7 – 8.2 for τ ≥ 5.
+
+Analysis (not written yet): pool the traj-seed files of one (L, γ) weighted by their trajectory counts; D̄(τ) from
+the `single_flip` CSV (mean over m and k); compare ln m_⊥(t) with −γ ∫ D̄ at the same L, and Γ_e with the
+prediction.

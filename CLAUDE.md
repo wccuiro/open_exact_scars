@@ -157,7 +157,8 @@ Later knobs:
 
 Current focus: time evolution only. The `states` binary evolves ρ exactly (full Pauli basis, random c, current
 coefficients) from product states over a γ grid, `states_traj` does the same with trajectories for L > 14, and the
-decay rates are extrapolated to 1/L → 0. Latest results: "Results up to L = 20" below. Plan:
+decay rates are extrapolated to 1/L → 0. Latest results: "Results up to L = 20" below. In progress: small-γ
+scar runs for the single-kick test (Cluster section, "Small-γ scar runs"; plan in `time-evolution-plan.md`). Plan:
 `time-evolution-plan.md` (the earlier probe/ED plan `scar-vs-thermal-decay-plan.md` is in git history).
 
 ## Working rules
@@ -280,7 +281,7 @@ Job generators in `data/bashes/` (each writes one Slurm script per job and a `su
 - `summarize_bench.py [bench_dir] [--logs dir]` (standard library only): table per bench run, growth per added
   site, and with `--logs` the elapsed time, peak memory and final t of the production jobs.
 
-Small-γ scar runs (single-kick test; generators of 2026-10-19, nothing submitted yet). Common parts in
+Small-γ scar runs (single-kick test; generators of 2026-10-19). Common parts in
 `small_gamma_common.sh`: the cost model (the measured table below; jump and `single_flip` cost = `JUMP_FACTOR` ×
 diffusive, by default the laptop value for the output step, 0.79 at dt 0.1 and 0.59 at 0.25, until the bench sets
 it as an environment variable; jump runs pay only after their first kick), memory 1.3 × 48 B · 2^L per run
@@ -311,6 +312,42 @@ per job and in total, and skips a run whose output CSV exists. Output in `$REPO/
   included, no first-kick saving, `JUMP_FACTOR` = 1) was ≈ 94 000 for the jump runs.
 - Existing data is never rerun: every run is skipped if its own output file exists, and the (L, γ) that already
   have data under another name (γ = 0.01) are not in the grids.
+- **Status (2026-10-19, evening).** Code committed (`d27ec78`) and built on Leonardo; `data/bashes` copied there.
+  The bench (`submit_bench_jump.sh`: `bench_jump_L16`, `bench_jump_L20`, `bench_single_flip`) is running, ≈ 2.8 h
+  for the longest job. The production generators have not been run; nothing else is submitted.
+- **After the bench** (next session). The user sends `data/bench_jump_logs.tar.gz`, made on Leonardo with
+  ```bash
+  cd $REPO/data/bashes
+  sacct -u $USER -S 2026-10-19 --format=JobID,JobName%30,Elapsed,TotalCPU,MaxRSS,State -P > sacct_bench.txt
+  tar czf ../bench_jump_logs.tar.gz bench_jump_L16.out bench_jump_L16.err bench_jump_L20.out bench_jump_L20.err \
+      bench_single_flip.out bench_single_flip.err sacct_bench.txt ../bench_jump
+  ```
+  Then:
+  1. Unpack into a new directory (e.g. `data/bench_jump_logs/`) and run
+     `~/anaconda3/bin/python data/bashes/summarize_jobs.py data/bench_jump_logs data/bench_jump_logs/bench_jump`
+     (core-s per trajectory per unit of t for every run; check that every run exited with 0 in the `.err`).
+  2. `JUMP_FACTOR` for the jump runs (output step 0.25) = (jump, γ = 0.1, dt 0.25, 112 trajectories) / (diffusive,
+     γ = 0.002) at L = 20, checked at L = 16. The factor for `single_flip` (output step 0.1) = (single_flip cost per
+     run per unit of t at L = 20) / (diffusive at L = 20); also compare it with (jump, γ = 0.1, dt 0.1).
+  3. Split-job check: efficiency = (wall per unit of t of the 112-trajectory jump run at γ = 0.1, dt 0.1) × 28/112 /
+     (that of the 28-trajectory run). If it is well below 1 (say < 0.7), the tier-3 L = 20, γ = 0.0005 jobs
+     (2 × 112 trajectories now) and any job with < 112 trajectories will run longer than planned: tell the user
+     and adjust `MAX_WALL` or the split before generating.
+  4. Report the numbers and the new totals; the user then runs on Leonardo
+     `JUMP_FACTOR=<jump, dt 0.25> bash make_jump_jobs.sh`, `JUMP_FACTOR=<single_flip, dt 0.1> bash
+     make_single_flip_jobs.sh`, `bash make_small_gamma_exact_jobs.sh` (no factor), checks the printed tables, and
+     submits `submit_jump_tier1.sh`, `submit_single_flip.sh`, `submit_small_gamma_exact.sh`; tiers 2 and 3 after
+     looking at tier 1.
+- **Expected bench results** (laptop numbers and the 2026-10-16 measurements):
+  - diffusive, γ = 0.002: ≈ 21 (L = 16) and ≈ 400 (L = 20) core-s per trajectory per unit of t, as measured before.
+  - jump, γ = 0.1 (all kicked within t ≈ 1): ≈ 0.79 × diffusive at dt 0.1, ≈ 0.59 × at dt 0.25 (laptop, L = 16).
+  - jump, γ = 0.002, t ≤ 5: far cheaper, because only ≈ 9 % (L = 20) of the trajectory-time is after a first
+    kick; not a measure of the production cost.
+  - 28 trajectories (L = 20, γ = 0.1): wall per unit of t ≈ 1/4 of the 112-trajectory run if the parallel H ψ uses
+    the whole node.
+  - single_flip: ≈ 0.79 × diffusive per run, i.e. ≈ 320 core-s per run per unit of t at L = 20 (320 runs, wall
+    ≈ 15 min for t = 1) and ≈ 1500 at L = 22 (64 runs, ≈ 15 min). Peak memory ≈ 5.6 GB (112 trajectories, L = 20),
+    ≈ 16 GB (single_flip L = 20) and ≈ 13 GB (L = 22).
 
 Sending jobs:
 

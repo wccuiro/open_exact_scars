@@ -306,48 +306,40 @@ per job and in total, and skips a run whose output CSV exists. Output in `$REPO/
   (γ ≥ 0.002), t-max = 3/(γ(L − 1)); γ = 0.01 exists already. Flags a run longer than 24 h (none: the longest is
   L = 12, γ = 0.002, ≈ 7.6 h).
   `submit_small_gamma_exact.sh`.
-- Planned cost (laptop `JUMP_FACTOR`): jump tier 1 ≈ 7 700 (7 jobs), tier 2 ≈ 1 200 (1), tier 3 ≈ 4 800 (3)
+- Planned cost before the bench (laptop `JUMP_FACTOR`, superseded by the bench totals below): jump tier 1 ≈ 7 700 (7 jobs), tier 2 ≈ 1 200 (1), tier 3 ≈ 4 800 (3)
   core-hours, ≈ 13 800 in all; single_flip ≈ 2 200; exact ≈ 3 900 (L = 12 ≈ 2 400); bench ≈ 400; ≈ 20 300 together.
   The first plan (output step 0.1, t-max 4/(γ(L − 1)), 448 trajectories and the full γ grid everywhere, γ = 0.01
   included, no first-kick saving, `JUMP_FACTOR` = 1) was ≈ 94 000 for the jump runs.
 - Existing data is never rerun: every run is skipped if its own output file exists, and the (L, γ) that already
   have data under another name (γ = 0.01) are not in the grids.
-- **Status (2026-10-19, evening).** Code committed (`d27ec78`) and built on Leonardo; `data/bashes` copied there.
-  The bench (`submit_bench_jump.sh`: `bench_jump_L16`, `bench_jump_L20`, `bench_single_flip`) is running, ≈ 2.8 h
-  for the longest job. The production generators have not been run; nothing else is submitted.
-- **After the bench** (next session). The user sends `data/bench_jump_logs.tar.gz`, made on Leonardo with
-  ```bash
-  cd $REPO/data/bashes
-  sacct -u $USER -S 2026-10-19 --format=JobID,JobName%30,Elapsed,TotalCPU,MaxRSS,State -P > sacct_bench.txt
-  tar czf ../bench_jump_logs.tar.gz bench_jump_L16.out bench_jump_L16.err bench_jump_L20.out bench_jump_L20.err \
-      bench_single_flip.out bench_single_flip.err sacct_bench.txt ../bench_jump
-  ```
-  Then:
-  1. Unpack into a new directory (e.g. `data/bench_jump_logs/`) and run
-     `~/anaconda3/bin/python data/bashes/summarize_jobs.py data/bench_jump_logs data/bench_jump_logs/bench_jump`
-     (core-s per trajectory per unit of t for every run; check that every run exited with 0 in the `.err`).
-  2. `JUMP_FACTOR` for the jump runs (output step 0.25) = (jump, γ = 0.1, dt 0.25, 112 trajectories) / (diffusive,
-     γ = 0.002) at L = 20, checked at L = 16. The factor for `single_flip` (output step 0.1) = (single_flip cost per
-     run per unit of t at L = 20) / (diffusive at L = 20); also compare it with (jump, γ = 0.1, dt 0.1).
-  3. Split-job check: efficiency = (wall per unit of t of the 112-trajectory jump run at γ = 0.1, dt 0.1) × 28/112 /
-     (that of the 28-trajectory run). If it is well below 1 (say < 0.7), the tier-3 L = 20, γ = 0.0005 jobs
-     (2 × 112 trajectories now) and any job with < 112 trajectories will run longer than planned: tell the user
-     and adjust `MAX_WALL` or the split before generating.
-  4. Report the numbers and the new totals; the user then runs on Leonardo
-     `JUMP_FACTOR=<jump, dt 0.25> bash make_jump_jobs.sh`, `JUMP_FACTOR=<single_flip, dt 0.1> bash
-     make_single_flip_jobs.sh`, `bash make_small_gamma_exact_jobs.sh` (no factor), checks the printed tables, and
-     submits `submit_jump_tier1.sh`, `submit_single_flip.sh`, `submit_small_gamma_exact.sh`; tiers 2 and 3 after
-     looking at tier 1.
-- **Expected bench results** (laptop numbers and the 2026-10-16 measurements):
-  - diffusive, γ = 0.002: ≈ 21 (L = 16) and ≈ 400 (L = 20) core-s per trajectory per unit of t, as measured before.
-  - jump, γ = 0.1 (all kicked within t ≈ 1): ≈ 0.79 × diffusive at dt 0.1, ≈ 0.59 × at dt 0.25 (laptop, L = 16).
-  - jump, γ = 0.002, t ≤ 5: far cheaper, because only ≈ 9 % (L = 20) of the trajectory-time is after a first
-    kick; not a measure of the production cost.
-  - 28 trajectories (L = 20, γ = 0.1): wall per unit of t ≈ 1/4 of the 112-trajectory run if the parallel H ψ uses
-    the whole node.
-  - single_flip: ≈ 0.79 × diffusive per run, i.e. ≈ 320 core-s per run per unit of t at L = 20 (320 runs, wall
-    ≈ 15 min for t = 1) and ≈ 1500 at L = 22 (64 runs, ≈ 15 min). Peak memory ≈ 5.6 GB (112 trajectories, L = 20),
-    ≈ 16 GB (single_flip L = 20) and ≈ 13 GB (L = 22).
+- **Status (2026-10-19, night).** Bench done (results below). Production submitted, all tiers at once: generators
+  run with `JUMP_FACTOR=1.15` (jump) and `1.0` (single_flip), printed tables identical to the laptop dry run.
+  30 jobs: jump tier 1 61487746 … 61487796 (11), tier 2 61487815, 61487818, tier 3 61487846 … 61487857 (6),
+  single_flip 61487890 … 61487911 (7), exact 61487942 … 61487949 (4). ≈ 33 300 core-hours planned.
+- **Bench results (2026-10-19, night).** Output `data/bench_jump.tar.gz`, logs `data/bench_jump_logs.tar.gz`, both
+  unpacked in `data/bench_jump_logs/` (output in its `bench_jump/`). Every run exited with 0 and reached its final t;
+  sacct: all three jobs COMPLETED. Per trajectory per unit of t, 112 cores:
+  - diffusive γ = 0.002: 17.2 (L = 16), 322 (L = 20) core-s, ≈ 20 % below the 2026-10-16 values (21, 400).
+  - jump γ = 0.1 / diffusive, raw: 0.97 (dt 0.1), 0.92 (dt 0.25) at L = 16; 1.07, 1.03 at L = 20. Per kicked
+    trajectory-time (÷ kicked fraction 0.875, 0.90 at t ≤ 5): 1.10, 1.05 (L = 16); 1.19, 1.15 (L = 20). The laptop
+    factors (0.79, 0.59) do not hold on Leonardo, and the output step barely matters.
+  - 28 trajectories (L = 20, γ = 0.1): 458 s against 1721 s for 112, efficiency 0.94.
+  - First-kick saving: jump γ = 0.002 (t ≤ 5) / diffusive = 0.092 at L = 20 (model 1.15 × kicked fraction 0.094
+    = 0.108), so unkicked trajectories cost nothing and the few kicked ones use the node. At L = 16 0.21 against
+    0.087 (17.8 s, 41 % CPU: H ψ on 2^16 amplitudes does not spread over the idle cores); with 448 trajectories
+    this affects only the start of a run, while fewer than 112 are kicked (≈ 2 % of the kicked work).
+  - single_flip: L = 20 (320 runs) 909 s, 318 core-s per run per unit of t = 0.99 × diffusive; L = 22 (64 runs)
+    809 s, 1416 = 0.91 × (322 × 2.2²).
+  - Peak memory: 5.5 GB (112 trajectories, L = 20), 1.4 GB (28), 0.33 GB (L = 16), single_flip 15.7 GB (L = 20,
+    320 runs), 12.6 GB (L = 22, 64 runs): the 48 B · 2^L per run of the memory model holds.
+  - Production factors: `JUMP_FACTOR` 1.15 for the jump runs (L = 20, dt 0.25), 1.0 for single_flip. Totals: jump
+    tier 1 ≈ 14 900 (11 jobs), tier 2 ≈ 2 400 (2), tier 3 ≈ 9 400 (6), ≈ 26 700 in all; single_flip ≈ 2 700 (7);
+    exact ≈ 3 900 (4); ≈ 33 300 together. Longest planned jobs 19.3 h (on the 400 core-s base; the bench
+    diffusive cost is ≈ 20 % lower). L = 20, γ = 0.0005 splits into 4 × 56 trajectories.
+- Bench logs were collected on Leonardo with `sacct -u $USER -S 2026-10-19 --format=JobID,JobName%30,Elapsed,TotalCPU,MaxRSS,State -P
+  > sacct_bench.txt` and a tar of the `.out`/`.err`/`.sh` of the three bench jobs. All benchmark numbers (this
+  bench and the 2026-10-16 batch), written to be shared with other projects, are in `data/leonardo_benchmarks.md`
+  (untracked).
 
 Sending jobs:
 

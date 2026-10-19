@@ -1,5 +1,6 @@
 """
-Time series of the `states` runs (exact evolution), one panel per γ, one line per L.
+Time series of the `states` runs (exact evolution) and `states_traj` runs (trajectories), one panel per γ, one line
+per L. One run per (L, γ), chosen by states_data.select: exact where it finished (L ≤ 14), trajectories otherwise.
 
   states_scar.png      scar |−⟩^⊗L: m_⊥(t) = √(m_x² + m_y²) against γt (log scale), with e^(−2γt)
   states_neel.png      z-Néel: |s_z(t)|, s_z = (1/L) Σ_j (−1)^j ⟨σᶻ_j⟩ (log scale)
@@ -9,7 +10,8 @@ Time series of the `states` runs (exact evolution), one panel per γ, one line p
 
 The runs stop once the decay signal (m_⊥ or |s_z|) stays below 1e-3, so ⟨n⟩ may not have relaxed yet.
 
-Input:  states_<state>_L<L>_g<γ>.csv in data/states/ (or the directory given as the first argument)
+Input:  states_<state>_L<L>_g<γ>.csv and states_traj_<state>_L<L>_g<γ>.csv in data/states/ (or the directory given
+        as the first argument)
 Output: the three figures, in the same directory
 """
 
@@ -19,9 +21,10 @@ from pathlib import Path
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.lines import Line2D
+
+import states_data
 
 DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "data" / "states"
 SURFACE, INK, INK_SECONDARY, MUTED, GRID, AXIS = "#fcfcfb", "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7"
@@ -39,12 +42,8 @@ mpl.rcParams.update({
 
 
 def load(state):
-    runs = {}
-    for f in DIR.glob(f"states_{state}_L*_g*.csv"):
-        run = pd.read_csv(f)
-        if len(run) > 1:
-            runs[int(run["L"].iloc[0]), float(run["gamma"].iloc[0])] = run
-    return runs
+    chosen = states_data.select(states_data.load(DIR, states=(state,)))
+    return {(l, g): run for (_, l, g), (_, run, _) in chosen.items()}
 
 
 def grid(runs, gammas, signal, x, ylabel, title, file, log=True, ref=None, hline=None):

@@ -2,7 +2,9 @@
 
 use open_exact_scars::liouville::{Liouvillian, Magnetization, Propagator, Sector};
 use open_exact_scars::model::Params;
-use open_exact_scars::trajectory::{random_direction, Rng};
+use open_exact_scars::trajectory::{
+    coherences, random_direction, reference_bloch, Hamiltonian, JumpTrajectory, Rng, Trajectory,
+};
 
 /// Largest deviation of (m_x, m_y, m_z) from (−cos ht, −sin ht, 0) · e^(−2γt) up to t = 30.
 fn deviation(p: &Params, gamma: f64) -> f64 {
@@ -139,4 +141,95 @@ fn matrix_free_matches_sparse() {
         }
     }
     assert!(worst < 1e-12, "deviation {worst:e}");
+}
+
+/// Damage D(τ) = Σ_j [1 − Re c_j] of one σᶻ kick on the scar state at phase φ (as in `single_flip`).
+fn damage(p: &Params, phi: f64, kick: Option<usize>, taus: &[f64]) -> Vec<(f64, Vec<[f64; 2]>)> {
+    let ham = Hamiltonian::new(p);
+    let t0 = phi / p.h;
+    let mut traj = Trajectory::product(&ham, &reference_bloch(p.l, p.h, t0, kick), 0);
+    let mut tau = 0.0;
+    taus.iter()
+        .map(|&t| {
+            if t > tau {
+                traj.unitary(t - tau);
+                tau = t;
+            }
+            let c = coherences(&traj.per_site(), p.h, t0 + tau);
+            (c.iter().map(|c| 1.0 - c[0]).sum(), c)
+        })
+        .collect()
+}
+
+/// single_flip: D(0) = 2; with H_I = 0 D stays 2; without the kick every c_j stays 1 (full H, random c).
+#[test]
+fn single_flip_damage() {
+    let taus = [0.0, 0.7, 3.1, 10.0];
+    let full = Params::random_c(6, &mut Rng::new(13));
+    for (d, _) in damage(&full, 0.0, Some(2), &taus[..1]).into_iter().chain(damage(&full, 1.3, Some(4), &taus[..1])) {
+        assert!((d - 2.0).abs() < 1e-12, "D(0) = {d}");
+    }
+    for (d, _) in damage(&Params::free_spins(6), 2.0, Some(1), &taus) {
+        assert!((d - 2.0).abs() < 1e-11, "free spins: D = {d}");
+    }
+    for (_, c) in damage(&full, 0.9, None, &taus) {
+        let worst = c.iter().map(|c| (c[0] - 1.0).abs().max(c[1].abs())).fold(0.0, f64::max);
+        assert!(worst < 1e-11, "no kick: |c_j − 1| = {worst:e}");
+    }
+    // with the kick and H_I ≠ 0 the damage does change
+    let d = damage(&full, 0.0, Some(2), &taus);
+    assert!((d[3].0 - 2.0).abs() > 1e-3);
+}
+
+/// Jump unravelling from the scar state: writing the reference-1 state down at the first kick (analytic
+/// start) gives the same trajectory as evolving |−⟩^⊗L with H from t = 0.
+#[test]
+fn jump_analytic_start_matches_evolution() {
+    let p = Params::random_c(6, &mut Rng::new(17));
+    let ham = Hamiltonian::new(&p);
+    let bloch = reference_bloch(p.l, p.h, 0.0, None);
+    let mut worst = 0.0f64;
+    for seed in 0..5 {
+        let mut a = JumpTrajectory::new(&ham, p.h, 0.3, &bloch, true, seed);
+        let mut b = JumpTrajectory::new(&ham, p.h, 0.3, &bloch, false, seed);
+        for step in 1..=100 {
+            let t = 0.1 * step as f64;
+            a.advance_to(t);
+            b.advance_to(t);
+            let (x, y) = (a.per_site(), b.per_site());
+            for k in 0..3 {
+                worst = x[k].iter().zip(&y[k]).map(|(s, t)| (s - t).abs()).fold(worst, f64::max);
+            }
+        }
+        assert!(a.kicks > 0 && a.kicks == b.kicks);
+    }
+    assert!(worst < 1e-11, "deviation {worst:e}");
+}
+
+/// Jump unravelling with H_I = 0: the trajectory average of m_x + i m_y is −e^{iht} e^(−2γt) (reference 2),
+/// within the statistical error.
+#[test]
+fn jump_free_spins_decay() {
+    let p = Params::free_spins(4);
+    let ham = Hamiltonian::new(&p);
+    let (gamma, n) = (0.1, 40000);
+    let bloch = reference_bloch(p.l, p.h, 0.0, None);
+    let mut trajs: Vec<JumpTrajectory> =
+        (0..n).map(|k| JumpTrajectory::new(&ham, p.h, gamma, &bloch, true, 1000 + k as u64)).collect();
+    let mut worst = 0.0f64;
+    for step in 1..=20 {
+        let t = 0.5 * step as f64;
+        let (mut mx, mut my) = (0.0, 0.0);
+        for traj in &mut trajs {
+            traj.advance_to(t);
+            let site = traj.per_site();
+            mx += site[0].iter().sum::<f64>() / p.l as f64;
+            my += site[1].iter().sum::<f64>() / p.l as f64;
+        }
+        let decay = (-2.0 * gamma * t).exp();
+        let (sin, cos) = (p.h * t).sin_cos();
+        worst = worst.max((mx / n as f64 + cos * decay).abs()).max((my / n as f64 + sin * decay).abs());
+    }
+    // one trajectory's m_x has spread ≤ 1, so the error of the mean is ≤ 1/√n = 0.005
+    assert!(worst < 0.02, "deviation {worst:e}");
 }

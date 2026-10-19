@@ -5,16 +5,18 @@ Decay rates against γ for the scar state |−⟩^⊗L and the z- and x-Néel st
           neel-x: s_⊥(t) = √(s_x² + s_y²)
   envelope E(t) = max_{t' ≥ t} signal(t'), non-increasing (removes the zero crossings of s_z)
 
-Two rates per (state, L, γ):
+Two rates per run:
   Gamma_e     1/t_e, with t_e the first time E < 1/e (log-linear interpolation between steps)
   Gamma_tail  −slope of ln E fitted on [t(E < TAIL_HI), t(E < TAIL_LO)]; σ the standard error of the
               slope. NaN if E never reaches TAIL_LO (e.g. Néel at γ = 0, which stops at a finite-size floor).
 
-Input:  states_<state>_L<L>_g<γ>.csv in data/states/ (or the directory given as the first argument)
-        (cd rust && cargo run --release --bin states -- --state minus-x|neel|neel-x ...)
+Input:  states_<state>_L<L>_g<γ>.csv (exact, `states` binary) and states_traj_<state>_L<L>_g<γ>.csv (trajectories,
+        `states_traj` binary) in data/states/ (or the directory given as the first argument)
 Output: in the same directory
-        states_rates.csv   state, L, gamma, Gamma_e, Gamma_tail, sigma_tail, t_tail_min, t_tail_max
-        states_rates.png   Γ against γ (log-log), one panel per state, one line per L
+        states_rates.csv   state, method, L, gamma, cut, selected, Gamma_e, Gamma_tail, sigma_tail, t_tail_min,
+                           t_tail_max; one row per run, `selected` marks the one run per (state, L, γ) chosen by
+                           states_data.select (exact where it finished, else trajectories)
+        states_rates.png   Γ against γ (log-log) of the selected runs, one panel per state, one line per L
 """
 
 import sys
@@ -25,6 +27,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
+
+from states_data import SIGNALS, load, select
 
 TAIL_HI, TAIL_LO = 1e-2, 1e-3
 
@@ -57,8 +61,7 @@ def crossing(t, e, level):
 
 def rates(state, run):
     t = run["t"].to_numpy()
-    s = {"minus-x": lambda: np.hypot(run["mx"], run["my"]), "neel": lambda: run["sz"].abs(),
-         "neel-x": lambda: np.hypot(run["sx"], run["sy"])}[state]().to_numpy()
+    s = SIGNALS[state](run).to_numpy()
     e = np.maximum.accumulate(s[::-1])[::-1]
     t_e = crossing(t, e, np.exp(-1))
     t0, t1 = crossing(t, e, TAIL_HI), crossing(t, e, TAIL_LO)
@@ -72,18 +75,17 @@ def rates(state, run):
 
 
 def main():
-    rows = []
-    for f in sorted(DIR.glob("states_*_L*_g*.csv")):
-        state = f.name.split("_")[1]
-        run = pd.read_csv(f)
-        if len(run) < 2:
-            continue
-        rows.append((state, int(run["L"].iloc[0]), float(run["gamma"].iloc[0]), *rates(state, run)))
-    table = pd.DataFrame(rows, columns=["state", "L", "gamma", "Gamma_e", "Gamma_tail", "sigma_tail",
-                                        "t_tail_min", "t_tail_max"]).sort_values(["state", "L", "gamma"])
+    runs = load(DIR)
+    chosen = {(state, l, g): method for (state, l, g), (method, _, _) in select(runs).items()}
+    rows = [(state, method, l, g, cut, chosen[state, l, g] == method, *rates(state, run))
+            for (method, state, l, g), (run, cut) in runs.items()]
+    table = pd.DataFrame(rows, columns=["state", "method", "L", "gamma", "cut", "selected", "Gamma_e", "Gamma_tail",
+                                        "sigma_tail", "t_tail_min", "t_tail_max"]
+                         ).sort_values(["state", "L", "gamma", "method"])
     table.to_csv(DIR / "states_rates.csv", index=False)
-    with pd.option_context("display.width", 200):
+    with pd.option_context("display.width", 200, "display.max_rows", 1000):
         print(table.to_string(index=False, float_format="%.4g"))
+    table = table[table["selected"]]
 
     states = [s for s in ("minus-x", "neel", "neel-x") if s in set(table["state"])]
     sizes = sorted(table["L"].unique())
@@ -100,14 +102,15 @@ def main():
             if dl.empty:
                 continue
             ax.plot(dl["gamma"], dl["Gamma_e"], "-o", ms=3, color=colors[l], label=f"L = {l}")
-            ax.plot(dl["gamma"], dl["Gamma_tail"], "--", lw=1, color=colors[l])
+            ax.plot(dl["gamma"], dl["Gamma_tail"].where(dl["method"] == "exact"), "--", lw=1, color=colors[l])
             g0 = table[(table["state"] == state) & (table["L"] == l) & (table["gamma"] == 0)]["Gamma_e"]
             if len(g0) and np.isfinite(g0.iloc[0]) and g0.iloc[0] > 0:
                 ax.axhline(g0.iloc[0], color=colors[l], lw=0.7, ls="-.")
         ax.set(xscale="log", yscale="log", xlabel="γ", ylabel="Γ", title=titles[state])
     axes[0][0].legend(fontsize=7.5)
-    fig.text(0.01, -0.04, f"solid: 1/e rate Γ_e;  dashed: slope of ln(envelope) between {TAIL_HI:g} and {TAIL_LO:g};  "
-             "dash-dot: Γ_e at γ = 0", fontsize=7.5, color=INK_SECONDARY)
+    fig.text(0.01, -0.04, f"solid: 1/e rate Γ_e;  dashed: slope of ln(envelope) between {TAIL_HI:g} and {TAIL_LO:g} "
+             "(exact runs only; trajectories reach their statistical floor there);  dash-dot: Γ_e at γ = 0",
+             fontsize=7.5, color=INK_SECONDARY)
     fig.savefig(DIR / "states_rates.png")
     print(f"wrote {DIR / 'states_rates.csv'} and {DIR / 'states_rates.png'}")
 

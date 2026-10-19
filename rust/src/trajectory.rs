@@ -11,6 +11,11 @@
 //! the noise factor averages to the exact dephasing channel over dt, and the symmetric splitting
 //! leaves an error O(dt²) in the averaged dynamics.
 //!
+//! Jump unravelling (`JumpTrajectory`): since (σᶻ_j)² = 1 the effective Hamiltonian is H − iγL/2, a constant
+//! shift, so a trajectory is unitary evolution under H interrupted by σᶻ_j kicks. The waiting times are
+//! exponential with total rate γL and the kicked site is uniform, independently of the state, so the
+//! sampling is exact; the only error is that of e^{−iHτ} (Taylor series summed to round-off).
+//!
 //! States are vectors of 2^L amplitudes over bit strings, bit j = 0 for |↑⟩ and 1 for |↓⟩.
 
 use rayon::prelude::*;
@@ -160,7 +165,7 @@ impl<'a> Trajectory<'a> {
     }
 
     /// psi ← e^{−iH tau} psi, Taylor series summed to round-off in substeps of norm ≤ SUBSTEP_NORM.
-    fn unitary(&mut self, tau: f64) {
+    pub fn unitary(&mut self, tau: f64) {
         let n_sub = (1.5 * self.ham.norm * tau / SUBSTEP_NORM).ceil().max(1.0) as usize;
         let tau = tau / n_sub as f64;
         for _ in 0..n_sub {
@@ -199,6 +204,16 @@ impl<'a> Trajectory<'a> {
         }
     }
 
+    /// psi ← σᶻ_j psi.
+    pub fn flip(&mut self, j: usize) {
+        let bit = 1usize << j;
+        for (s, a) in self.psi.iter_mut().enumerate() {
+            if s & bit != 0 {
+                *a = [-a[0], -a[1]];
+            }
+        }
+    }
+
     /// Advance by dt.
     pub fn step(&mut self, gamma: f64, dt: f64) {
         self.unitary(dt / 2.0);
@@ -230,6 +245,94 @@ impl<'a> Trajectory<'a> {
             }
         }
         m
+    }
+}
+
+/// Bloch vectors of the noiseless scar state at time t (exact reference 1): every spin along
+/// (−cos ht, −sin ht, 0); with `flip = Some(k)`, spin k reversed in the xy plane (σᶻ_k applied).
+pub fn reference_bloch(l: usize, h: f64, t: f64, flip: Option<usize>) -> Vec<[f64; 3]> {
+    let (sin, cos) = (h * t).sin_cos();
+    (0..l).map(|j| if flip == Some(j) { [cos, sin, 0.0] } else { [-cos, -sin, 0.0] }).collect()
+}
+
+/// c_j = (⟨σˣ_j⟩ + i⟨σʸ_j⟩) / (reference-1 value at time t) = −(⟨σˣ_j⟩ + i⟨σʸ_j⟩) e^{−iht}, for every site,
+/// from the per-site magnetization `site` (as returned by `per_site`). 1 on the noiseless scar state.
+pub fn coherences(site: &[Vec<f64>; 3], h: f64, t: f64) -> Vec<Amp> {
+    let (sin, cos) = (h * t).sin_cos();
+    site[0].iter().zip(&site[1]).map(|(&x, &y)| [-(x * cos + y * sin), -(y * cos - x * sin)]).collect()
+}
+
+/// Jump-unravelling trajectory (see the module docs). Starting from the scar state |−⟩^⊗L
+/// (`analytic = true`), the state before the first kick is the reference-1 product state, written down at
+/// the time of the first kick instead of being evolved; until then no state vector is allocated.
+pub struct JumpTrajectory<'a> {
+    ham: &'a Hamiltonian,
+    h: f64,
+    /// Rate of each site's kicks, γ; total rate γL.
+    gamma: f64,
+    /// The state, once it is no longer the reference-1 product state (None before the first kick).
+    traj: Option<Trajectory<'a>>,
+    /// Current time.
+    t: f64,
+    next_kick: f64,
+    pub kicks: usize,
+    rng: Rng,
+}
+
+impl<'a> JumpTrajectory<'a> {
+    /// Starts in the product state `bloch` at t = 0. `analytic`: the start is the scar state |−⟩^⊗L, whose
+    /// evolution under H is known in closed form (reference 1), so it is not evolved before the first kick.
+    pub fn new(ham: &'a Hamiltonian, h: f64, gamma: f64, bloch: &[[f64; 3]], analytic: bool, seed: u64) -> Self {
+        let mut rng = Rng::new(seed);
+        let next_kick = Self::waiting_time(&mut rng, gamma, ham.l);
+        let traj = (!analytic).then(|| Trajectory::product(ham, bloch, seed));
+        JumpTrajectory { ham, h, gamma, traj, t: 0.0, next_kick, kicks: 0, rng }
+    }
+
+    fn waiting_time(rng: &mut Rng, gamma: f64, l: usize) -> f64 {
+        if gamma > 0.0 {
+            -rng.uniform().ln() / (gamma * l as f64)
+        } else {
+            f64::INFINITY
+        }
+    }
+
+    /// Advance to time t_new ≥ t: unitary evolution between the kicks that fall in (t, t_new].
+    pub fn advance_to(&mut self, t_new: f64) {
+        while self.next_kick <= t_new {
+            let tk = self.next_kick;
+            match &mut self.traj {
+                Some(traj) => traj.unitary(tk - self.t),
+                None => {
+                    let bloch = reference_bloch(self.ham.l, self.h, tk, None);
+                    self.traj = Some(Trajectory::product(self.ham, &bloch, 0));
+                }
+            }
+            let l = self.ham.l;
+            let site = ((self.rng.uniform() * l as f64) as usize).min(l - 1);
+            self.traj.as_mut().unwrap().flip(site);
+            self.kicks += 1;
+            self.t = tk;
+            self.next_kick = tk + Self::waiting_time(&mut self.rng, self.gamma, l);
+        }
+        if let Some(traj) = &mut self.traj {
+            if t_new > self.t {
+                traj.unitary(t_new - self.t);
+            }
+        }
+        self.t = t_new;
+    }
+
+    /// ⟨ψ|σ^α_j|ψ⟩ for α = x, y, z and every site j, at the current time.
+    pub fn per_site(&self) -> [Vec<f64>; 3] {
+        match &self.traj {
+            Some(traj) => traj.per_site(),
+            None => {
+                let (sin, cos) = (self.h * self.t).sin_cos();
+                let l = self.ham.l;
+                [vec![-cos; l], vec![-sin; l], vec![0.0; l]]
+            }
+        }
     }
 }
 

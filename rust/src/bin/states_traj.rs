@@ -1,6 +1,5 @@
 //! Trajectory counterpart of `states`, for sizes beyond the exact ρ evolution (L > 14): the same initial
-//! states, the same random-c realization and the same output columns, from pure-state trajectories
-//! (diffusive unravelling with real noise, see `trajectory.rs`) of
+//! states, the same random-c realization and the same output columns, from pure-state trajectories of
 //!
 //!     dρ/dt = −i[H, ρ] + γ Σ_j (σᶻ_j ρ σᶻ_j − ρ)
 //!
@@ -11,9 +10,16 @@
 //!     cargo run --release --bin states_traj -- --state minus-x|neel|neel-x [--L 16 | --lmin 4 --lmax 8]
 //!                                              [--gammas 0,0.01,0.1] [--trajectories 112] [--dt 0.1]
 //!                                              [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1]
+//!                                              [--unravel diffusive|jump] [--traj-seed N]
 //!
 //! Model coefficients: src/parameters.rs. H has random c (Params::random_c, generator seeded with
 //! 1000 · seed + L, the same realization as `states` for the same parameters).
+//!
+//! Unravelling (`trajectory.rs`): diffusive (default; real noise on every spin, one splitting step per
+//! output step) or jump (exact unitary evolution between σᶻ kicks at total rate γL; from the scar state the
+//! evolution before the first kick is the analytic reference 1). --traj-seed sets the noise of the
+//! trajectories only (default: --seed, as before it existed), so one (L, γ) can be split over several jobs
+//! with the same realization; it adds _s<N> to the file name.
 //!
 //! All trajectories of one γ advance together, one output step at a time, so every row of the CSV is the
 //! average over all of them and is written as the run goes (a run cut by a time limit keeps its early
@@ -25,8 +31,8 @@
 //! average is O(dt²).
 //!
 //! Output (data/ or $SCARS_DATA_DIR), one row per step, flushed every row:
-//!   states_traj_<state>_L<L>_g<γ>.csv   L, gamma, trajectories, t, mx, my, mz, sx, sy, sz, then the
-//!       standard errors mx_err … sz_err
+//!   states_traj_<state>_L<L>_g<γ>[_jump][_s<traj-seed>].csv   L, gamma, trajectories, t, mx, my, mz, sx, sy,
+//!       sz, then the standard errors mx_err … sz_err (_jump: jump unravelling)
 //!       m_α = (1/L) Σ_j ⟨σ^α_j⟩,  s_α = (1/L) Σ_j (−1)^j ⟨σ^α_j⟩, averaged over the trajectories
 //!   states_realization_L<L>.csv         j, and the c coefficients of bond (j, j+1)
 
@@ -39,7 +45,7 @@ use rayon::prelude::*;
 
 use open_exact_scars::cli::Options;
 use open_exact_scars::model::{write_realization, Params};
-use open_exact_scars::trajectory::{Hamiltonian, Rng, Trajectory};
+use open_exact_scars::trajectory::{Hamiltonian, JumpTrajectory, Rng, Trajectory};
 
 /// γ > 0: stop once the signal has stayed below threshold for this long (longer than the period 2π/h).
 const STOP_WINDOW: f64 = 10.0;
@@ -53,10 +59,44 @@ enum State {
     NeelX,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum Unravel {
+    Diffusive,
+    Jump,
+}
+
+enum Traj<'a> {
+    Diffusive(Trajectory<'a>),
+    Jump(JumpTrajectory<'a>),
+}
+
+impl Traj<'_> {
+    /// Advance from t_new − dt to t_new.
+    fn advance(&mut self, gamma: f64, dt: f64, t_new: f64) {
+        match self {
+            Traj::Diffusive(traj) => traj.step(gamma, dt),
+            Traj::Jump(traj) => traj.advance_to(t_new),
+        }
+    }
+
+    fn per_site(&self) -> [Vec<f64>; 3] {
+        match self {
+            Traj::Diffusive(traj) => traj.per_site(),
+            Traj::Jump(traj) => traj.per_site(),
+        }
+    }
+}
+
 fn main() {
     let args = Options::parse(&[
-        "state", "L", "lmin", "lmax", "gammas", "trajectories", "dt", "t-max", "t-zero", "stop", "seed",
+        "state", "L", "lmin", "lmax", "gammas", "trajectories", "dt", "t-max", "t-zero", "stop", "seed", "unravel",
+        "traj-seed",
     ]);
+    let unravel = match args.str("unravel") {
+        None | Some("diffusive") => Unravel::Diffusive,
+        Some("jump") => Unravel::Jump,
+        u => panic!("--unravel diffusive or jump, got {u:?}"),
+    };
     let state = match args.str("state") {
         Some("minus-x") => State::MinusX,
         Some("neel") => State::Neel,
@@ -75,6 +115,12 @@ fn main() {
     let dt = args.f64("dt", 0.1);
     let (t_max, t_zero, stop) = (args.f64("t-max", 1000.0), args.f64("t-zero", 50.0), args.f64("stop", 1e-3));
     let seed = args.usize("seed", 1) as u64;
+    let traj_seed = args.has("traj-seed").then(|| args.usize("traj-seed", 0) as u64);
+    let suffix = format!(
+        "{}{}",
+        if unravel == Unravel::Jump { "_jump" } else { "" },
+        traj_seed.map_or(String::new(), |s| format!("_s{s}"))
+    );
 
     let data = std::env::var_os("SCARS_DATA_DIR")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data"), PathBuf::from);
@@ -102,9 +148,11 @@ fn main() {
 
         // one γ at a time: the parallelism is over the trajectories (and inside H ψ at large L)
         for &g in &gammas {
-            let file = data.join(format!("states_traj_{name}_L{l}_g{g}.csv"));
+            let file = data.join(format!("states_traj_{name}_L{l}_g{g}{suffix}.csv"));
             let n = if g == 0.0 { 1 } else { n_traj };
-            let t_end = run(&ham, &params, state, &bloch, g, n, dt, if g == 0.0 { t_zero } else { t_max }, stop, seed, &file);
+            let t_run = if g == 0.0 { t_zero } else { t_max };
+            let noise_seed = traj_seed.unwrap_or(seed);
+            let t_end = run(&ham, &params, state, &bloch, unravel, g, n, dt, t_run, stop, noise_seed, &file);
             println!("L = {l}, gamma = {g}: stopped at t = {t_end:.3}, {:.1?} since the start of L = {l}", start.elapsed());
         }
     }
@@ -117,6 +165,7 @@ fn run(
     params: &Params,
     state: State,
     bloch: &[[f64; 3]],
+    unravel: Unravel,
     gamma: f64,
     n: usize,
     dt: f64,
@@ -133,15 +182,27 @@ fn run(
 
     // independent noise for every (seed, L, γ, trajectory); Rng::new mixes the bits
     let base = seed.wrapping_mul(0x9e3779b97f4a7c15) ^ ((l as u64) << 48) ^ gamma.to_bits().rotate_left(20);
-    let mut trajs: Vec<Trajectory> = (0..n).map(|k| Trajectory::product(ham, bloch, base ^ k as u64)).collect();
+    let mut trajs: Vec<Traj> = (0..n)
+        .map(|k| match unravel {
+            Unravel::Diffusive => Traj::Diffusive(Trajectory::product(ham, bloch, base ^ k as u64)),
+            Unravel::Jump => Traj::Jump(JumpTrajectory::new(
+                ham,
+                params.h,
+                gamma,
+                bloch,
+                state == State::MinusX,
+                base ^ k as u64,
+            )),
+        })
+        .collect();
 
     let (mut below_since, mut t, mut check) = (None, 0.0, 0.0f64);
     let start = Instant::now();
     for step in 0..=steps {
-        if step > 0 {
-            trajs.par_iter_mut().for_each(|traj| traj.step(gamma, dt));
-        }
         t = step as f64 * dt;
+        if step > 0 {
+            trajs.par_iter_mut().for_each(|traj| traj.advance(gamma, dt, t));
+        }
 
         // per trajectory: [mx, my, mz, sx, sy, sz] and their squares, summed over the trajectories
         let sums = trajs

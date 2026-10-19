@@ -153,10 +153,11 @@ Later knobs:
 
 ---
 
-# Code and results (state of 2026-10-15)
+# Code and results (state of 2026-10-19)
 
 Current focus: time evolution only. The `states` binary evolves ρ exactly (full Pauli basis, random c, current
-coefficients) from product states over a γ grid, and the decay rates are extrapolated to 1/L → 0. Plan:
+coefficients) from product states over a γ grid, `states_traj` does the same with trajectories for L > 14, and the
+decay rates are extrapolated to 1/L → 0. Latest results: "Results up to L = 20" below. Plan:
 `time-evolution-plan.md` (the earlier probe/ED plan `scar-vs-thermal-decay-plan.md` is in git history).
 
 ## Working rules
@@ -177,18 +178,22 @@ rust/src/liouville.rs    Lindbladian in the Pauli basis (translation orbits, or 
                          propagator, dense export for ED, magnetization (site averages and per site)
 rust/src/tower.rs        Dicke states |Φ_n⟩ and Tr(Σ_n w_n |Φ_n⟩⟨Φ_n| P) for every Pauli string P
 rust/src/main.rs         exact evolution of ρ (default binary); --init minus-x | random (random Bloch vectors)
-rust/src/trajectory.rs   state-vector trajectories
+rust/src/trajectory.rs   state-vector trajectories (diffusive and jump unravelling), single-flip helpers
 rust/src/bin/trajectories.rs
 rust/src/bin/disorder.rs random c, initial states on a cone around −x with random azimuths
 rust/src/bin/probes.rs   plan probes P1 (scar), P2 (energy H̃), P3 (thermal, k = π), free-spin check
 rust/src/bin/states.rs   scar |−⟩^⊗L, z-Néel or x-Néel ρ₀, random c, a list of γ; stops once the signal has decayed
-rust/src/bin/states_traj.rs  the same runs with state-vector trajectories (all trajectories advance together), for L > 14
+rust/src/bin/states_traj.rs  the same runs with state-vector trajectories (all trajectories advance together), for L > 14;
+                         --unravel diffusive (default) | jump, --traj-seed (noise only, to split a run over jobs)
+rust/src/bin/single_flip.rs  one σᶻ_k kick on the scar state at phase φ_m, evolved with H only: damage D(τ)
 rust/src/bin/ed.rs       full ED of 𝓛 (dense, LAPACK from Intel MKL); linked by rust/build.rs
-rust/tests/checks.rs     exact references 1 and 2, random product states, full basis vs orbits, random c at γ = 0
+rust/tests/checks.rs     exact references 1 and 2, random product states, full basis vs orbits, random c at γ = 0,
+                         single-flip identities, jump unravelling (analytic start, free spins)
 julia/lindblad_tdvp.jl   ITensor: ρ as an MPS, two-site TDVP
 plot_scripts/            plot_evolution.py, fit_decay.py, compare_methods.py, resource_tables.py,
                          compare_initial_states.py, plot_disorder.py, fit_probes.py, plot_spectrum.py,
-                         fit_states.py, fit_states_inverse_L.py, plot_states.py
+                         fit_states.py, fit_states_inverse_L.py, plot_states.py,
+                         states_data.py (reads `states` and `states_traj` CSV, picks one run per (state, L, γ))
 ```
 
 ```bash
@@ -199,7 +204,8 @@ cargo run --release --bin trajectories -- [--lmin 4] [--lmax 8] [--gamma 0.01] [
 cargo run --release --bin disorder -- [--lmin 4] [--lmax 8] [--gamma 0.01] [--thetas 0,0.125,0.25,0.375,0.5] [--seed 1]   # thetas in units of π
 cargo run --release --bin probes -- [--lmin 4] [--lmax 8] [--gamma 0.01 | --gammas 0.002,0.01] [--dt 0.1] [--t-max T] [--tag name] [--seed 1]
 cargo run --release --bin states -- --state minus-x|neel|neel-x [--lmin 4] [--lmax 8] [--gammas 0,0.01,0.1] [--dt 0.1] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1]
-cargo run --release --bin states_traj -- --state minus-x|neel|neel-x [--L 16] [--gammas 0,0.01,0.1] [--trajectories 112] [--dt 0.1] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1]
+cargo run --release --bin states_traj -- --state minus-x|neel|neel-x [--L 16] [--gammas 0,0.01,0.1] [--trajectories 112] [--dt 0.1] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1] [--unravel diffusive|jump] [--traj-seed N]
+cargo run --release --bin single_flip -- [--L 12 | --lmin/--lmax] [--phases 16] [--sites all|0,3,6] [--t-max 25] [--dt 0.1] [--seed 1]
 cargo run --release --bin ed -- [--lmin 4] [--lmax 6] [--gamma 0.01] [--seed 1]    # needs MKL: $MKL_LIB_DIR or ~/anaconda3/lib
 cargo test --release
 cd ../julia && julia --project=. lindblad_tdvp.jl L maxdims [gamma] [tmax] [dt] [cutoff]     # e.g. 8 16,32,64
@@ -220,13 +226,26 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
   neel = z-Néel |↑↓↑↓…⟩ (even L, stop signal |s_z|), neel-x = x-Néel |+−+−…⟩ (even L, stop signal s_⊥ = √(s_x² + s_y²)).
   `states_traj_<state>_L<L>_g<γ>.csv` (from `states_traj`): L, gamma, trajectories, t, mx, my, mz, sx, sy, sz, then
   the standard errors mx_err … sz_err; same random-c realization as `states`. γ = 0 is one trajectory (deterministic).
-  Stop: signal below max(--stop, 3 × its standard error) for 10 time units.
-  The cluster output is in `data/states/` (unpacked from `data/states.tar.gz`). Scripts reading `data/states/` (default dir):
-  - `fit_states.py [dir]` (any number of sizes): `states_rates.csv` (state, L, gamma, Gamma_e, Gamma_tail, sigma_tail,
-    t_tail_min, t_tail_max) and `states_rates.png` (Γ against γ).
+  Stop: signal below max(--stop, 3 × its standard error) for 10 time units. Jump unravelling adds `_jump`, a
+  --traj-seed adds `_s<N>`: `states_traj_<state>_L<L>_g<γ>_jump_s<N>.csv` (same columns; the runs of one (L, γ)
+  with different traj-seeds are independent samples to be pooled). `states_data.py` ignores these files for now.
+- `single_flip_L<L>.csv` (all sites) or `single_flip_L<L>_sites<k1-k2-…>.csv` (from `single_flip`): L, m, phi, k,
+  tau, D, then per site re_c0 … re_c{L−1}, im_c0 …, z0 …; one row per (m, k, τ). c_j = (⟨σˣ_j⟩ + i⟨σʸ_j⟩) /
+  (reference-1 value at t′ + τ), t′ = φ_m/h, φ_m = 2πm/N; D = Σ_j [1 − Re c_j], D(0) = 2.
+  The cluster output is in `data/states/` (unpacked from `data/states.tar.gz`; L ≤ 12) and `data/states2/` (from
+  `data/states2.tar.gz`: exact L ≤ 14, x-Néel, trajectories L = 12 … 20). The scripts read exact and trajectory files
+  together and use one run per (state, L, γ) (`states_data.select`): exact where it finished, else trajectories. A job
+  cut at 24 h leaves an incomplete last line, which is dropped (exact L = 14, γ ≤ 0.02 were cut). Scripts reading
+  `data/states/` (default dir; pass `data/states2` for the new data):
+  - `fit_states.py [dir]` (any number of sizes): `states_rates.csv` (state, method, L, gamma, cut, selected, Gamma_e,
+    Gamma_tail, sigma_tail, t_tail_min, t_tail_max; one row per run) and `states_rates.png` (Γ against γ, selected
+    runs; tail slopes only for exact runs, trajectories reach their statistical floor in the tail window).
   - `fit_states_inverse_L.py`: Γ_e against 1/L, linear A + B/L on L ≥ 8 (Γ_∞ = A), quadratic check on L ≥ 6 for the scar;
-    Néel at γ ≤ 0.02 drops L = 6, 8 (finite-size revivals). Writes `states_inverse_L.csv`, `states_inverse_L.png`,
-    `states_thermodynamic_rate.png` (Γ_∞ against γ).
+    Néel at γ ≤ 0.02 drops L = 6, 8, x-Néel at γ ≤ 0.05 drops L = 6 (finite-size revivals). Writes `states_inverse_L.csv`, `states_inverse_L.png`,
+    `states_thermodynamic_rate.png` (Γ_∞ against γ, symlog axes). γ = 0 is shown in both figures but not fitted:
+    Γ_e per L (diamonds; the scar panel plots Γ_e on a symlog axis, so its γ = 0 sits at 0) and its mean over the
+    fitted sizes, joined to γ = 0.01
+    (scar 0, x-Néel 4.76 ± 0.08, z-Néel 4.96).
   - `plot_states.py [dir]`: time series `states_scar.png`, `states_neel.png`, `states_neel-x.png`, `states_neel_n.png`
     (⟨n⟩/L for z-Néel).
 - `spectrum_L<L>.csv`: L, gamma, re, im, tower, mixed, bulk, energy_overlap; one row per Liouvillian mode, at γ = 0 and the chosen γ.
@@ -242,6 +261,7 @@ Job generators in `data/bashes/` (each writes one Slurm script per job and a `su
 - `make_states_neel-x_jobs.sh`: x-Néel, even L = 4 … 14, one job per γ at L = 12 (16G) and L = 14 (64G).
 - `make_bench_jobs.sh`: short runs (γ = 0.1) at L = 10, 12, 13, 14 with 8 … 112 threads, numactl on/off;
   one CSV line per run in `$REPO/data/bench/bench_results_<job>.csv`, binary output in `data/bench/out` and `logs`.
+  Never submitted; the measured costs below come from the production logs.
 - `make_jobs.sh`: all pending production runs, all γ. `submit_jobs.sh`: exact (`states`) x-Néel, even L = 4 … 14,
   and scar L = 14 (jobs `exact_*`); trajectories (`states_traj`) for scar and x-Néel, L = 12, 14 (overlap with
   exact), 16, 18, 20 (jobs `traj_*`). `submit_jobs_L22.sh`: trajectories at L = 22 (small γ cut at 24 h). Every
@@ -250,9 +270,47 @@ Job generators in `data/bashes/` (each writes one Slurm script per job and a `su
 - `jobs_common.sh` (sourced by the generators): every job prints the machine (`lscpu`, `numactl --hardware`,
   `free -g`), runs each command under `/usr/bin/time -v` (peak memory, wall and CPU time in the `.err`), and ends
   with `sacct`/`seff`. Final `sacct` numbers only exist after the job ends: rerun
-  `sacct -j <id> --format=JobID,Elapsed,TotalCPU,MaxRSS,State -P` from the login node.
+  `sacct -j <id> --format=JobID,Elapsed,TotalCPU,MaxRSS,State -P` from the login node. The job exits with the
+  status of its runs (`RUN_STATUS`). Before 2026-10-19 it exited with that of the `seff` check, and `seff` is not
+  installed on Leonardo, so `sacct` shows every job of the 2026-10-16 batch as FAILED although all runs exited with 0.
+- `summarize_jobs.py LOG_DIR STATES_DIR` (pandas): one row per run of the production jobs from their `.out`/`.err`
+  (final t, wall time, peak memory, wall seconds per unit of t, core-seconds per trajectory per unit of t), written
+  to `LOG_DIR/jobs_summary.csv`. The logs of the 2026-10-16 batch are in `data/perf/` (from `data/perf.tar.gz`,
+  with `sacct_all.txt`).
 - `summarize_bench.py [bench_dir] [--logs dir]` (standard library only): table per bench run, growth per added
   site, and with `--logs` the elapsed time, peak memory and final t of the production jobs.
+
+Small-γ scar runs (single-kick test; generators of 2026-10-19, nothing submitted yet). Common parts in
+`small_gamma_common.sh`: the cost model (the measured table below; jump and `single_flip` cost = `JUMP_FACTOR` ×
+diffusive, by default the laptop value for the output step, 0.79 at dt 0.1 and 0.59 at 0.25, until the bench sets
+it as an environment variable; jump runs pay only after their first kick), memory 1.3 × 48 B · 2^L per run
++ 2 GB, jobs sized for ≤ 20 h (`MAX_WALL`), `bash -n` on every generated script. Each generator prints the core-hours
+per job and in total, and skips a run whose output CSV exists. Output in `$REPO/data/states` (bench: `data/bench_jump`).
+- `make_bench_jump_jobs.sh` (first): L = 16, 20, γ = 0.002, t-max 5, 112 trajectories, jump and diffusive; plus
+  jump at γ = 0.1 (every trajectory kicked by t ≈ 1: the steady cost of a kicked trajectory, which sets
+  `JUMP_FACTOR`; at γ = 0.002 most trajectories are still unkicked at t ≤ 5) and, at L = 20, 28 trajectories
+  (fewer than cores: checks the wall-time model of the split jobs), and jump at γ = 0.1 with output step 0.25;
+  `single_flip` at L = 20 (320 runs) and 22 (64 runs), t-max 1. ≈ 3.5 h of nodes in all.
+- `make_jump_jobs.sh`: scar, `--unravel jump`, output step 0.25, L = 12 … 20, γ = 0.0005, 0.0007, 0.001, 0.0014,
+  0.002, 0.003, 0.004, 0.005, 0.007 (`GAMMAS`) at L ≤ 16 and without 0.0007, 0.0014 at L = 18, 20
+  (`GAMMAS_LARGE_L`); 448 trajectories per (L, γ), 224 at L = 18, 20 with γ < 0.002; t-max = 3/(γ(L − 1))
+  (`T_FACTOR`), stop 1e-3. γ = 0.01 is left out: it exists for L = 12 … 20 (diffusive, 2026-10-16 batch).
+  A (L, γ) longer than 20 h is split over `--traj-seed 1 … k` (k a power of 2; output `_jump_s<k>`); runs of one
+  tier and L are packed into jobs. Tiers: `submit_jump_tier1.sh` (every γ at L ≤ 16, γ ≥ 0.002 at L = 18, 20, and
+  the diffusive cross-check at L = 12, 14, γ = 0.002, 0.005, output step 0.1), `submit_jump_tier2.sh` (γ < 0.002 at L = 18),
+  `submit_jump_tier3.sh` (γ < 0.002 at L = 20). Prints the (L, γ) cost table.
+- `make_single_flip_jobs.sh`: L = 12 … 20, 16 phases × all sites, t-max 25; L = 22, 24, 16 phases × sites
+  0, L/4, L/2, 3L/4, t-max 8 (split over site lists if a size exceeds 20 h). `submit_single_flip.sh`.
+- `make_small_gamma_exact_jobs.sh`: exact `states` for the scar at L = 8, 10 (every γ of the jump grid) and L = 12
+  (γ ≥ 0.002), t-max = 3/(γ(L − 1)); γ = 0.01 exists already. Flags a run longer than 24 h (none: the longest is
+  L = 12, γ = 0.002, ≈ 7.6 h).
+  `submit_small_gamma_exact.sh`.
+- Planned cost (laptop `JUMP_FACTOR`): jump tier 1 ≈ 7 700 (7 jobs), tier 2 ≈ 1 200 (1), tier 3 ≈ 4 800 (3)
+  core-hours, ≈ 13 800 in all; single_flip ≈ 2 200; exact ≈ 3 900 (L = 12 ≈ 2 400); bench ≈ 400; ≈ 20 300 together.
+  The first plan (output step 0.1, t-max 4/(γ(L − 1)), 448 trajectories and the full γ grid everywhere, γ = 0.01
+  included, no first-kick saving, `JUMP_FACTOR` = 1) was ≈ 94 000 for the jump runs.
+- Existing data is never rerun: every run is skipped if its own output file exists, and the (L, γ) that already
+  have data under another name (γ = 0.01) are not in the grids.
 
 Sending jobs:
 
@@ -265,7 +323,7 @@ scp data/bashes.tar.gz <user>@login.leonardo.cineca.it:/leonardo/home/userextern
 # Leonardo, login node
 cd $REPO && git pull
 cd data && tar xzf bashes.tar.gz
-cd $REPO/rust && cargo build --release --bin states --bin states_traj   # once per code change
+cd $REPO/rust && cargo build --release --bin states --bin states_traj --bin single_flip   # once per code change
 cd $REPO/data/bashes
 bash make_bench_jobs.sh && bash submit_bench.sh            # first: benchmark
 squeue -u $USER                                            # job state
@@ -273,6 +331,19 @@ python3 summarize_bench.py ../bench                        # after the bench job
 bash make_states_neel-x_jobs.sh && bash submit_states_neel-x.sh
 python3 summarize_bench.py ../bench --logs .               # progress / cost of the production jobs
 bash make_jobs.sh && bash submit_jobs.sh                   # exact + trajectories (submit_jobs_L22.sh later)
+
+# small-γ scar runs: bench first, then production with the measured JUMP_FACTOR
+bash make_bench_jump_jobs.sh && bash submit_bench_jump.sh
+#   after the bench: copy its .out/.err to the laptop, python data/bashes/summarize_jobs.py <logs> data/bench_jump
+#   JUMP_FACTOR = (jump, γ = 0.1) / (diffusive) core-s per trajectory per unit of t
+JUMP_FACTOR=<x> bash make_jump_jobs.sh                     # prints the (L, γ) cost table and the tiers
+bash submit_jump_tier1.sh                                  # tiers 2, 3 after looking at the table
+JUMP_FACTOR=<x> bash make_single_flip_jobs.sh && bash submit_single_flip.sh
+bash make_small_gamma_exact_jobs.sh && bash submit_small_gamma_exact.sh
+
+# Leonardo -> laptop: job logs (then: python data/bashes/summarize_jobs.py data/perf data/states2)
+cd $REPO/data/bashes && sacct -u $USER -S <date> --format=JobID,JobName%30,Elapsed,TotalCPU,MaxRSS,State -P > sacct_all.txt
+tar czf ../perf.tar.gz *.out *.err sacct_all.txt
 
 # Leonardo -> laptop: results
 cd $REPO/data && tar czf states_neel-x.tar.gz states/states_neel-x_* states/states_realization_*
@@ -282,10 +353,26 @@ cd $REPO/data && tar czf states_traj.tar.gz states/states_traj_* states/states_r
 
 - Run the generators on Leonardo (they write paths under `$REPO`); `bash -n` a generated script if unsure.
 - The CSV is written while a job runs, so a job cut at 24 h keeps its early part; there is no restart.
-- Trajectory cost (`states_traj`, laptop, core-seconds per trajectory per unit of time): 7 (L = 14), 40 (16),
-  210 (18), 1010 (20); ≈ 2.3× per added site. Memory 3 · 16 B · 2^L per trajectory.
-- Cost: matrix-free 𝓛v at L = 11 takes 0.56 s on the laptop (16 threads); per added site ≈ 4.5–5× time and 4× memory.
-  L = 14 at small γ is not expected to reach the stop criterion within 24 h; check with the benchmark first.
+- Measured cost on Leonardo (2026-10-16 batch, one node, 112 threads, `numactl --interleave=all`; Intel Xeon
+  Platinum 8480+, 2 × 56 cores, 8 NUMA nodes, 503 GB). Medians over 0 < γ ≤ 0.5:
+
+  | L | exact (`states`): wall s per unit of t | peak memory | trajectories (`states_traj`): core-s per trajectory per unit of t | peak memory |
+  |---|---|---|---|---|
+  | 12 | 190 (120 – 320) | 0.9 GB | 0.79 (224 traj: 1.6 wall s per unit of t) | 0.04 GB |
+  | 14 | 1750 – 4600 (3300) | 14.7 GB | 3.9 (224 traj: 7.9 s) | 0.15 GB |
+  | 16 | – | – | 21 (224 traj: 43 s) | 0.68 GB |
+  | 18 | – | – | 91 (224 traj: 182 s) | 2.7 GB |
+  | 20 | – | – | 400 (112 traj: 400 s) | 5.5 GB |
+
+  - Trajectories: ≈ 2.1 – 2.3× per added site, so ≈ 1800 core-s at L = 22 (estimate; 112 trajectories ≈ 48 units
+    of t per 24 h). Leonardo is ≈ 2.5× faster per core than the laptop (1010 at L = 20). Memory 3 · 16 B · 2^L per
+    trajectory (5.5 GB = 112 × 50 MB at L = 20). The cost per unit of t is flat for γ ≤ 0.5 and grows at large γ:
+    × 1.6 (γ = 1), 2.5 (2), 5 (5), 9 (10). γ = 0 is one trajectory.
+  - Exact L = 14: ≈ 400× slower than 224 trajectories at L = 14 per unit of t; slowest at small γ (x-Néel
+    γ ≤ 0.02: ≈ 4600 s) and at γ = 10 (≈ 5500 s). In 24 h it reached t = 25 (scar) and 19 (x-Néel) at γ ≤ 0.02, which
+    is past the 1/e time but not the stop criterion. Use trajectories for L ≥ 14.
+  - Wall time of whole runs (stop at 1e-3, γ = 0.01): scar 1.3 h (L = 16, t = 116), 5.3 h (18, t = 106),
+    11.9 h (20, t = 107); x-Néel 0.3 h, 1.3 h, 2.8 h.
 
 ## Conventions in the code (do not change silently)
 
@@ -302,8 +389,69 @@ cd $REPO/data && tar czf states_traj.tar.gz states/states_traj_* states/states_r
   is read once per group; H ψ is split over threads from 2^15 amplitudes on. e^{−iH τ}: Taylor substeps with
   1.5 · ‖H‖_est · τ ≤ 4. `states_traj` validated against the exact ρ at L = 8, γ = 0.1 (scar and x-Néel, 2000
   trajectories): rms deviation ≈ 1 standard error.
-- Trajectories: σᶻ_j is Hermitian, so the dephasing is unravelled as a real-noise diffusion that keeps the state normalized (a fluctuating z field on every spin). One step is e^{−iH dt/2} · Π_j e^{−i√γ ΔW_j σᶻ_j} · e^{−iH dt/2}, ΔW_j ~ N(0, dt); the error of the average is O(dt²). This is not the jump unravelling described under "Numerical methods".
+- Trajectories: σᶻ_j is Hermitian, so the dephasing is unravelled as a real-noise diffusion that keeps the state normalized (a fluctuating z field on every spin). One step is e^{−iH dt/2} · Π_j e^{−i√γ ΔW_j σᶻ_j} · e^{−iH dt/2}, ΔW_j ~ N(0, dt); the error of the average is O(dt²). This is the default (`--unravel diffusive`).
+- Jump unravelling (`--unravel jump`, `JumpTrajectory`): the one under "Numerical methods". Waiting times exponential
+  with total rate γL, kicked site uniform, σᶻ_k applied exactly; between kicks e^{−iHτ} with the Taylor substeps,
+  split only at the kicks and the output grid (dt = min(--dt, 0.05/γ) as for diffusive). From the scar state the
+  state before the first kick is the reference-1 product state, written down at the kick time (no state vector is
+  allocated before it). Exact sampling: the only error is round-off. Noise seed: `--traj-seed` if given, else
+  `--seed` (so the diffusive runs without `--traj-seed` reproduce the earlier ones); the realization always comes
+  from `--seed` (`states_realization_L<L>.csv` identical for any traj-seed).
+  Validated (2026-10-19) against exact `states`, scar, L = 8, 2000 trajectories: rms deviation of m_x, m_y, m_z
+  0.8 – 1.0 standard errors at γ = 0.1 (t ≤ 35.5) and 0.9 – 1.0 at γ = 0.01 (t ≤ 178); max 2.9 standard errors.
+  Tests: analytic start = evolution from t = 0 (1e-11), H_I = 0 gives e^(−2γt). Laptop cost (L = 16, γ = 0.1, all
+  trajectories kicked): jump / diffusive = 0.79 at output step 0.1, 0.59 at 0.25, 0.63 at 0.5 (the Taylor series over
+  a longer step needs fewer H ψ per unit of t, up to the substep limit).
 - TDVP: site type `PauliVec` with states (1, σˣ, σʸ, σᶻ). Left multiplication by σ^a is A^a + iB^a on the coefficients, so −i[P, ·] = 2 Im ⊗_j (A^{a_j} + iB^{a_j}), a real MPO; the periodic boundary enters as long-range terms. Observables are divided by the trace coefficient.
+
+## Results up to L = 20: scar and x-Néel (exact L ≤ 14, trajectories L = 12 … 20)
+
+Data in `data/states2/` (cluster batch of 2026-10-16): exact (`states`) scar L = 4 … 12 and 14, x-Néel and z-Néel
+even L = 4 … 14; trajectories (`states_traj`, 224 per run, 112 at L = 20) for scar and x-Néel at L = 12 … 20 (even).
+Same γ grid, same random-c realization per L. One run per (state, L, γ) (`states_data.select`): exact up to L = 14,
+except at γ ≤ 0.02 for L = 14 (cut at 24 h) where the trajectories are used. Figures: `states_scar.png`,
+`states_neel-x.png`, `states_inverse_L.png`, `states_thermodynamic_rate.png`, `states_rates.png` in `data/states2/`.
+
+- **Exact vs trajectories** (L = 12, 14): Γ_e agrees within 1 – 2.5 % for γ ≤ 2 (x-Néel ≤ 0.7 % for γ ≤ 1); at
+  γ = 5, 10 up to 4.6 %, because the standard error near the 1/e crossing is ≈ 0.01 there. Tail slopes of the
+  trajectories are not usable (the 1e-2 … 1e-3 window is at the statistical floor). x-Néel L = 16 lies ≈ 4 % below
+  the other sizes for every γ, also at γ = 0 (one deterministic trajectory): a property of its c realization.
+- **Scar m_⊥, Γ_e/γ:**
+
+  | γ | L = 8 | 10 | 12 | 14 | 16 | 18 | 20 | L − 1 at L = 20 |
+  |---|---|---|---|---|---|---|---|---|
+  | 0.01 | 6.73 | 7.84 | 8.49 | 8.88 | 9.56 | 10.24 | 10.61 | 19 |
+  | 0.02 | 6.00 | 6.77 | 7.77 | 8.15 | 8.34 | 8.50 | 8.64 | |
+  | 0.05 | 5.76 | 6.03 | 6.24 | 6.25 | 6.26 | 6.28 | 6.32 | |
+  | 0.1 | 4.36 | 4.45 | 4.48 | 4.47 | 4.43 | 4.46 | 4.51 | |
+
+  For γ ≥ 0.05 Γ_e is L-independent from L ≈ 10 to 20 (within ≈ 1 %); at γ = 0.02 it flattens from L ≈ 16; at
+  γ = 0.01 it still grows at L = 20. At fixed L and γ → 0, Γ_e/γ → ≈ L − 1 (first-order perturbation theory for the
+  tower coherences; small L already sit there: 3.4, 5.2, 6.7 for L = 4, 6, 8 at γ = 0.01). A size L shows the
+  thermodynamic rate only if L − 1 ≫ Γ_∞/γ.
+- **Scar Γ_∞** (A + B/L on L = 8 … 20, error = max(fit error, |linear − quadratic on L ≥ 6|)):
+
+  | γ | 0.01 | 0.02 | 0.05 | 0.1 | 0.2 | 0.5 | 1 | 2 | 5 | 10 |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | Γ_∞ | 0.128 ± 0.012 | 0.213 ± 0.010 | 0.335 ± 0.015 | 0.453 ± 0.010 | 0.647 ± 0.022 | 1.24 ± 0.02 | 2.26 | 4.22 ± 0.08 | 9.5 ± 0.5 | 19.7 ± 0.3 |
+  | Γ_∞/γ | 12.8 | 10.6 | 6.7 | 4.5 | 3.2 | 2.5 | 2.26 | 2.1 | 1.9 | 1.97 |
+
+  Consistent with the L ≤ 12 values (0.12, 0.22, 0.36, 0.47, 0.67), with smaller errors at γ ≤ 0.02. Local exponent
+  d ln Γ_∞/d ln γ: 0.73 (0.01 – 0.02), 0.50 (0.02 – 0.05), 0.44 (0.05 – 0.1), 0.51 (0.1 – 0.2), then 0.7 – 0.9 → 1
+  at large γ. So lifetime ~ γ^(−1/2) over 0.02 ≤ γ ≤ 0.2 (a factor 10); the steeper 0.01 – 0.02 step rests on the
+  least converged point (Γ_e(L = 20) is still 17 % below Γ_∞ at γ = 0.01). γ = 5, 10: the trajectory sizes scatter
+  by a few % (see above), the exact sizes give Γ_e/γ = 2.02, 2.01.
+- **x-Néel s_⊥ (thermal reference).** γ = 0: thermalizes with Γ_e ≈ 4.8 for every L ≥ 8 (L = 4, 6 have finite-size
+  revivals and never reach 1/e at γ ≤ 0.05; left out of the fits there). Γ_e is L-independent for L ≥ 8 at every γ
+  (spread ≈ 1 %, apart from the L = 16 realization). Γ_∞ = 4.74 (γ = 0.01), 4.75 (0.02), 4.78 (0.05), 4.90 (0.1),
+  4.99 (0.2), 5.32 (0.5), 5.78 (1), 7.04 (2), 11.3 (5), 20.6 (10), errors ≈ 0.1 (0.35 at γ ≤ 0.05 from the
+  linear − quadratic difference). Flat at the closed-system rate for γ ≤ 0.1, then → 2γ (+ ≈ 0.6 at γ = 10): no
+  Zeno slowdown, unlike z-Néel.
+- **Scar vs thermal:** Γ_∞(scar) < Γ_∞(x-Néel) at every γ; ratio 37 (γ = 0.01), 22 (0.02), 14 (0.05), 11 (0.1),
+  7.7 (0.2), 4.3 (0.5), 2.6 (1), 1.7 (2), 1.05 (10). The scar rate → 0 as γ → 0, the thermal one stays at ≈ 4.8.
+- **Smaller γ** (feasibility, see the cost table under "Cluster"): γ = 0.005 – 0.001 fit in 24 h up to L = 20 with
+  `--t-max` ≈ 3/Γ_e, but at L ≤ 20 they sit at the finite-size cap Γ_e/γ ≈ L − 1 (Γ_∞/γ extrapolates to ≈ 16 – 18
+  at γ = 0.005, 25 – 30 at 0.002): useful for a scaling collapse Γ_e/γ = L g(L/ξ(γ)), not for A + B/L.
 
 ## Results with the new coefficients (states binary, random c, L = 4 … 12)
 
@@ -348,7 +496,7 @@ Current coefficients (h = 1, a = b = (1, 1, 1), c = 𝟙 with random factors), d
   With H_I = 0, s_z does not decay at all, and at large γ it is Zeno-protected. So it is not like-for-like with the
   scar's m_⊥ (e^(−2γt) at H_I = 0). The thermal reference is now the x-Néel |+−+−…⟩ with s_⊥ = √(s_x² + s_y²):
   same e^(−2γt) baseline at H_I = 0, zero tower overlap of the k = π observable (P_tower O_π P_tower = 0). It is not
-  a dark state of 𝓛 (only |↑…↑⟩ and |↓…↓⟩ are). x-Néel runs (L = 4 … 14) are next; see `time-evolution-plan.md`.
+  a dark state of 𝓛 (only |↑…↑⟩ and |↓…↓⟩ are). x-Néel results: "Results up to L = 20" above.
 
 ## Results so far (γ = 0.01, t ≤ 100, dt = 0.1)
 

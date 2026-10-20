@@ -11,7 +11,7 @@ Two rates per run:
               slope. NaN if E never reaches TAIL_LO (e.g. Néel at γ = 0, which stops at a finite-size floor).
 
 Input:  states_<state>_L<L>_g<γ>.csv (exact, `states` binary) and states_traj_<state>_L<L>_g<γ>.csv (trajectories,
-        `states_traj` binary) in data/states/ (or the directory given as the first argument)
+        `states_traj` binary) in data/used_data/ (or the directory given as the first argument)
 Output: in the same directory
         states_rates.csv   state, method, L, gamma, cut, selected, Gamma_e, Gamma_tail, sigma_tail, t_tail_min,
                            t_tail_max; one row per run, `selected` marks the one run per (state, L, γ) chosen by
@@ -32,7 +32,7 @@ from states_data import SIGNALS, load, select
 
 TAIL_HI, TAIL_LO = 1e-2, 1e-3
 
-DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "data" / "states"
+DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "data" / "used_data"
 SURFACE, INK, INK_SECONDARY, MUTED, GRID, AXIS = "#fcfcfb", "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7"
 RAMP = ["#bcd5f5", "#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#0d366b", "#06203f"]  # small L light, large L dark
 

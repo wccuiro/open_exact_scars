@@ -106,6 +106,32 @@ This is a spin coherent state with S = L/2, so it lies entirely in the tower: |�
   With trajectories: F = mean of |⟨ψ₀(t)|ψ_traj(t)⟩|². Also report the rate function −(1/L) ln F, which is intensive.
 - Tower weight W(t) = Σ_n ⟨Φ_n|ρ(t)|Φ_n⟩ (global contrast to the envelope).
 
+## Decay rates (how they are computed)
+
+Same definition for every state, γ and L (code: `rates` in `plot_scripts/fit_states.py`, `rate` in
+`fit_small_gamma.py`; notes: `latex/notes.tex`, section "How the decay rates are computed").
+
+- **Signal** S(t): m_⊥ (scar), s_⊥ (x-Néel), |s_z| (z-Néel); all start at S(0) = 1.
+- **Envelope** E(t) = max_{t′ ≥ t} S(t′) on the output grid: non-increasing, removes precession zeros and revivals.
+- **Γ_e (main rate)** = 1/t_e, t_e = first time E < 1/e, interpolated linearly in ln E between the two output times
+  that bracket it. Not a fit: no free amplitude A₀, no window. It is the rate of the exponential that starts at the
+  true S(0) = 1 and passes through E at 1/e. For e^(−Γt) it gives Γ exactly. In general Γ_e = (1/t_e) ∫₀^{t_e} λ dt,
+  the instantaneous rate λ = −d ln E/dt averaged from 0 to t_e. The decays are not single exponentials (scar:
+  multi-exponential; at small γ ≈ exp[−γ ∫ D̄], rate growing from 2γ to γ D_sat), so an A₀ e^(−Γt) fit with A₀ free
+  would depend on its window (the old "Results so far" rates are such window fits).
+- **Error of a trajectory Γ_e:** σ_Γ = Γ_e² σ_m(t_e) / |dE/dt| (slope over ± 4 output steps), σ_m the standard error of
+  S from those of its components; ≈ e σ_m relative. Exact runs: no statistical error.
+- **Γ_tail:** least-squares slope of ln E between E = 1e-2 and 1e-3 (this one is an A₀ e^(−Γt) fit, A₀ free, tail
+  only; slow modes). Exact runs only (trajectories reach their statistical floor there).
+- **Γ_∞:** A of Γ_e(L) = A + B/L (unweighted) on L ≥ 8; error = max(fit error, |A − A_quad|), A_quad the intercept of a
+  quadratic in 1/L on L ≥ 6. Néel revivals: x-Néel without L = 6 at γ ≤ 0.05, z-Néel without L = 6, 8 at γ ≤ 0.02,
+  z-Néel no quadratic (error |A − Γ_e(L_max)|).
+  - Scar at γ < 0.01: not extrapolated on L ≥ 8 (every L at the cap γ(L − 1)). Instead: Γ_e(L_max) as a lower bound;
+    A + B/L on L = 14 … 20 as an estimate (error = max(fit error, change when L = 12 is added)); the collapse power law
+    Γ_∞ ∝ γ^(1 − ν).
+  - γ = 0: not fitted, mean Γ_e over the fitted sizes; scar 0.
+- **Single-kick prediction** of Γ_e uses the same definition: γ ∫₀^{t_e} D̄ = 1.
+
 ## Numerical methods
 
 **Quantum trajectories (primary).** Because (σᶻ_j)² = 1, the effective Hamiltonian is H − iγL/2, i.e. H up to a constant. Each trajectory is therefore exact unitary evolution under H, interrupted by σᶻ_j kicks:
@@ -153,13 +179,16 @@ Later knobs:
 
 ---
 
-# Code and results (state of 2026-10-19)
+# Code and results (state of 2026-10-20)
 
 Current focus: time evolution only. The `states` binary evolves ρ exactly (full Pauli basis, random c, current
 coefficients) from product states over a γ grid, `states_traj` does the same with trajectories for L > 14, and the
-decay rates are extrapolated to 1/L → 0. Latest results: "Results up to L = 20" below. In progress: small-γ
-scar runs for the single-kick test (Cluster section, "Small-γ scar runs"; plan in `time-evolution-plan.md`). Plan:
-`time-evolution-plan.md` (the earlier probe/ED plan `scar-vs-thermal-decay-plan.md` is in git history).
+decay rates are extrapolated to 1/L → 0. Latest results: "Results at small γ and the single-kick test" (small-γ
+batch, finished 2026-10-20; nothing running) and "Results up to L = 20" below; all current figures and CSVs are in
+`data/used_data/`. Open point: the growth of the single-kick damage D̄(τ) at L ≥ 24 and τ > 8 (ballistic or
+diffusive). Plan: `time-evolution-plan.md` (the earlier probe/ED plan `scar-vs-thermal-decay-plan.md` is in git
+history). Notes: `latex/notes.tex` (build `cd latex && latexmk -pdf notes.tex`; figures copied from `data/used_data/`
+into `latex/figures/`).
 
 ## Working rules
 
@@ -193,8 +222,9 @@ rust/tests/checks.rs     exact references 1 and 2, random product states, full b
 julia/lindblad_tdvp.jl   ITensor: ρ as an MPS, two-site TDVP
 plot_scripts/            plot_evolution.py, fit_decay.py, compare_methods.py, resource_tables.py,
                          compare_initial_states.py, plot_disorder.py, fit_probes.py, plot_spectrum.py,
-                         fit_states.py, fit_states_inverse_L.py, plot_states.py,
-                         states_data.py (reads `states` and `states_traj` CSV, picks one run per (state, L, γ))
+                         fit_states.py, fit_states_inverse_L.py, plot_states.py, fit_small_gamma.py, single_kick.py,
+                         states_data.py (reads `states` and `states_traj` CSV, diffusive and jump, pools the
+                         traj-seeds, picks one run per (state, L, γ))
 ```
 
 ```bash
@@ -229,26 +259,55 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
   the standard errors mx_err … sz_err; same random-c realization as `states`. γ = 0 is one trajectory (deterministic).
   Stop: signal below max(--stop, 3 × its standard error) for 10 time units. Jump unravelling adds `_jump`, a
   --traj-seed adds `_s<N>`: `states_traj_<state>_L<L>_g<γ>_jump_s<N>.csv` (same columns; the runs of one (L, γ)
-  with different traj-seeds are independent samples to be pooled). `states_data.py` ignores these files for now.
+  with different traj-seeds are independent samples to be pooled). `states_data.py` reads them as method "jump" and
+  pools all traj-seeds of one (state, L, γ) on their common time grid, weighted by trajectory count (standard error
+  from the within- plus between-seed variance).
 - `single_flip_L<L>.csv` (all sites) or `single_flip_L<L>_sites<k1-k2-…>.csv` (from `single_flip`): L, m, phi, k,
   tau, D, then per site re_c0 … re_c{L−1}, im_c0 …, z0 …; one row per (m, k, τ). c_j = (⟨σˣ_j⟩ + i⟨σʸ_j⟩) /
   (reference-1 value at t′ + τ), t′ = φ_m/h, φ_m = 2πm/N; D = Σ_j [1 − Re c_j], D(0) = 2.
-  The cluster output is in `data/states/` (unpacked from `data/states.tar.gz`; L ≤ 12) and `data/states2/` (from
-  `data/states2.tar.gz`: exact L ≤ 14, x-Néel, trajectories L = 12 … 20). The scripts read exact and trajectory files
-  together and use one run per (state, L, γ) (`states_data.select`): exact where it finished, else trajectories. A job
-  cut at 24 h leaves an incomplete last line, which is dropped (exact L = 14, γ ≤ 0.02 were cut). Scripts reading
-  `data/states/` (default dir; pass `data/states2` for the new data):
+  **Data layout (since 2026-10-20).** `data/used_data/` holds every file the current analysis uses: all run CSVs and
+  random-c realizations of the 2026-10-16 batch (exact L ≤ 14, x-Néel, trajectories L = 12 … 20; it contains all run
+  files of the 2026-10-15 batch, identical) and of the small-γ batch (exact, jump, diffusive cross-check,
+  `single_flip`), plus the outputs of the scripts below. Every script defaults to it. Everything else is in
+  `data/non_used_data/`: `archives/` (the `.tar.gz` from Leonardo: `states`, `states2`, `small_gamma`, `bench_jump`,
+  `bench_jump_logs`, `perf`, `bashes`), `logs/` (`perf_2026-10-16`, `bench_jump_2026-10-19`, `small_gamma_jobs` with
+  `sacct_small_gamma.txt`), `states_batch_2026-10-15/` (the first cluster batch, superseded), `states2_leftovers/`
+  (old analysis outputs and duplicate realizations), `previous_coefficients/` (all laptop outputs with the previous
+  coefficients: evolution, trajectories, tdvp, disorder, probes, spectrum, γ scans, `first_pass/`; the scripts that
+  made them still default to `data/`). `data/bashes/` (job scripts) and `data/leonardo_benchmarks.md` stay at the top. The scripts
+  read exact and trajectory files together and use one run per (state, L, γ) (`states_data.select`), in the order
+  exact, jump, diffusive, complete runs before cut ones. A job cut at 24 h leaves an incomplete last line, which is
+  dropped (exact L = 14, γ ≤ 0.02 were cut); a small-γ run that ends at its t-max before the signal reaches 1e-3
+  also counts as cut (only for the selection order). Scripts (all default to `data/used_data`):
   - `fit_states.py [dir]` (any number of sizes): `states_rates.csv` (state, method, L, gamma, cut, selected, Gamma_e,
     Gamma_tail, sigma_tail, t_tail_min, t_tail_max; one row per run) and `states_rates.png` (Γ against γ, selected
     runs; tail slopes only for exact runs, trajectories reach their statistical floor in the tail window).
-  - `fit_states_inverse_L.py`: Γ_e against 1/L, linear A + B/L on L ≥ 8 (Γ_∞ = A), quadratic check on L ≥ 6 for the scar;
+  - `fit_states_inverse_L.py`: Γ_e against 1/L, only γ ≥ 0.01 (`GAMMA_FIT_MIN`; squares = any non-exact method);
+    the scar fit on L ≥ 14 (from `fit_small_gamma.py`, `states_inverse_L_large.csv`) as open squares in
+    `states_thermodynamic_rate.png`;
+    linear A + B/L on L ≥ 8 (Γ_∞ = A), quadratic check on L ≥ 6 for the scar;
     Néel at γ ≤ 0.02 drops L = 6, 8, x-Néel at γ ≤ 0.05 drops L = 6 (finite-size revivals). Writes `states_inverse_L.csv`, `states_inverse_L.png`,
-    `states_thermodynamic_rate.png` (Γ_∞ against γ, symlog axes). γ = 0 is shown in both figures but not fitted:
+    `states_thermodynamic_rate.png` (Γ_∞ against γ, symlog axes down to γ = 2e-4; for the scar at γ < 0.01, where Γ_∞ is
+    not extrapolated, Γ_e of the largest L as lower bounds (Γ_e grows with L there), and the band Γ_∞ ∝ γ^(1 − ν) through
+    Γ_∞(0.05) with ν and its range from `small_gamma_collapse.csv`, so run `fit_small_gamma.py` first; it also reads `states_inverse_L_large.csv`). γ = 0 is shown in both figures but not fitted:
     Γ_e per L (diamonds; the scar panel plots Γ_e on a symlog axis, so its γ = 0 sits at 0) and its mean over the
     fitted sizes, joined to γ = 0.01
     (scar 0, x-Néel 4.76 ± 0.08, z-Néel 4.96).
   - `plot_states.py [dir]`: time series `states_scar.png`, `states_neel.png`, `states_neel-x.png`, `states_neel_n.png`
     (⟨n⟩/L for z-Néel).
+  - `fit_small_gamma.py [dir]` (default `data/used_data`; reads the run files directly): scar Γ_e/γ against L for γ ≤ 0.05, statistical error of
+    the trajectory Γ_e (σ_Γ = Γ² σ_m / |dE/dt| at the 1/e crossing), scaling collapse Γ_e/γ = ξ f(L/ξ), ξ = γ^(−ν),
+    ν by minimal spread (γ ≤ 0.05, L ≥ 8), jump vs exact/diffusive cross-checks; scar A + B/L on the large sizes
+    L = 14 … 20 only (`LARGE_L_MIN`, ≥ 3 sizes; error = max(fit error, change when L = 12 is added)), written to
+    `states_inverse_L_large.csv` and `states_inverse_L_large.png` (Γ_e/γ against 1/L), and drawn in
+    `small_gamma_rates.png` as dashed curves with their L → ∞ value at an "∞" tick. Run order: `fit_states.py`,
+    `fit_small_gamma.py`, `fit_states_inverse_L.py`, `single_kick.py`. Writes `small_gamma_rates.csv`,
+    `small_gamma_checks.csv`, `small_gamma_collapse.csv` (ν, ν_min, ν_max), `small_gamma_rates.png`, `small_gamma_crosscheck.png`.
+  - `single_kick.py [dir]` (default `data/used_data`; reads `states_inverse_L.csv`): D̄(τ) from the `single_flip` CSVs (mean over the 16 phases and
+    kicked sites), prediction m_⊥(t) ≈ exp[−γ ∫₀ᵗ D̄], D̄ continued past τ = 25 by its mean over the last 5 units
+    (L ≤ 20; L = 22, 24 only to τ = 8); predicted Γ_e from γ ∫₀^{t_e} D̄ = 1 against the measured one, and Γ_∞
+    against the prediction from D̄ of L = 24. Writes `single_kick_damage.csv`, `single_kick_rates.csv`,
+    `single_kick_damage.png`, `single_kick_rates.png`, `single_kick_series.png`.
 - `spectrum_L<L>.csv`: L, gamma, re, im, tower, mixed, bulk, energy_overlap; one row per Liouvillian mode, at γ = 0 and the chosen γ.
 
 ## Cluster (Leonardo)
@@ -258,7 +317,7 @@ Repo on Leonardo: `/leonardo/home/userexternal/wccuirom/repos/open_exact_scars` 
 scripts live in `data/bashes/`, which is untracked like all of `data/`, so they are copied by hand.
 
 Job generators in `data/bashes/` (each writes one Slurm script per job and a `submit_*.sh`):
-- `make_states_jobs.sh`: scar and z-Néel, L = 4 … 12 (done; output in `data/states.tar.gz`).
+- `make_states_jobs.sh`: scar and z-Néel, L = 4 … 12 (done; output in `data/non_used_data/archives/states.tar.gz`, run files also in `data/used_data/`).
 - `make_states_neel-x_jobs.sh`: x-Néel, even L = 4 … 14, one job per γ at L = 12 (16G) and L = 14 (64G).
 - `make_bench_jobs.sh`: short runs (γ = 0.1) at L = 10, 12, 13, 14 with 8 … 112 threads, numactl on/off;
   one CSV line per run in `$REPO/data/bench/bench_results_<job>.csv`, binary output in `data/bench/out` and `logs`.
@@ -276,10 +335,21 @@ Job generators in `data/bashes/` (each writes one Slurm script per job and a `su
   installed on Leonardo, so `sacct` shows every job of the 2026-10-16 batch as FAILED although all runs exited with 0.
 - `summarize_jobs.py LOG_DIR STATES_DIR` (pandas): one row per run of the production jobs from their `.out`/`.err`
   (final t, wall time, peak memory, wall seconds per unit of t, core-seconds per trajectory per unit of t), written
-  to `LOG_DIR/jobs_summary.csv`. The logs of the 2026-10-16 batch are in `data/perf/` (from `data/perf.tar.gz`,
+  to `LOG_DIR/jobs_summary.csv`. The logs of the 2026-10-16 batch are in `data/non_used_data/logs/perf_2026-10-16/` (from `archives/perf.tar.gz`,
   with `sacct_all.txt`).
 - `summarize_bench.py [bench_dir] [--logs dir]` (standard library only): table per bench run, growth per added
   site, and with `--logs` the elapsed time, peak memory and final t of the production jobs.
+
+Workstation benchmark (2026-10-20, for small jobs on another computer, no Slurm): `data/bashes/bench_machine.sh`
+(run from the repo on that machine; builds the binaries, detects cores and RAM, skips runs that need more than 80 % of
+the available memory; γ = 0.1, scar). Runs: exact `states` L = 8, 10, 12 (and 1, 2, 4, 8 threads at L = 12), diffusive
+trajectories L = 12 … 18 one per thread (and 1 thread at L = 16), jump L = 16, 18, `single_flip` L = 16 (256 runs);
+`BIG=1` adds exact L = 13, 14 and trajectories L = 20; `SCALE=x` multiplies every t-max (`SCALE=0.05` only checks the
+script: setup time dominates and the per-t numbers are meaningless). Output `data/bench_<host>/` (CSV, logs, binaries'
+output) and `data/bench_<host>.tar.gz` to send back. `data/bashes/bench_summary.py data/bench_<host>` (standard
+library) prints exact wall s per unit of t and trajectory core-s per run per unit of t against the Leonardo table,
+the per-core ratio and the throughput in Leonardo nodes. Laptop test output (SCALE = 0.02) in
+`data/non_used_data/bench_tests/`.
 
 Small-γ scar runs (single-kick test; generators of 2026-10-19). Common parts in
 `small_gamma_common.sh`: the cost model (the measured table below; jump and `single_flip` cost = `JUMP_FACTOR` ×
@@ -312,12 +382,18 @@ per job and in total, and skips a run whose output CSV exists. Output in `$REPO/
   included, no first-kick saving, `JUMP_FACTOR` = 1) was ≈ 94 000 for the jump runs.
 - Existing data is never rerun: every run is skipped if its own output file exists, and the (L, γ) that already
   have data under another name (γ = 0.01) are not in the grids.
-- **Status (2026-10-19, night).** Bench done (results below). Production submitted, all tiers at once: generators
-  run with `JUMP_FACTOR=1.15` (jump) and `1.0` (single_flip), printed tables identical to the laptop dry run.
-  30 jobs: jump tier 1 61487746 … 61487796 (11), tier 2 61487815, 61487818, tier 3 61487846 … 61487857 (6),
-  single_flip 61487890 … 61487911 (7), exact 61487942 … 61487949 (4). ≈ 33 300 core-hours planned.
-- **Bench results (2026-10-19, night).** Output `data/bench_jump.tar.gz`, logs `data/bench_jump_logs.tar.gz`, both
-  unpacked in `data/bench_jump_logs/` (output in its `bench_jump/`). Every run exited with 0 and reached its final t;
+- **Status (2026-10-20): batch finished, nothing running.** Submitted 2026-10-19 with `JUMP_FACTOR=1.15` (jump)
+  and `1.0` (single_flip). 30 jobs: jump tier 1 61487746 … 61487796 (11), tier 2 61487815, 61487818, tier 3
+  61487846 … 61487857 (6), single_flip 61487890 … 61487911 (7), exact 61487942 … 61487949 (4). 29 COMPLETED;
+  `jump_t2_L18_2` NODE_FAIL after 7.6 h: L = 18, γ = 0.001 (jump) ends at t = 125.75 of 176.5, past the 1/e time,
+  so its Γ_e is usable. All 79 runs that ended exited with 0. The four L = 20, γ = 0.0005 traj-seeds (56
+  trajectories each) met the stop criterion at t = 260 – 297 (t-max 315.8); the pooled run uses the common grid
+  t ≤ 260.25. Wall times below the plan: e.g. jump_t1_L16_1 13.1 h (planned 19.3), jump_t1_L20_5 15.5 h (19.3),
+  tier-3 L = 20 jobs 8.9 – 12.1 h (14.1), single_flip_L24 8.1 h (11.9); exact_small_L12_1 12.9 h. Node time
+  (elapsed × 112) ≈ 24 100 core-hours against ≈ 33 300 planned (jump tiers 1, 2, 3: 11 300, 1 900, 7 000;
+  single_flip 2 000; exact 1 900). Data in `data/used_data/`, logs in `data/non_used_data/logs/small_gamma_jobs/` (with `sacct_small_gamma.txt`).
+- **Bench results (2026-10-19, night).** Output and logs in `data/non_used_data/logs/bench_jump_2026-10-19/` (output in its `bench_jump/`; archives in
+  `non_used_data/archives/`). Every run exited with 0 and reached its final t;
   sacct: all three jobs COMPLETED. Per trajectory per unit of t, 112 cores:
   - diffusive γ = 0.002: 17.2 (L = 16), 322 (L = 20) core-s, ≈ 20 % below the 2026-10-16 values (21, 400).
   - jump γ = 0.1 / diffusive, raw: 0.97 (dt 0.1), 0.92 (dt 0.25) at L = 16; 1.07, 1.03 at L = 20. Per kicked
@@ -370,7 +446,7 @@ bash submit_jump_tier1.sh                                  # tiers 2, 3 after lo
 JUMP_FACTOR=<x> bash make_single_flip_jobs.sh && bash submit_single_flip.sh
 bash make_small_gamma_exact_jobs.sh && bash submit_small_gamma_exact.sh
 
-# Leonardo -> laptop: job logs (then: python data/bashes/summarize_jobs.py data/perf data/states2)
+# Leonardo -> laptop: job logs (then: python data/bashes/summarize_jobs.py <logs dir> data/used_data)
 cd $REPO/data/bashes && sacct -u $USER -S <date> --format=JobID,JobName%30,Elapsed,TotalCPU,MaxRSS,State -P > sacct_all.txt
 tar czf ../perf.tar.gz *.out *.err sacct_all.txt
 
@@ -433,13 +509,106 @@ cd $REPO/data && tar czf states_traj.tar.gz states/states_traj_* states/states_r
   a longer step needs fewer H ψ per unit of t, up to the substep limit).
 - TDVP: site type `PauliVec` with states (1, σˣ, σʸ, σᶻ). Left multiplication by σ^a is A^a + iB^a on the coefficients, so −i[P, ·] = 2 Im ⊗_j (A^{a_j} + iB^{a_j}), a real MPO; the periodic boundary enters as long-range terms. Observables are divided by the trace coefficient.
 
+## Results at small γ and the single-kick test (2026-10-20)
+
+Small-γ batch (Cluster, "Small-γ scar runs"), data in `data/used_data/`, scripts `fit_small_gamma.py`,
+`single_kick.py`. Scar m_⊥ only, same random-c realization per L as before.
+
+- **Scar m_⊥, Γ_e/γ** (exact for L ≤ 12; jump trajectories for L = 12 … 20 at γ < 0.01, except L = 12, γ ≥ 0.002
+  exact; γ = 0.01 from the 2026-10-16 batch):
+
+  | γ | L = 8 | 10 | 12 | 14 | 16 | 18 | 20 |
+  |---|---|---|---|---|---|---|---|
+  | 0.0005 | 6.82 | 8.89 | 11.46 | 11.82 | 14.60 | 14.65 | 16.92 |
+  | 0.0007 | 6.93 | 8.82 | 10.95 | 11.45 | 13.49 | – | – |
+  | 0.001 | 6.98 | 8.92 | 11.55 | 11.48 | 14.10 | 14.64 | 19.04 |
+  | 0.0014 | 6.81 | 8.86 | 10.71 | 10.69 | 12.71 | – | – |
+  | 0.002 | 6.81 | 8.93 | 10.24 | 11.67 | 13.25 | 13.34 | 15.14 |
+  | 0.003 | 6.85 | 8.91 | 10.06 | 11.10 | 11.94 | 13.09 | 15.30 |
+  | 0.004 | 6.88 | 8.37 | 9.89 | 10.56 | 11.73 | 11.84 | 13.21 |
+  | 0.005 | 6.80 | 8.31 | 9.31 | 9.92 | 11.39 | 11.66 | 12.56 |
+  | 0.007 | 7.17 | 7.99 | 8.75 | 9.23 | 10.08 | 11.92 | 12.01 |
+  | 0.01 | 6.73 | 7.84 | 8.49 | 8.88 | 9.56 | 10.24 | 10.61 |
+
+  Statistical error of the trajectory Γ_e: 1.5 – 6 % (448 trajectories), up to 7.5 % at L = 20 with 224 (γ = 0.001,
+  0.002); 0.5 – 1 % for the diffusive γ ≥ 0.01 runs. Errors are correlated between the γ of one L: all γ use the
+  same uniform random numbers (traj-seed), so the kick sequences are the same up to the time scale 1/γ (waiting time
+  −ln u/(γL)).
+- **Finite-size cap.** At L ≤ 10, Γ_e/γ ≈ L − 1 for every γ ≤ 0.003 (6.8 – 7.0 at L = 8, 8.9 at L = 10); at
+  L = 12 – 20 the smallest γ reach ≈ L − 1 within the errors (11.5 at L = 12, 14.6 at L = 16, 16.9 – 19.0 at L = 20).
+  At fixed L, Γ_e/γ decreases with γ, towards Γ_∞/γ.
+- **Collapse** Γ_e/γ = ξ f(L/ξ), ξ = γ^(−ν) (γ ≤ 0.05, L ≥ 8): ν = 0.33 minimizes the spread (within a factor 2 of
+  the minimum for ν = 0.24 – 0.48; ν = 0.5 gives 2.2× the minimum). So ξ ~ γ^(−1/3) to γ^(−1/2): diffusive
+  (lifetime ∝ γ^(−2/3)) and ballistic (∝ γ^(−1/2)) spreading are not separated by L ≤ 20.
+- **Jump cross-checks** (rms over t of (m_⊥,jump − m_⊥,ref)/σ while m_⊥,ref > 0.05; relative difference of Γ_e):
+
+  | reference | L | γ = 0.002 | 0.003 | 0.004 | 0.005 | 0.007 |
+  |---|---|---|---|---|---|---|
+  | exact | 12 | 0.74, +0.8 % | 1.15, −7.1 % | 1.04, +2.2 % | 1.83, −10.6 % | 1.22, −5.1 % |
+  | diffusive | 12 | 0.71, +0.4 % | – | – | 1.72, −10.4 % | – |
+  | diffusive | 14 | 0.91, +0.3 % | – | – | 0.87, −6.4 % | – |
+
+  The Γ_e differences are within ≈ 2σ of the 4 – 6 % statistical error of the jump Γ_e; exact and diffusive agree
+  with each other (L = 12, γ = 0.002, 0.005) to 0.3 %. The per-trajectory spread of the jump unravelling is large
+  (≈ 0.3 – 0.4 at m_⊥ ≈ 0.5, against ≈ 0.08 for diffusive at L = 12), so 448 jump trajectories give errors several
+  times larger than 448 diffusive ones.
+- **Single-kick damage D̄(τ)** (`single_flip`, mean over phases and kicked sites): D̄(0) = 2, D̄(1) ≈ 5.9 for every L.
+
+  | τ | L = 12 | 14 | 16 | 18 | 20 | 22 | 24 |
+  |---|---|---|---|---|---|---|---|
+  | 4 | 9.10 | 9.99 | 10.66 | 11.02 | 11.35 | 11.49 | 11.60 |
+  | 8 | 9.73 | 11.02 | 12.36 | 13.44 | 14.62 | 15.54 | 16.32 |
+  | 20 – 25 (mean) | 11.01 | 12.42 | 13.95 | 15.44 | 17.08 | – | – |
+
+  Saturation ≈ L − 1 at L = 12, below L − 1 by ≈ 0.6 – 1.9 at larger L, with slow oscillations (period ≈ 6). The
+  size dependence sets in at τ ≈ 3 (L = 12) to τ ≈ 6 (L = 22 vs 24). For L = 22, 24, D̄ grows by ≈ 1.0 – 1.2 per
+  unit of τ between τ = 4 and 8 (roughly linear, ballistic-looking; only 4 kicked sites sampled, standard deviation
+  over the 64 runs ≈ 1.2 at τ = 8).
+- **Prediction vs measurement at finite L** (m_⊥ ≈ exp[−γ ∫₀ᵗ D̄], same L): measured/predicted Γ_e = 0.90 – 1.19
+  over all 55 points (L = 12 … 20, γ ≤ 0.05), mostly 0.95 – 1.05, i.e. within the statistical errors at γ < 0.01;
+  at γ = 0.01 – 0.05 (diffusive, errors < 1 %) systematically 0.95 – 1.00 (the independent-kick formula overcounts
+  overlapping damage, so it predicts a slightly faster decay). The whole m_⊥(t) follows exp[−γ ∫ D̄]
+  (`single_kick_series.png`). So at small γ the scar decay is set by isolated kicks, and the finite-size cap
+  Γ_e/γ → L − 1 is D_sat ≈ L − 1.
+- **Thermodynamic limit:** Γ_∞ (A + B/L, "Results up to L = 20") against the single-kick prediction from D̄ of L = 24
+  (τ ≤ 8):
+
+  | γ | 0.02 | 0.05 | 0.1 | 0.2 | 0.5 | 1 |
+  |---|---|---|---|---|---|---|
+  | prediction | 0.181 | 0.332 | 0.528 | 0.84 | 1.54 | 2.51 |
+  | Γ_∞ | 0.213 ± 0.010 | 0.335 ± 0.014 | 0.453 | 0.65 | 1.24 | 2.26 |
+
+  γ ≥ 2: both → 2γ. γ = 0.01 is not predictable (t_e > 8). Agreement at γ = 0.05; above, kicks overlap within the
+  damage time and the prediction is too fast. At γ = 0.02 the prediction is 15 % below the extrapolation
+  (Γ_e(L = 20) = 0.173 is itself below it); the L-dependence of D̄ beyond L = 24, or the extrapolation, is the open
+  point.
+- **Extrapolation from the large sizes** (scar, A + B/L on L = 14 … 20, `states_inverse_L_large.csv`):
+
+  | γ | 0.0005 | 0.001 | 0.002 | 0.003 | 0.004 | 0.005 | 0.007 | 0.01 | 0.02 | 0.05 |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | A/γ (L ≥ 14) | 27.4 | 33.8 | 22.1 | 24.0 | 18.5 | 18.3 | 19.4 | 14.8 | 9.8 | 6.5 |
+  | error | 11 % | 19 % | 9 % | 11 % | 8 % | 6 % | 10 % | 6 % | 2 % | 1 % |
+  | A/γ (L ≥ 12) | 24.3 | 27.4 | 21.6 | 21.6 | 17.5 | 17.3 | 17.4 | 13.8 | 9.9 | 6.4 |
+
+  γ = 0.0007, 0.0014 left out (only L ≤ 16). At γ = 0.05 equal to the L ≥ 8 fit; at γ = 0.01: 0.147 ± 0.009 against
+  0.128 ± 0.012 (L ≥ 8 is pulled down by the capped small sizes), at 0.02: 0.196 ± 0.003 against 0.213 ± 0.010. At
+  γ < 0.01 A/γ is 40 – 80 % above Γ_e(L = 20)/γ and moves by up to 25 % with the size range: estimates, not converged;
+  they lie inside the collapse band. Power law over all ten: exponent 0.58 ± 0.01 (weighted), 0.66 ± 0.04
+  (unweighted), i.e. ν = 0.34 – 0.42; over γ ≤ 0.007 alone 0.80 ± 0.06, steeper because the smaller γ sit closer to
+  the cap (the extrapolation underestimates Γ_∞ more there). Single-kick prediction at γ = 0.02 (0.181) is 7 % below
+  this fit (15 % below the L ≥ 8 one).
+- **Main question.** In the thermodynamic limit the lifetime is set by the growth of D̄_∞(τ): linear (ballistic)
+  gives Γ_∞ ∝ γ^(1/2), D̄ ∝ τ^(1/2) gives γ^(2/3). D̄ of L = 22, 24 to τ = 8 and the collapse (ν = 0.24 – 0.48) do
+  not yet decide; longer τ at L ≥ 24 (`single_flip` with more sites, or MPS) would.
+
 ## Results up to L = 20: scar and x-Néel (exact L ≤ 14, trajectories L = 12 … 20)
 
-Data in `data/states2/` (cluster batch of 2026-10-16): exact (`states`) scar L = 4 … 12 and 14, x-Néel and z-Néel
+Data in `data/used_data/` (cluster batch of 2026-10-16): exact (`states`) scar L = 4 … 12 and 14, x-Néel and z-Néel
 even L = 4 … 14; trajectories (`states_traj`, 224 per run, 112 at L = 20) for scar and x-Néel at L = 12 … 20 (even).
 Same γ grid, same random-c realization per L. One run per (state, L, γ) (`states_data.select`): exact up to L = 14,
 except at γ ≤ 0.02 for L = 14 (cut at 24 h) where the trajectories are used. Figures: `states_scar.png`,
-`states_neel-x.png`, `states_inverse_L.png`, `states_thermodynamic_rate.png`, `states_rates.png` in `data/states2/`.
+`states_neel-x.png`, `states_inverse_L.png`, `states_thermodynamic_rate.png`, `states_rates.png` in `data/used_data/`
+(with the small-γ runs added; Γ_∞ unchanged).
 
 - **Exact vs trajectories** (L = 12, 14): Γ_e agrees within 1 – 2.5 % for γ ≤ 2 (x-Néel ≤ 0.7 % for γ ≤ 1); at
   γ = 5, 10 up to 4.6 %, because the standard error near the 1/e crossing is ≈ 0.01 there. Tail slopes of the
@@ -478,13 +647,11 @@ except at γ ≤ 0.02 for L = 14 (cut at 24 h) where the trajectories are used. 
   Zeno slowdown, unlike z-Néel.
 - **Scar vs thermal:** Γ_∞(scar) < Γ_∞(x-Néel) at every γ; ratio 37 (γ = 0.01), 22 (0.02), 14 (0.05), 11 (0.1),
   7.7 (0.2), 4.3 (0.5), 2.6 (1), 1.7 (2), 1.05 (10). The scar rate → 0 as γ → 0, the thermal one stays at ≈ 4.8.
-- **Smaller γ** (feasibility, see the cost table under "Cluster"): γ = 0.005 – 0.001 fit in 24 h up to L = 20 with
-  `--t-max` ≈ 3/Γ_e, but at L ≤ 20 they sit at the finite-size cap Γ_e/γ ≈ L − 1 (Γ_∞/γ extrapolates to ≈ 16 – 18
-  at γ = 0.005, 25 – 30 at 0.002): useful for a scaling collapse Γ_e/γ = L g(L/ξ(γ)), not for A + B/L.
+- **Smaller γ:** see "Results at small γ and the single-kick test" above (γ < 0.01 is not extrapolated in 1/L).
 
 ## Results with the new coefficients (states binary, random c, L = 4 … 12)
 
-Current coefficients (h = 1, a = b = (1, 1, 1), c = 𝟙 with random factors), data in `data/states/`, γ grid
+Current coefficients (h = 1, a = b = (1, 1, 1), c = 𝟙 with random factors), data now in `data/used_data/` (first in `data/states/`, now `non_used_data/states_batch_2026-10-15/`), γ grid
 0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10. Scar for L = 4 … 12, z-Néel for even L. Rates from
 `fit_states.py` (Γ_e = 1/t_e at envelope E = 1/e; tail slope between 1e-2 and 1e-3) and `fit_states_inverse_L.py`
 (Γ_∞ from A + B/L on L ≥ 8; error = max(fit error, |linear − quadratic on L ≥ 6|)).
@@ -541,7 +708,7 @@ All results in this section and the next were obtained with the previous coeffic
   Power law Γ ≈ 0.63 γ L^1.13 (rms residual 1.6 %); exponential in L fits worse (4.6 %). The decay is not a single exponential, so Γ is an average over the fit window (exponent 1.00 – 1.14 depending on the window).
 - **Bound.** Every Liouvillian eigenvalue has −2γL ≤ Re λ ≤ 0 (antisymmetric plus diagonal generator), so the rate cannot grow exponentially with L.
 - **⟨σᶻ⟩** stays below 0.04 in magnitude.
-- **Larger γ** (first-pass runs for L ≤ 8; that code was removed, its outputs are in the untracked `data/first_pass/`): the 1/e rate of the amplitude saturates with L, about 3.8γ at γ = 0.1 and 2.9γ at γ = 0.2, while it grows with L for γ ≤ 0.05. For γ → 0 at fixed L, first-order perturbation theory gives tower coherences |Φ_n⟩⟨Φ_{n+1}| decaying at γL(1 − m_n m_{n+1}), m_n = 1 − 2n/L, with weights C(L−1, n)/2^(L−1); this matched the L = 7, γ = 0.01 spectrum. So the growth with L at small γ is the perturbative finite-size regime, and L ≤ 10 does not decide the L → ∞-first limit.
+- **Larger γ** (first-pass runs for L ≤ 8; that code was removed, its outputs are in the untracked `data/non_used_data/previous_coefficients/first_pass/`): the 1/e rate of the amplitude saturates with L, about 3.8γ at γ = 0.1 and 2.9γ at γ = 0.2, while it grows with L for γ ≤ 0.05. For γ → 0 at fixed L, first-order perturbation theory gives tower coherences |Φ_n⟩⟨Φ_{n+1}| decaying at γL(1 − m_n m_{n+1}), m_n = 1 − 2n/L, with weights C(L−1, n)/2^(L−1); this matched the L = 7, γ = 0.01 spectrum. So the growth with L at small γ is the perturbative finite-size regime, and L ≤ 10 does not decide the L → ∞-first limit.
 - **Trajectories** agree with the exact evolution within the statistical error for L = 4 … 8 (2000 trajectories; 20000 at L = 4, 5, error ≈ 1e-3). The spread of one trajectory is ≈ 0.97 / L at its largest.
 - **TDVP** does not converge below the full bond dimension 4^(L/2): at L = 6 the error is 1e-2 at χ = 32 and 8e-5 at χ = 64; at L = 8 it is 2e-2 at χ = 64 (t ≤ 10). The bond dimension reaches its cap by t ≈ 0.5.
 - **Cost** (one run; `python plot_scripts/resource_tables.py` prints the full tables). Exact: 4.8 min and 0.2 GB at L = 10, about 4× per added site in both, 12.7 GB at L = 13. Trajectories: 31 core-minutes each at L = 16, 10.5 core-hours at L = 20, 48 B × 2^L of RAM each. Cluster figures in those tables rest on assumed, not measured, speedups.

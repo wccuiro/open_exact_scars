@@ -10,7 +10,7 @@ per L. One run per (L, γ), chosen by states_data.select: exact where it finishe
 
 The runs stop once the decay signal (m_⊥ or |s_z|) stays below 1e-3, so ⟨n⟩ may not have relaxed yet.
 
-Input:  states_<state>_L<L>_g<γ>.csv and states_traj_<state>_L<L>_g<γ>.csv in data/states/ (or the directory given
+Input:  states_<state>_L<L>_g<γ>.csv and states_traj_<state>_L<L>_g<γ>.csv in data/used_data/ (or the directory given
         as the first argument)
 Output: the three figures, in the same directory
 """
@@ -26,7 +26,7 @@ from matplotlib.lines import Line2D
 
 import states_data
 
-DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "data" / "states"
+DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "data" / "used_data"
 SURFACE, INK, INK_SECONDARY, MUTED, GRID, AXIS = "#fcfcfb", "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7"
 RAMP = ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#0d366b", "#06203f"]  # small L light, large L dark
 

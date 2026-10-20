@@ -45,11 +45,15 @@ m_α = (1/L) Σ_j ⟨σ^α_j⟩, s_α = (1/L) Σ_j (−1)^j ⟨σ^α_j⟩.
 
 ## Next steps
 
-1. Done (2026-10-16 batch, `data/states2/`): x-Néel L = 4 … 14 exact; scar L = 14 exact (γ ≤ 0.02 cut at 24 h);
+1. Done (2026-10-16 batch, now in `data/used_data/`): x-Néel L = 4 … 14 exact; scar L = 14 exact (γ ≤ 0.02 cut at 24 h);
    trajectories L = 12 … 20 for scar and x-Néel; measured costs in CLAUDE.md (Cluster).
 2. Done: Γ_∞(γ) scar vs x-Néel (`states_thermodynamic_rate.png`, with γ = 0); results in CLAUDE.md ("Results up
    to L = 20"). L = 22 trajectories not run.
-3. In progress: small-γ scar runs for the single-kick test (below).
+3. Done (batch finished 2026-10-20; all data in `data/used_data/`): small-γ
+   scar runs and the single-kick test (below). Γ_e(L, γ) follows exp[−γ ∫ D̄] at finite L (measured/predicted Γ_e mostly 0.95 – 1.05), and the
+   cap Γ_e/γ → L − 1 is D_sat ≈ L − 1; the collapse gives ν = 0.24 – 0.48 and D̄ of L = 22, 24 grows roughly
+   linearly up to τ = 8, so ballistic vs diffusive spreading is still open. Results in CLAUDE.md ("Results at small
+   γ and the single-kick test"). Next: D̄(τ) at L ≥ 24 for τ > 8 (`single_flip` with more sites, or MPS).
 
 ## Small-γ scar: single-kick test
 
@@ -81,13 +85,15 @@ References needed for the comparison:
   γ ≥ 0.002, same t-max: checks the jump trajectories at small γ, where they have not been validated yet.
 - Diffusive cross-check (new, in tier 1): L = 12, 14, γ = 0.002, 0.005, output step 0.1: jump vs diffusive at the
   production sizes.
-- Existing γ = 0.01 data (`data/states2/`): exact L ≤ 14 and diffusive trajectories L = 12 … 20 (not rerun; γ = 0.01
+- Existing γ = 0.01 data (`data/used_data/`): exact L ≤ 14 and diffusive trajectories L = 12 … 20 (not rerun; γ = 0.01
   is left out of the new grids). Anchors the small-γ points to the earlier rates.
 - Done: jump vs exact at L = 8, γ = 0.1 and 0.01 (2000 trajectories, rms deviation ≈ 1 standard error).
 
 Expected: Γ_e/γ between 2 (initial rate) and ≈ L − 1 (saturated damage), approaching L − 1 as γ → 0 at fixed L;
 at L = 8 a laptop `single_flip` run gives D̄ ≈ 6.7 – 8.2 for τ ≥ 5.
 
-Analysis (not written yet): pool the traj-seed files of one (L, γ) weighted by their trajectory counts; D̄(τ) from
-the `single_flip` CSV (mean over m and k); compare ln m_⊥(t) with −γ ∫ D̄ at the same L, and Γ_e with the
-prediction.
+Analysis (`plot_scripts/`, default `data/used_data`): `states_data.py` pools the traj-seed files of one (L, γ)
+weighted by their trajectory counts; `fit_states.py` then `fit_small_gamma.py` (Γ_e/γ against L with statistical
+errors, scaling collapse, jump vs exact/diffusive cross-checks); `fit_states_inverse_L.py` then `single_kick.py` (D̄(τ) from the `single_flip` CSV,
+mean over m and k; m_⊥(t) against exp[−γ ∫ D̄] at the same L, Γ_e against the prediction, Γ_∞ against the
+prediction from D̄ of L = 24).

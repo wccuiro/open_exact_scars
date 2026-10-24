@@ -131,6 +131,9 @@ pub struct Trajectory<'a> {
     term: Vec<Amp>,
     tmp: Vec<Amp>,
     rng: Rng,
+    /// Hermitian jump operators of the diffusive unravelling, (axis 0, 1, 2 = x, y, z; rate per unit of γ):
+    /// σᶻ dephasing by default (noise::Channel::hermitian_jumps for the others).
+    jumps: Vec<(usize, f64)>,
 }
 
 impl<'a> Trajectory<'a> {
@@ -139,7 +142,20 @@ impl<'a> Trajectory<'a> {
         let dim = 1usize << ham.l;
         let amp = 0.5f64.powf(ham.l as f64 / 2.0);
         let psi = (0..dim).map(|s| [if s.count_ones() % 2 == 0 { amp } else { -amp }, 0.0]).collect();
-        Trajectory { ham, psi, term: vec![[0.0; 2]; dim], tmp: vec![[0.0; 2]; dim], rng: Rng::new(seed) }
+        Trajectory {
+            ham,
+            psi,
+            term: vec![[0.0; 2]; dim],
+            tmp: vec![[0.0; 2]; dim],
+            rng: Rng::new(seed),
+            jumps: vec![(2, 1.0)],
+        }
+    }
+
+    /// Other Hermitian jump operators for the diffusive unravelling (see `jumps`).
+    pub fn with_jumps(mut self, jumps: Vec<(usize, f64)>) -> Self {
+        self.jumps = jumps;
+        self
     }
 
     /// Starts in the product state with spin j along the unit vector bloch[j]:
@@ -189,16 +205,45 @@ impl<'a> Trajectory<'a> {
         }
     }
 
-    /// psi ← Π_j e^{−iθ_j σᶻ_j} psi with θ_j = √γ ΔW_j, up to a global phase.
+    /// psi ← Π_j Π_k e^{−iθ_jk σ^{α_k}_j} psi with θ_jk = √(rate_k γ) ΔW_jk, up to a global phase. Averaging
+    /// e^{−iθσ^α} ρ e^{iθσ^α} over θ ~ N(0, rate γ dt) damps the coherences between the σ^α eigenstates by
+    /// e^{−2 rate γ dt}, which is the Lindblad channel of √(rate γ) σ^α over dt.
     fn kick(&mut self, gamma: f64, dt: f64) {
         for j in 0..self.ham.l {
-            let theta = (gamma * dt).sqrt() * self.rng.gaussian();
-            // relative phase e^{2iθ} on |↓⟩_j
-            let (sin, cos) = (2.0 * theta).sin_cos();
             let bit = 1usize << j;
-            for (s, a) in self.psi.iter_mut().enumerate() {
-                if s & bit != 0 {
-                    *a = [a[0] * cos - a[1] * sin, a[0] * sin + a[1] * cos];
+            for k in 0..self.jumps.len() {
+                let (axis, rate) = self.jumps[k];
+                let theta = (rate * gamma * dt).sqrt() * self.rng.gaussian();
+                match axis {
+                    2 => {
+                        // relative phase e^{2iθ} on |↓⟩_j
+                        let (sin, cos) = (2.0 * theta).sin_cos();
+                        for (s, a) in self.psi.iter_mut().enumerate() {
+                            if s & bit != 0 {
+                                *a = [a[0] * cos - a[1] * sin, a[0] * sin + a[1] * cos];
+                            }
+                        }
+                    }
+                    _ => {
+                        // e^{−iθσˣ} = cos θ − i sin θ σˣ;  e^{−iθσʸ} = [[cos θ, −sin θ], [sin θ, cos θ]] on (|↑⟩, |↓⟩)
+                        let (sin, cos) = theta.sin_cos();
+                        for s in (0..self.psi.len()).filter(|s| s & bit == 0) {
+                            let (up, down) = (self.psi[s], self.psi[s | bit]);
+                            let (new_up, new_down) = if axis == 0 {
+                                (
+                                    [cos * up[0] + sin * down[1], cos * up[1] - sin * down[0]],
+                                    [cos * down[0] + sin * up[1], cos * down[1] - sin * up[0]],
+                                )
+                            } else {
+                                (
+                                    [cos * up[0] - sin * down[0], cos * up[1] - sin * down[1]],
+                                    [sin * up[0] + cos * down[0], sin * up[1] + cos * down[1]],
+                                )
+                            };
+                            self.psi[s] = new_up;
+                            self.psi[s | bit] = new_down;
+                        }
+                    }
                 }
             }
         }
@@ -321,6 +366,11 @@ impl<'a> JumpTrajectory<'a> {
             }
         }
         self.t = t_new;
+    }
+
+    /// The state vector, or None before the first kick (the analytic product state, which has no entanglement).
+    pub fn state(&self) -> Option<&[Amp]> {
+        self.traj.as_ref().map(|t| t.psi.as_slice())
     }
 
     /// ⟨ψ|σ^α_j|ψ⟩ for α = x, y, z and every site j, at the current time.

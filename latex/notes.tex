@@ -8,11 +8,14 @@
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{array}
+\usepackage{float}
 \usepackage{xcolor}
 \usepackage{dsfont}
 \usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
 
 \graphicspath{{figures/}}
+\setlength{\emergencystretch}{3em}  % long file names: allow looser lines instead of overfull ones
 
 \newcommand{\ket}[1]{\lvert #1 \rangle}
 \newcommand{\bra}[1]{\langle #1 \rvert}
@@ -24,10 +27,14 @@
 \newcommand{\Ge}{\Gamma_{e}}
 \newcommand{\Ginf}{\Gamma_{\infty}}
 \newcommand{\Db}{\bar D}
+\newcommand{\bs}{\boldsymbol{s}}
+\newcommand{\bmu}{\boldsymbol{\mu}}
+\newcommand{\bnu}{\boldsymbol{\nu}}
+\newcommand{\be}{\boldsymbol{e}}
 
 \title{Ferromagnetic scar tower under bulk dephasing:\\ notes on the results so far}
 \author{Weyner Ccuiro}
-\date{20 October 2026}
+\date{25 October 2026}
 
 \begin{document}
 \maketitle
@@ -40,6 +47,7 @@ We study how the ferromagnetic quantum many-body scar tower of a spin-$1/2$ chai
 
 %======================================================================
 \section{Model}
+\label{sec:model}
 
 \paragraph{Hamiltonian.} Spin-$1/2$ ring of $L$ sites (periodic boundaries), $S^\alpha_j = \sigma^\alpha_j/2$, bond singlet projector $R_{j,j+1} = \tfrac14 - \mathbf S_j\cdot\mathbf S_{j+1}$:
 \begin{equation}
@@ -57,16 +65,441 @@ Every term of $H_I$ annihilates the ferromagnetic multiplet $\ket{\Phi_n} \propt
 \end{equation}
 In the Pauli basis $\rho = 2^{-L}\sum_P r_P P$ the dissipator is diagonal, $\D(P) = -2\gamma\, n_{xy}(P)\, P$, with $n_{xy}(P)$ the number of sites carrying $\sigma^x$ or $\sigma^y$. A single spin's transverse coherence decays as $e^{-2\gamma t}$. The dissipator does not respect the scars.
 
-\paragraph{Methods.}
+\paragraph{Methods.} Exact evolution of $\rho$ up to $L = 14$, quantum trajectories (diffusive and jump unravellings) up to $L = 20$, single-kick runs up to $L = 24$, and dense diagonalization of $H$ ($L \le 12$) and $\Lv$ ($L \le 7$). How each is done, in which basis, and how every quantity is computed: Sec.~\ref{sec:methods}.
+
+%======================================================================
+\section{Theory}
+\label{sec:theory}
+
+This section collects the theory behind what is computed: how a Lindbladian evolves states and observables, why the tower is special, what is known about the weak-dissipation limit, what the other noise channels do, and what each measured quantity means. Numerical methods follow in Sec.~\ref{sec:methods}.
+
+\subsection{Lindblad dynamics: forward and backward evolution}
+\label{sec:forward-backward}
+
+\paragraph{The generator.} A Markovian open system with Hamiltonian $H$ and jump operators $L_l$ obeys
+\begin{equation}
+\dot\rho = \Lv(\rho) = -i[H,\rho] + \sum_l\Big(L_l\rho L_l^\dagger - \tfrac12\{L_l^\dagger L_l, \rho\}\Big),
+\label{eq:lindblad-general}
+\end{equation}
+whose solution $\rho(t) = e^{\Lv t}(\rho_0)$ is a completely positive, trace-preserving semigroup. Here $L_j = \sqrt\gamma\,\sigma^z_j$; since $L_j^\dagger L_j = \gamma\mathds 1$, Eq.~\eqref{eq:lindblad-general} reduces to the dephasing equation of Sec.~\ref{sec:model}.
+
+\paragraph{Backward (Heisenberg) evolution.} With the Hilbert--Schmidt inner product $\langle A, B\rangle = \Tr(A^\dagger B)$, the adjoint generator is
+\begin{equation}
+\Lv^\dagger(A) = i[H, A] + \sum_l\Big(L_l^\dagger A L_l - \tfrac12\{L_l^\dagger L_l, A\}\Big),
+\end{equation}
+as follows from the cyclic property of the trace term by term: $\Tr(A\,[H,\rho]) = \Tr([A,H]\,\rho)$ and $\Tr(A\,L\rho L^\dagger) = \Tr(L^\dagger AL\,\rho)$. Hence every expectation value can be computed in two equivalent ways,
+\begin{equation}
+\langle A\rangle_t = \Tr\big[A\;e^{\Lv t}(\rho_0)\big] = \Tr\big[e^{\Lv^\dagger t}(A)\;\rho_0\big],
+\label{eq:duality}
+\end{equation}
+by evolving the state forward (Schr\"odinger picture) or the observable backward (Heisenberg picture). Trace preservation is $\Lv^\dagger(\mathds 1) = 0$ for every channel; the channel is \emph{unital}, $\Lv(\mathds 1) = 0$, if $\sum_l[L_l, L_l^\dagger] = 0$, which holds for Hermitian jump operators (all dephasings, depolarizing) and fails for decay.
+
+\paragraph{Backward evolution in Pauli coordinates.} In the coordinates $r_P = \Tr(\rho P)$ the forward generator is the real matrix $G$ of Eq.~\eqref{eq:generator}, and the backward one is its transpose $G^{\mathsf T}$ (the Pauli strings form an orthogonal real basis of Hermitian operators). The Hamiltonian part of $G$ is antisymmetric (Sec.~\ref{sec:methods}), so $G_H^{\mathsf T} = -G_H$: it is the Hamiltonian part for $-H$. The dephasing part is diagonal, so it is its own transpose. Therefore, for the Hermitian channels,
+\begin{equation}
+e^{\Lv^\dagger t}\big|_{H} = e^{\Lv t}\big|_{H\to -H},
+\end{equation}
+i.e.\ an observable is evolved backward by running the forward code with the unitary part reversed and the same damping. For decay and thermal noise the feed term is not symmetric and $G^{\mathsf T}$ differs from $G$ also in the dissipator.
+
+\paragraph{Spectral decomposition.} If $\Lv$ is diagonalizable, with right eigenmatrices $\Lv(R_k) = \lambda_kR_k$ and left eigenmatrices $\Lv^\dagger(\tilde L_k) = \lambda_k^*\tilde L_k$, normalized so that $\Tr(\tilde L_j^\dagger R_k) = \delta_{jk}$,
+\begin{equation}
+\rho(t) = \sum_k e^{\lambda_k t}\,\Tr(\tilde L_k^\dagger\rho_0)\,R_k, \qquad
+\langle A\rangle_t = \sum_k e^{\lambda_k t}\;\Tr(\tilde L_k^\dagger\rho_0)\;\Tr(AR_k).
+\label{eq:spectral}
+\end{equation}
+Every eigenvalue has $\operatorname{Re}\lambda_k \le 0$; $\lambda = 0$ belongs to the steady states; since $\Lv$ maps Hermitian to Hermitian operators, eigenvalues come in pairs $\lambda, \lambda^*$ with $R \leftrightarrow R^\dagger$. A signal therefore decays as a sum of exponentials, and its late-time rate is $-\operatorname{Re}\lambda$ of the slowest mode that overlaps both the initial state (left eigenmatrix, backward) and the observable (right eigenmatrix, forward). In the Pauli basis, $G = G_H + G_D$ with $G_H$ antisymmetric and $-2\gamma L \le G_D \le 0$ diagonal, so $-2\gamma L \le \operatorname{Re}\lambda \le 0$ (for any eigenvector $v$, $\operatorname{Re}(v^\dagger Gv)/v^\dagger v = v^\dagger G_Dv/v^\dagger v$).
+
+\paragraph{Forward evolution of the state, backward evolution of the observable.} The semigroup property $e^{\Lv t} = e^{\Lv t_1}e^{\Lv t_2}$ ($t = t_1 + t_2$) and Eq.~\eqref{eq:duality} applied to the second factor give
+\begin{equation}
+\langle A\rangle_{t_1 + t_2} = \Tr\big[e^{\Lv^\dagger t_2}(A)\;e^{\Lv t_1}(\rho_0)\big] = \big\langle e^{\Lv^\dagger t_2}(A),\, e^{\Lv t_1}(\rho_0)\big\rangle,
+\label{eq:meet}
+\end{equation}
+(for Hermitian $A$): the state is evolved forward to $t_1$, the observable backward (Heisenberg picture) to $t_2$, and the two meet in an overlap. With $t_1 = t_2 = t/2$ each object has evolved only for half the time. This matters for compressed representations (Sec.~\ref{sec:tn}), whose cost is set by the operator entanglement of the evolved object: it grows with time, so two half-time objects can be far cheaper than one full-time one. The two halves also behave differently here. The forward state starts in the tower and stays a product state without noise; the noise moves weight out of the tower, which then thermalizes. The backward-evolved local observable $A = \sigma^x_j$ grows inside a light cone, but its large strings are damped by the dephasing at $2\gamma n_{xy}$ (the backward generator has the same diagonal as the forward one), so the dissipation itself truncates the operator growth: the idea of dissipation-assisted operator evolution. Both are contractions of the same space--time tensor network: forward and backward evolution cut it at an intermediate time, while the influence-matrix method (Sec.~\ref{sec:tn}) contracts it along space instead of time.
+
+\paragraph{Where each picture is used.} Forward: the exact evolution of $\rho$, the trajectories, the single-kick runs. Backward: the probes of Appendix~\ref{app:old} (operator autocorrelations, $\Tr[A\,e^{\Lv^\dagger t}(B)] = \Tr[e^{\Lv t}(A)\,B]$ for Hermitian $A$), the left eigenvectors of the ED, and the adjoint runs of CLIK (Sec.~\ref{sec:tn}), whose Krylov vectors are evolved with $\Lv^\dagger$.
+
+\subsection{Scars, thermalization and entanglement}
+
+\paragraph{Eigenstate thermalization.} In a chaotic (non-integrable) system, expectation values of local operators in eigenstates are smooth functions of energy equal to their thermal values (ETH), and eigenstates in the middle of the spectrum have volume-law entanglement close to that of random states, the Page value $S_{\mathrm{Page}} = L_A\ln2 - 2^{2L_A-L-1}$. Local observables of a generic initial state then relax to their thermal values on an $L$-independent time scale; for the $x$- and $z$-N\'eel states this is the rate $\Ge \approx 4.8$--$5$ of Sec.~\ref{sec:states}.
+
+\paragraph{The tower.} Quantum many-body scars are eigenstates that violate ETH. Here they form a tower with a restricted spectrum-generating structure: $\ket{\Phi_{n+1}} \propto S^-_{\mathrm{tot}}\ket{\Phi_n}$ and $E_{n+1} - E_n = -h$, because every term of $H_I$ annihilates the ferromagnetic multiplet (each contains a singlet projector $R_{j,j+1}$, and the multiplet is symmetric under every exchange). Any state in their span evolves as $e^{-iHt}\sum_nc_n\ket{\Phi_n} = \sum_n c_n e^{-ih(L/2-n)t}\ket{\Phi_n}$, which returns to itself up to a phase after $2\pi/h$: perfect revivals, and for the spin coherent state $\ket{-}^{\otimes L}$ a rigid precession of all spins (reference 1). Revivals of this kind require scars (Alhambra--Wilming). In the commutant-algebra language (Moudgalya--Motrunich) the tower spans the common kernel of the local annihilators $R_{j,j+1}$, which is why the dressings $a$, $b$, $c$ can be chosen freely.
+
+\paragraph{Scar entanglement.} For $\ket{\Phi_n}$ and the cut into $L_A$ and $L - L_A$ sites, the Schmidt weights are hypergeometric, $p_\ell = \binom{L_A}{\ell}\binom{L-L_A}{n-\ell}/\binom{L}{n}$ (Sec.~\ref{sec:methods}). For $n = L/2$, $L_A = L/2$ this distribution has variance $\sigma^2 = \frac{n L_A (L - L_A)(L-n)}{L^2(L-1)} \approx L/16$, and the entropy of a discretized Gaussian, $\tfrac12\ln(2\pi e\sigma^2)$, gives
+\begin{equation}
+S(\Phi_{L/2}) \approx \tfrac12\ln\frac{\pi e L}{8},
+\end{equation}
+logarithmic in $L$ ($1.27$ at $L = 12$, against the exact $1.32$), far below the volume law of the bulk (Sec.~\ref{sec:ent}).
+
+\paragraph{What dephasing does to the tower.} By permutation symmetry, the projection of $\sigma^z_j$ onto the tower is the same for every site, so $\Ptow\sigma^z_j\Ptow = \frac1L\sum_k\Ptow\sigma^z_k\Ptow = \frac2L S^z_{\mathrm{tot}}\Ptow$, i.e.\ $\langle\Phi_a\vert\sigma^z_j\vert\Phi_b\rangle = m_a\delta_{ab}$ with $m_a = 1 - 2a/L$. A kick $\sigma^z_j$ on $\ket{\Phi_a}$ keeps the weight $m_a^2$ in the tower and sends $1 - m_a^2$ to $k \ne 0$ spin waves, which are not eigenstates of $H$ and spread and thermalize under $H_I$. For $\ket{-}^{\otimes L}$, the weight kept is $\langle(2S^z_{\mathrm{tot}}/L)^2\rangle = 1/L$. The dephasing is therefore generic: its jump operators are not in the bond algebra of the scars. Jump operators taken from that algebra (e.g.\ $R_{j,j+1}\sigma^x_{j+2}$) would annihilate the tower and make it a decoherence-free subspace.
+
+\subsection{Weak dissipation: the order of limits and the finite-size cap}
+\label{sec:theory-weak}
+
+\paragraph{The question.} At fixed $L$ and $\gamma \to 0$, every decay rate is proportional to $\gamma$ (perturbation theory, below). Mori showed that the limits do not commute: for generic local observables of a chaotic system, taking $L \to \infty$ first, the slowest relevant Liouvillian eigenvalue stays at a finite distance from $0$ as $\gamma \to 0^+$; it converges to a Ruelle--Pollicott resonance, the intrinsic relaxation rate of the closed system. The thermal references behave this way: $\Ginf \approx 4.8$ for every $\gamma \le 0.1$ ($x$-N\'eel). The question here is whether the scar revivals are instead \emph{regular}, $\Ginf \to 0$ as $\gamma \to 0$, and with which power of $\gamma$.
+
+\paragraph{First-order perturbation theory at fixed $L$.} For $\gamma \to 0$, the eigenvalues of $\Lv = \Lv_0 + \D$ with $\Lv_0 = -i[H,\cdot]$ are, to first order, the eigenvalues of $\D$ restricted to each degenerate eigenspace of $\Lv_0$. The tower coherences $\dyad{\Phi_a}{\Phi_b}$ share the frequency $-ih(b - a)$; restricted to them, with $\langle\Phi_a\vert\sigma^z_j\vert\Phi_b\rangle = m_a\delta_{ab}$,
+\[ \Ptow\,\D\big(\dyad{\Phi_a}{\Phi_b}\big)\Ptow = \gamma\sum_j\big(m_am_b - 1\big)\dyad{\Phi_a}{\Phi_b} = -\gamma L\,(1 - m_am_b)\,\dyad{\Phi_a}{\Phi_b}. \]
+The transverse magnetization involves the coherences $(a, b) = (n, n+1)$ with weights $\propto |c_nc_{n+1}|\,\langle\Phi_n\vert S^+_{\mathrm{tot}}\vert\Phi_{n+1}\rangle = L\binom{L-1}{n}/2^L$, i.e.\ $n$ binomial with $L - 1$ trials. With $u = m_n = 1 - 2n/L$: $\mathbb E[u] = 1/L$, $\operatorname{Var}u = (L-1)/L^2$, and $m_{n+1} = u - 2/L$, so $\mathbb E[m_nm_{n+1}] = (L-2)/L^2$ and the mean first-order rate is
+\begin{equation}
+\Gamma_{\mathrm{PT}} = \gamma L\big(1 - \mathbb E[m_nm_{n+1}]\big) = \gamma\Big(L - 1 + \frac2L\Big).
+\label{eq:cap}
+\end{equation}
+This is the finite-size cap $\Ge/\gamma \to L - 1$ of Sec.~\ref{sec:small}. It is also the saturated single-kick damage: Eq.~\eqref{eq:kick} with $\Db \equiv D_{\mathrm{sat}}$ gives $\gamma D_{\mathrm{sat}}$, and $D_{\mathrm{sat}}(L = 12) = 11.0$ against $L - 1 + 2/L = 11.17$. The first-order result holds as long as the damage of a kick has filled the ring before the signal decays: the decay time $1/\Gamma_{\mathrm{PT}} \approx 1/(\gamma L)$ must exceed the saturation time $\tau_{\mathrm{sat}}$ of $\Db$.
+
+\paragraph{Damage spreading and the thermodynamic rate (heuristic).} Suppose the damage of one kick grows as $\Db_\infty(\tau) \simeq A\tau^\beta$ in an infinite system ($\beta = 1$: ballistic spreading of the defect, $\beta = 1/2$: diffusive) and saturates at $D_{\mathrm{sat}} \approx L$ in a ring of $L$ sites, after $\tau_{\mathrm{sat}} \sim L^{1/\beta}$. The single-kick formula $\gamma\int_0^{t_e}\Db = 1$ then gives
+\begin{equation}
+\Ginf \propto \gamma^{1/(1+\beta)}: \qquad \beta = 1 \Rightarrow \Ginf \propto \gamma^{1/2}, \qquad \beta = \tfrac12 \Rightarrow \Ginf \propto \gamma^{2/3}.
+\end{equation}
+At finite $L$ the cap applies when $\gamma L\,\tau_{\mathrm{sat}} \ll 1$, i.e.\ for $L \ll L^*(\gamma) \sim \gamma^{-\beta/(1+\beta)}$. In the collapse $\Ge/\gamma = \xi f(L/\xi)$ with $\xi = \gamma^{-\nu}$ (Sec.~\ref{sec:small}) this means $\nu = \beta/(1+\beta)$ and $\Ginf \propto \gamma^{1-\nu}$: $\nu = 1/2$ for ballistic and $\nu = 1/3$ for diffusive damage. The measured $\nu = 0.33$ ($0.24$--$0.48$) and the local exponent $\approx 0.5$ of $\Ginf$ do not separate the two, which is why the growth of $\Db$ at long $\tau$ and large $L$ (step B2, option C2) is the deciding measurement.
+
+\subsection{Other single-site noise channels}
+\label{sec:theory-channels}
+
+The channels of Sec.~\ref{sec:methods} probe whether the scar lifetime depends on the kind of noise. Their effect on free spins ($H_I = 0$) in the precessing frame follows from the per-site damping table: for $h \gg \gamma$ the in-plane Bloch vector rotates fast, so the in-plane damping is averaged over the $x$ and $y$ components.
 \begin{itemize}
-\item \textbf{Exact evolution} of the real Pauli-coefficient vector ($\dim = 4^L$, no symmetry is left with random $c$), $\exp(\Lv\,dt)$ by a Taylor series summed to round-off, matrix-free for $L \ge 11$. Up to $L = 14$.
-\item \textbf{Diffusive trajectories:} the dephasing as a fluctuating $z$ field, one step
-\[ e^{-iH dt/2}\,\prod_j e^{-i\sqrt\gamma\,\Delta W_j\sigma^z_j}\,e^{-iH dt/2}, \]
-error of the average $O(dt^2)$; 224 trajectories ($112$ at $L = 20$), $L = 12,\dots,20$.
-\item \textbf{Jump trajectories:} since $(\sigma^z_j)^2 = 1$, the effective Hamiltonian is $H$ up to a constant, and a trajectory is exact unitary evolution under $H$ interrupted by $\sigma^z_k$ kicks, with exponential waiting times of total rate $\gamma L$ and a uniform kicked site. The sampling is exact; from the scar state, the state before the first kick is the analytic product state. 448 trajectories (224 at $L = 18, 20$, $\gamma < 0.002$) at the small $\gamma$ of Secs.~\ref{sec:small}--\ref{sec:kick}.
-\item \textbf{Single flip:} one kick $\sigma^z_k$ on the noiseless scar state at phase $\varphi = ht'$, then evolution with $H$ only (Sec.~\ref{sec:kick}).
+\item \textbf{$\sigma^z$ dephasing:} both in-plane components decay at $2\gamma$: $m_\perp = e^{-2\gamma t}$ (reference 2). Unital; $\ket{\Phi_0}$, $\ket{\Phi_L}$ are dark states (eigenstates of $H$ and of every $\sigma^z_j$).
+\item \textbf{$\sigma^x$ (or $\sigma^y$) dephasing:} damps the $y$ ($x$) component at $2\gamma$ and not the other, so the precessing $m_\perp$ decays at the average rate $\gamma$; $\sigma^z$ decays at $2\gamma$. Unital. A kick $\sigma^x_k$ reflects spin $k$ about the $x$ axis: at phase $\varphi$ its coherence becomes $c_k = e^{-2i\varphi}$, so $D(0) = 1 - \cos2\varphi$, $1$ on average instead of $2$ for $\sigma^z$, consistent with the halved free-spin rate.
+\item \textbf{Depolarizing} ($\sqrt{\gamma/2}\,\sigma^\alpha$): every component decays at $2\gamma$; isotropic and unital.
+\item \textbf{Decay} ($\sqrt\gamma\,\sigma^-$): in-plane components decay at $\gamma/2$, and $\langle\sigma^z_j\rangle$ relaxes to $-1$ at rate $\gamma$. Not unital. $\ket{\Phi_L} = \ket{\downarrow\cdots\downarrow}$ is annihilated by every $\sigma^-_j$ and is an eigenstate of $H$, hence a pure steady state: the bottom of the scar tower is an attractor.
+\item \textbf{Thermal pair} ($\sqrt{\gamma(\bar n+1)}\,\sigma^-$, $\sqrt{\gamma\bar n}\,\sigma^+$): in-plane decay at $\gamma(2\bar n+1)/2$, $\langle\sigma^z\rangle \to -1/(2\bar n + 1)$ for free spins; with $H_I$ (which breaks the U(1) symmetry about $z$) the steady state is not known in closed form.
 \end{itemize}
-Validation: diffusive and jump trajectories agree with the exact $\rho$ at $L = 8$, $\gamma = 0.1$ and $0.01$ (2000 trajectories, rms deviation $\approx 1$ standard error); at the production sizes see Table~\ref{tab:cross}.
+
+\subsection{What the new observables measure}
+\label{sec:theory-observables}
+
+\paragraph{Purity and operator size.} The purity $\Tr\rho^2 = 2^{-L}\sum_Pr_P^2$ is a global quantity. The Hamiltonian part of $G$ is antisymmetric and conserves $\sum_Pr_P^2$, while $\sigma^z$ dephasing damps each $r_P$ at $2\gamma n_{xy}(P)$, so
+\begin{equation}
+\frac{d}{dt}\ln\Tr\rho^2 = \frac{\sum_P 2r_P\dot r_P}{\sum_P r_P^2} = -4\gamma\,\langle n_{xy}\rangle, \qquad \langle n_{xy}\rangle = \frac{\sum_P n_{xy}(P)\,r_P^2}{\sum_Pr_P^2}.
+\end{equation}
+For $\ket{-}^{\otimes L}$ the weights $r_P^2$ are uniform on the $2^L$ strings of $\mathds 1$ and $\sigma^x$, so the size $n$ is binomial with mean $L/2$ and the purity first decays at $2\gamma L$, extensive like the fidelity. The size distribution $P(n)$ and the support distribution $P(\ell)$ (length of the shortest arc containing the string) show how $H$ moves weight between strings while the dephasing removes it in proportion to $n_{xy}$: the interplay of operator spreading and dissipation in the density matrix itself.
+
+\paragraph{Operator entanglement of $\rho$.} The operator Schmidt weights of $\rho$ across a cut are the Schmidt weights of $\rho$ viewed as a state in operator space. They set the cost of a matrix-product representation of $\rho$: an MPS with bond dimension $\chi$ at that cut misses exactly the weight $\sum_{\ell > \chi}w_\ell$ (Sec.~\ref{sec:tn}), so $S_{\mathrm{op}}$ measures how hard $\rho(t)$ is for tensor networks. A product $\rho$ has $S_{\mathrm{op}} = 0$, and the noiseless scar state stays a product. Dephasing makes $\rho$ a mixture of product states, which already has $S_{\mathrm{op}} > 0$ through classical correlations; $H_I$ then spreads and entangles the kicked components. This is the mechanism behind the failure of truncated TDVP for this problem (Sec.~\ref{sec:tn-results}).
+
+\paragraph{Entanglement along trajectories.} With Hermitian noise, a diffusive trajectory is a pure state evolved by $H$ and by random single-site unitaries. Single-site unitaries cannot create entanglement, and the noiseless scar state never becomes entangled. So the half-chain entropy of a trajectory measures the entanglement that $H$ generates once the noise has pushed the state out of the tower; it is a direct witness of leaving the scar subspace. Its average depends on the unravelling (diffusive and jump trajectories with the same $\rho$ give different values) and is not a function of $\rho$.
+
+\paragraph{Entanglement after a single flip.} $\sigma^z_k$ applied to the precessing product state gives again a product state; the entanglement of the blocks $[0, \ell)$ then grows from site $k$ outward. Its light cone measures the spreading velocity of the defect independently of the damage $D$.
+
+%======================================================================
+\section{How the simulations are done}
+\label{sec:methods}
+
+All codes are in \texttt{rust/} (one binary per kind of run). The model coefficients come from \texttt{rust/\allowbreak src/\allowbreak parameters.rs}; the random $c$ comes from a generator seeded with $1000\cdot\mathrm{seed} + L$ (seed $1$), so every run at a given $L$ uses the same Hamiltonian. No symmetry is used: the random $c$ removes translation, and every calculation works in the full space, $2^L$ amplitudes for a pure state or $4^L$ coefficients for a density matrix. (Only the uniform-$c$ runs of the earlier results in Appendix~\ref{app:old} used translation orbits.)
+
+\subsection{Notation}
+
+\begin{itemize}
+\item \textbf{Sites} $j = 0, \dots, L-1$, periodic. Pauli matrices $\sigma^x, \sigma^y, \sigma^z$ and $\sigma^0 = \mathds 1$; $\sigma^\alpha_j$ acts on site $j$.
+\item \textbf{Basis states.} $\ket{\bs} = \ket{s_0 s_1\dots s_{L-1}}$ with $\bs = (s_0, \dots, s_{L-1}) \in \{0,1\}^L$, and $s_j = 0$ for $\ket{\uparrow}$ ($\sigma^z_j = +1$), $s_j = 1$ for $\ket{\downarrow}$. In the code $\bs$ is the integer $\sum_j s_j 2^j$.
+\item \textbf{Operations on bit strings.} For $\bmu, \bs \in \{0,1\}^L$: $\bmu\oplus\bs$ is the sum modulo 2 site by site; $\bmu\cdot\bs = \sum_j \mu_j s_j$ is the number of sites where both are $1$; $\lvert\bmu\rvert = \sum_j\mu_j$; $\be_j$ is the string with a single $1$ on site $j$.
+\item \textbf{Pure states} $\ket\psi = \sum_{\bs}\psi(\bs)\ket{\bs}$, stored as the $2^L$ complex amplitudes $\psi(\bs)$ (the \emph{computational basis}).
+\end{itemize}
+
+\subsection{Pauli strings}
+
+On one site, $\sigma^x\ket{s} = \ket{1-s}$, $\sigma^z\ket{s} = (-1)^s\ket{s}$ and $\sigma^y = i\sigma^x\sigma^z$ (check: $i\sigma^x\sigma^z = i\begin{pmatrix}0&-1\\1&0\end{pmatrix} = \sigma^y$). A Pauli string, a product of one of $\sigma^0, \sigma^x, \sigma^y, \sigma^z$ on every site, is therefore fixed by two bit strings, the flip pattern $\bmu$ and the phase pattern $\bnu$:
+\begin{equation}
+P_{\bmu\bnu} = i^{\,\bmu\cdot\bnu}\prod_{j}\big(\sigma^x_j\big)^{\mu_j}\big(\sigma^z_j\big)^{\nu_j},
+\label{eq:pauli}
+\end{equation}
+with site $j$ carrying $\sigma^0$ for $(\mu_j, \nu_j) = (0,0)$, $\sigma^x$ for $(1,0)$, $\sigma^z$ for $(0,1)$ and $\sigma^y$ for $(1,1)$; the factor $i^{\bmu\cdot\bnu}$ supplies one $i$ for every $\sigma^y$. Acting on a basis state, the $\sigma^z$ factors act first and give $(-1)^{\bnu\cdot\bs}$, then the $\sigma^x$ factors flip the bits where $\mu_j = 1$:
+\begin{equation}
+P_{\bmu\bnu}\ket{\bs} = i^{\,\bmu\cdot\bnu}\,(-1)^{\bnu\cdot\bs}\,\ket{\bs\oplus\bmu}.
+\label{eq:pauli-action}
+\end{equation}
+\textbf{Products.} Since $(\sigma^x_j)^2 = (\sigma^z_j)^2 = \mathds 1$ and $\sigma^z_j\sigma^x_j = -\sigma^x_j\sigma^z_j$, moving the $\sigma^z$ factors of the first string past the $\sigma^x$ factors of the second gives
+\begin{equation}
+P_{\bmu\bnu}P_{\bmu'\bnu'} = \omega\, P_{\bmu\oplus\bmu',\,\bnu\oplus\bnu'}, \qquad
+\omega = i^{\,\bmu\cdot\bnu + \bmu'\cdot\bnu' - (\bmu\oplus\bmu')\cdot(\bnu\oplus\bnu')}\,(-1)^{\bnu\cdot\bmu'} \in \{\pm1, \pm i\}.
+\end{equation}
+Exchanging the two strings changes the sign $(-1)^{\bnu\cdot\bmu'}$ into $(-1)^{\bnu'\cdot\bmu}$, so two strings commute if $\bnu\cdot\bmu' + \bnu'\cdot\bmu$ is even and anticommute if it is odd. Every string except $\mathds 1$ is traceless, so
+\begin{equation}
+\Tr\big(P\,Q\big) = 2^L\,\delta_{PQ}
+\end{equation}
+for any two strings $P$, $Q$ (they are Hermitian and square to $\mathds 1$).
+
+\paragraph{The Hamiltonian as a sum of strings.} With $\mathbf S_j\cdot\mathbf S_{j+1} = \tfrac14\sum_\alpha\sigma^\alpha_j\sigma^\alpha_{j+1}$, $R_{j,j+1} = \tfrac14\big(\mathds 1 - \sum_{\alpha}\sigma^\alpha_j\sigma^\alpha_{j+1}\big)$. A term $c\,R_{j,j+1}\,O$ of $H_I$, with $O$ its dressing ($\sigma^\alpha_{j+2}$, $\sigma^\beta_{j-1}$ or $\sigma^\beta_{j-1}\sigma^\alpha_{j+2}$, on sites disjoint from $j, j+1$), becomes $\tfrac c4\big(O - \sum_\alpha\sigma^\alpha_j\sigma^\alpha_{j+1}O\big)$: four strings with real coefficients. The field gives $hS^z_{\mathrm{tot}} = \tfrac h2\sum_j\sigma^z_j$. Collecting equal strings,
+\begin{equation}
+H = \sum_{P} h_P\, P, \qquad h_P \in \mathbb R,
+\end{equation}
+about $600$ strings at $L = 20$, with $101$ distinct flip patterns $\bmu$ (the identity is dropped).
+
+\subsection{Pure states: trajectories and single flips}
+
+\paragraph{Applying $H$.} From Eq.~\eqref{eq:pauli-action}, $\langle\bs'\vert P_{\bmu\bnu}\vert\bs\rangle$ is nonzero only for $\bs = \bs'\oplus\bmu$, so
+\begin{equation}
+(H\psi)(\bs') = \sum_{\bmu}\psi(\bs'\oplus\bmu)\sum_{\bnu:\,h_{\bmu\bnu}\ne0} h_{\bmu\bnu}\, i^{\,\bmu\cdot\bnu}\,(-1)^{\bnu\cdot(\bs'\oplus\bmu)} .
+\end{equation}
+The strings are grouped by flip pattern, so every amplitude $\psi(\bs'\oplus\bmu)$ is read once per group; for $2^L \ge 2^{15}$ the output amplitudes are split over threads.
+
+\paragraph{Time evolution} is the Taylor series $e^{-iH\tau}\psi = \sum_{k\ge0}\frac{(-i\tau)^k}{k!}H^k\psi$, summed until the norm of the last term is below $10^{-17}$, in substeps short enough that $1.5\,\lVert H\rVert\,\tau_{\mathrm{sub}} \le 4$ (the norm $\lVert H\rVert$ from 40 power iterations).
+
+\paragraph{Initial states.} A spin with Bloch vector $\mathbf n = (\sin\theta\cos\phi, \sin\theta\sin\phi, \cos\theta)$ is $\cos\tfrac\theta2\ket\uparrow + e^{i\phi}\sin\tfrac\theta2\ket\downarrow$, so a product state has $\psi(\bs) = \prod_j u_j(s_j)$ with $u_j(0) = \cos\tfrac{\theta_j}2$, $u_j(1) = e^{i\phi_j}\sin\tfrac{\theta_j}2$. For the scar state $\ket{-}^{\otimes L}$ ($\theta = \pi/2$, $\phi = \pi$), $\psi(\bs) = 2^{-L/2}(-1)^{\lvert\bs\rvert}$.
+
+\paragraph{Local magnetization.} $\sigma^z_j$ is diagonal: $\langle\sigma^z_j\rangle = \sum_{\bs}(-1)^{s_j}\lvert\psi(\bs)\rvert^2$. For the transverse components use $\sigma^+_j = \tfrac12(\sigma^x_j + i\sigma^y_j) = \dyad{\uparrow}{\downarrow}_j$, which maps $\ket{\bs\oplus\be_j}$ to $\ket{\bs}$ when $s_j = 0$:
+\begin{equation}
+\langle\sigma^x_j\rangle + i\langle\sigma^y_j\rangle = 2\langle\psi\vert\sigma^+_j\vert\psi\rangle = 2\sum_{\bs:\,s_j = 0}\psi(\bs)^*\,\psi(\bs\oplus\be_j).
+\end{equation}
+(Check: for $\ket{+}$ both amplitudes are $1/\sqrt2$ and the sum gives $\langle\sigma^x\rangle = 1$.) Then $m_\alpha = L^{-1}\sum_j\langle\sigma^\alpha_j\rangle$ and $s_\alpha = L^{-1}\sum_j(-1)^j\langle\sigma^\alpha_j\rangle$.
+
+\paragraph{Lindblad equation and its unravellings.} With jump operators $L_j = \sqrt\gamma\,\sigma^z_j$ the Lindblad equation
+\begin{equation}
+\dot\rho = -i[H, \rho] + \sum_j\Big(L_j\rho L_j^\dagger - \tfrac12\{L_j^\dagger L_j, \rho\}\Big)
+\end{equation}
+is the dephasing equation of Sec.~\ref{sec:model}, because $L_j^\dagger L_j = \gamma\mathds 1$. A trajectory is a random pure state $\ket{\psi(t)}$ whose average $\overline{\dyad{\psi(t)}{\psi(t)}}$ equals $\rho(t)$.
+\begin{itemize}
+\item \textbf{Jump unravelling.} Between jumps a trajectory evolves with $H_{\mathrm{eff}} = H - \tfrac i2\sum_j L_j^\dagger L_j = H - \tfrac{i}{2}\gamma L$. The anti-Hermitian part is a multiple of $\mathds 1$, so $e^{-iH_{\mathrm{eff}}\tau}\ket\psi = e^{-\gamma L\tau/2}e^{-iH\tau}\ket\psi$: the norm squared, the probability of no jump in $[0, \tau]$, is $e^{-\gamma L\tau}$ for every state. The waiting time is therefore exponential with rate $\gamma L$, sampled as $\tau_w = -\ln\xi/(\gamma L)$ with $\xi$ uniform in $(0, 1]$. The jump goes to channel $j$ with probability $\lVert L_j\psi\rVert^2/\sum_k\lVert L_k\psi\rVert^2 = 1/L$, a uniform site, and replaces $\psi(\bs) \to (-1)^{s_j}\psi(\bs)$ (a $\pi$ rotation of spin $j$ about $z$; the norm is unchanged). Since none of these probabilities depends on the state, the sampling is exact, and the only numerical error is that of $e^{-iH\tau}$. From the scar state, $e^{-iHt}\ket{-}^{\otimes L}$ is the product state of reference 1 (spins along $(-\cos ht, -\sin ht, 0)$, up to a global phase), so it is written down at the time of the first jump instead of being evolved.
+\item \textbf{Diffusive unravelling.} One step of length $dt$ is
+\[ \psi \;\to\; e^{-iH\,dt/2}\,\prod_j e^{-i\theta_j\sigma^z_j}\,e^{-iH\,dt/2}\,\psi, \qquad \theta_j = \sqrt\gamma\,\Delta W_j,\ \Delta W_j \sim \mathcal N(0, dt) \text{ independent}. \]
+For one site, $e^{-i\theta\sigma^z}\rho\,e^{i\theta\sigma^z}$ multiplies the coherence $\langle\uparrow\vert\rho\vert\downarrow\rangle$ by $e^{-2i\theta}$ and leaves the diagonal alone. The Gaussian average is $\overline{e^{-2i\theta}} = e^{-2\langle\theta^2\rangle} = e^{-2\gamma\,dt}$, exactly the factor by which $\gamma(\sigma^z\rho\sigma^z - \rho)$ damps that coherence in a time $dt$. So the noise step reproduces the dephasing exactly, and the only error is the symmetric splitting of $H$ and the noise, $O(dt^2)$ on the average. $dt = \min(0.1, 0.05/\gamma)$.
+\end{itemize}
+Trajectory averages: $\bar m_x$, $\bar m_y$ are averaged over the $n$ trajectories first, and $m_\perp = (\bar m_x^2 + \bar m_y^2)^{1/2}$ is formed from the averages (the mean of the per-trajectory $m_\perp$ would not decay to zero). The standard error of $\bar m_\alpha$ is the spread of one trajectory over $\sqrt n$; runs of one $(L, \gamma)$ with different noise seeds are pooled on their common time grid, weighted by their trajectory counts. Validation: both unravellings agree with the exact $\rho$ at $L = 8$, $\gamma = 0.1$ and $0.01$ (2000 trajectories, rms deviation $\approx 1$ standard error); at the production sizes see Table~\ref{tab:cross}. Production: diffusive, 224 trajectories ($112$ at $L = 20$), $L = 12,\dots,20$; jump, 448 trajectories ($224$ at $L = 18, 20$, $\gamma < 0.002$), output step $0.25$.
+
+\paragraph{Single flip.} The noiseless scar state at time $t' = \varphi_m/h$, $\varphi_m = 2\pi m/16$, gets one $\sigma^z_k$ and is evolved with $H$ alone. On site $j$ the reference-1 value of $\langle\sigma^x_j\rangle + i\langle\sigma^y_j\rangle$ at time $t$ is $-e^{iht}$, so
+\begin{equation}
+c_j(\tau) = \frac{\langle\sigma^x_j\rangle + i\langle\sigma^y_j\rangle}{-e^{ih(t'+\tau)}}, \qquad D(\tau) = \sum_j\big[1 - \operatorname{Re}c_j(\tau)\big].
+\end{equation}
+Without the kick every $c_j = 1$ and $D = 0$; right after it $c_k = -1$, so $D(0) = 2$. All $16\times L$ runs advance together.
+
+\subsection{Density matrices: exact evolution in the Pauli basis}
+
+\paragraph{Coordinates.} By the orthogonality of the strings, every operator can be expanded as
+\begin{equation}
+\rho = 2^{-L}\sum_P r_P\,P, \qquad r_P = \Tr(\rho P),
+\end{equation}
+and $r_P$ is real for Hermitian $\rho$. There are $4^L$ coordinates; $r_{\mathds 1} = \Tr\rho = 1$.
+
+\paragraph{Equation of motion.} $\dot r_P = \Tr(P\dot\rho)$. For the Hamiltonian part, by the cyclic property,
+\[ \Tr\big(P\,(-i)[H,\rho]\big) = -i\Tr\big(\rho\,[P, H]\big) = \sum_Q h_Q\,\Tr\big(\rho\; i[Q, P]\big). \]
+If $Q$ and $P$ commute the term vanishes. If they anticommute, $i[Q,P] = 2i\,QP$, and $QP = \omega P'$ with $P'$ the string of the product rule and $\omega \in \{\pm1, \pm i\}$; the product of two anticommuting Hermitian matrices is anti-Hermitian, so $\omega = \pm i$ and $i[Q,P] = \kappa_{QP}\,P'$ with $\kappa_{QP} = 2i\omega = \mp2$, real. For the dephasing, $\sigma^z_j$ anticommutes with $\sigma^x_j$ and $\sigma^y_j$ and commutes with $\sigma^0_j$, $\sigma^z_j$, so $\sigma^z_jP\sigma^z_j = -P$ if $\mu_j = 1$ and $+P$ otherwise, and
+\[ \D(P) = \gamma\sum_j\big(\sigma^z_jP\sigma^z_j - P\big) = -2\gamma\,\lvert\bmu\rvert\,P, \]
+with $\lvert\bmu\rvert = n_{xy}(P)$ the number of sites carrying $\sigma^x$ or $\sigma^y$. $\D$ is self-adjoint for $\Tr(A^\dagger B)$, so $\Tr(P\,\D(\rho)) = \Tr(\D(P)\,\rho) = -2\gamma\, n_{xy}(P)\, r_P$. Together,
+\begin{equation}
+\dot r_P = \sum_{Q\ \text{anticommuting with}\ P} h_Q\,\kappa_{QP}\; r_{P'(Q,P)} \;-\; 2\gamma\, n_{xy}(P)\, r_P \;\equiv\; \sum_{P''} G_{PP''}\,r_{P''} .
+\label{eq:generator}
+\end{equation}
+$G$ is a real $4^L\times4^L$ matrix. Its Hamiltonian part is antisymmetric: the same $Q$ couples $P'$ back to $P$, with $i[Q, P'] = \kappa_{QP'}P$, and inserting $P' = \kappa_{QP}^{-1}\, i[Q,P] = 2i\kappa_{QP}^{-1}QP$ gives $i[Q,P'] = 2iQP' = -4\kappa_{QP}^{-1}P$, i.e.\ $\kappa_{QP'} = -\kappa_{QP}$ (as $\kappa^2 = 4$). Its dephasing part is diagonal and $\le 0$. So every eigenvalue has $-2\gamma L \le \operatorname{Re}\lambda \le 0$.
+
+\paragraph{Initial state.} For $\rho = \bigotimes_j\tfrac12(\mathds 1 + \mathbf n_j\cdot\boldsymbol\sigma_j)$, $\Tr\big[\tfrac12(\mathds 1 + \mathbf n\cdot\boldsymbol\sigma)\,\sigma^\alpha\big] = n^\alpha$ for $\alpha = x, y, z$ and $1$ for $\sigma^0$, so $r_P = \prod_j n_j^{\alpha_j}$ with $\alpha_j$ the Pauli matrix of $P$ on site $j$ and $n^0 \equiv 1$. The scar state ($\mathbf n_j = (-1, 0, 0)$) has $r_P = (-1)^{\lvert\bmu\rvert}$ for the strings made of $\sigma^0$ and $\sigma^x$ only ($\bnu = \mathbf 0$), and $0$ for all others.
+
+\paragraph{Time stepping.} $r(t + dt) = e^{G\,dt}r(t)$, summed as a Taylor series to round-off in substeps with $\lVert G\,dt_{\mathrm{sub}}\rVert_\infty \le 4$ (largest absolute row sum). $G$ is stored as a sparse matrix up to $L = 10$; from $L = 11$ the row of $P$ is generated on the fly from the strings $Q$ of $H$ that anticommute with $P$ (matrix-free). At $L = 14$, $r$ has $4^{14} = 2.7\times10^8$ entries ($14.7$ GB in all).
+
+\paragraph{Observables} are coordinates: $\langle\sigma^\alpha_j\rangle = \Tr(\rho\,\sigma^\alpha_j) = r_{\sigma^\alpha_j}$. The tower weight is $W = \Tr(\Ptow\rho) = 2^{-L}\sum_P r_P\Tr(\Ptow P)$ with $\Tr(\Ptow P) = \sum_n\langle\Phi_n\vert P\vert\Phi_n\rangle$ evaluated with Eq.~\eqref{eq:pauli-action}. In \texttt{probes}, an operator $X$ is evolved in the same coordinates, $x_P = \Tr(XP)/2^L$, and autocorrelations use $\Tr[A\,e^{\Lv^\dagger t}(B)] = \Tr[e^{\Lv t}(A)\,B] = 2^L\sum_P a_P(t)\,b_P$ for Hermitian $A$.
+
+\subsection{Spectra and eigenstates}
+
+\paragraph{Eigenstates of $H$} (\texttt{entanglement}). By Eq.~\eqref{eq:pauli-action}, $\langle\bs'\vert H\vert\bs\rangle = \sum_{\bmu\bnu}h_{\bmu\bnu}\,i^{\bmu\cdot\bnu}(-1)^{\bnu\cdot\bs}\,\delta_{\bs',\,\bs\oplus\bmu}$. This dense complex $2^L\times2^L$ matrix is diagonalized with \texttt{zheevd} (LAPACK from Intel MKL), $L \le 12$. The scars are the Dicke states
+\begin{equation}
+\ket{\Phi_n} = \binom{L}{n}^{-1/2}\sum_{\bs:\,\lvert\bs\rvert = n}\ket{\bs}, \qquad n = 0, \dots, L,
+\end{equation}
+($n$ down spins), and the tower weight of an eigenstate $\ket{E}$ is $\sum_n\lvert\langle\Phi_n\vert E\rangle\rvert^2$; $\Ptow = \sum_n\dyad{\Phi_n}{\Phi_n}$.
+
+\paragraph{Liouvillian modes} (\texttt{ed}, \texttt{lindblad\_entanglement}). The matrix $G$ of Eq.~\eqref{eq:generator} is assembled densely and diagonalized with \texttt{dgeev}: $Gr = \lambda r$. Since $\Lv$ acts on coordinates as $G$, the operator $X = \sum_P r_P\,P$ (a $2^L\times2^L$ matrix, built with Eq.~\eqref{eq:pauli-action}) is a right eigenmatrix, $\Lv(X) = \lambda X$. Its tower weight is $\lVert\Ptow X\Ptow\rVert/\lVert X\rVert$ (Frobenius norms). Because $G$ is real, $r^*$ is an eigenvector with eigenvalue $\lambda^*$, and since every $P$ is Hermitian, $X(\lambda^*) = X(\lambda)^\dagger$. Degenerate eigenvalues ($\lvert\Delta\lambda\rvert < 10^{-8}$) have no unique eigenmatrix; there the basis is the one that diagonalizes $\Tr(X_i^\dagger HX_l)$ against $\Tr(X_i^\dagger X_l)$ within the eigenspace (generalized eigenproblem, \texttt{zhegv}). This splits the edge pairs $\dyad{\Phi_0}{\Phi_n}$, $\dyad{\Phi_{L-n}}{\Phi_L}$ exactly and, at $\gamma = 0$, returns single $\dyad{n}{m}$ of eigenstates of $H$. The dense $G$ limits this to $L \le 7$ ($2.1$ GB at $L = 7$).
+
+\subsection{Entanglement entropy}
+
+The cut is $A$ = sites $0, \dots, L_A - 1$, $L_A = \lfloor L/2\rfloor$, and $B$ the rest; on the ring $A$ has two boundaries. Split $\bs = (\bs_A, \bs_B)$ and write the amplitudes as a $2^{L_A}\times2^{L-L_A}$ matrix $\Psi_{\bs_A\bs_B} = \psi(\bs)$, so that $\ket\psi = \sum_{\bs_A,\bs_B}\Psi_{\bs_A\bs_B}\ket{\bs_A}\otimes\ket{\bs_B}$. Tracing out $B$,
+\begin{equation}
+\rho_A = \Tr_B\dyad{\psi}{\psi} = \sum_{\bs_A,\bs_A'}\Big(\sum_{\bs_B}\Psi_{\bs_A\bs_B}\Psi^*_{\bs_A'\bs_B}\Big)\dyad{\bs_A}{\bs_A'} = \Psi\Psi^\dagger .
+\end{equation}
+Its eigenvalues $p_\ell$ (\texttt{zheevd}) are the squared singular values of $\Psi$, i.e.\ the squared Schmidt coefficients in $\ket\psi = \sum_\ell\sqrt{p_\ell}\,\ket{\varphi_\ell}_A\ket{\chi_\ell}_B$ (orthonormal $\ket{\varphi_\ell}_A$, $\ket{\chi_\ell}_B$), and
+\begin{equation}
+S_A = -\sum_\ell p_\ell\ln p_\ell .
+\end{equation}
+\textbf{Reference values.} A random state gives on average the Page value $S_{\mathrm{Page}} = L_A\ln2 - 2^{2L_A - L - 1}$ (for $L_A \le L - L_A$). For a Dicke state, the strings with $n$ down spins split into $\ell$ down spins in $A$ and $n - \ell$ in $B$, so $\ket{\Phi_n} = \sum_\ell\sqrt{p_\ell}\,\ket{\Phi^{(A)}_\ell}\ket{\Phi^{(B)}_{n-\ell}}$ with Dicke states of the two halves and
+\begin{equation}
+p_\ell = \binom{L_A}{\ell}\binom{L - L_A}{n - \ell}\Big/\binom{L}{n}.
+\end{equation}
+
+\subsection{Operator entanglement}
+
+An operator $\rho$ on the chain is a vector in the space of operators, with the Hilbert--Schmidt inner product $\langle A, B\rangle = \Tr(A^\dagger B)$, and it can be Schmidt-decomposed across the same cut. Expand it in the product basis $\dyad{\bs_A}{\bs_A'}\otimes\dyad{\bs_B}{\bs_B'}$,
+\begin{equation}
+\rho = \sum M_{(\bs_A\bs_A'),(\bs_B\bs_B')}\;\dyad{\bs_A}{\bs_A'}\otimes\dyad{\bs_B}{\bs_B'}, \qquad M_{(\bs_A\bs_A'),(\bs_B\bs_B')} = \langle\bs_A\bs_B\vert\rho\vert\bs_A'\bs_B'\rangle ,
+\end{equation}
+a $4^{L_A}\times4^{L-L_A}$ matrix (the ``realigned'' $\rho$). Its singular value decomposition $M = \sum_\ell s_\ell\,u_\ell w_\ell^\dagger$ gives
+\begin{equation}
+\rho = \sum_\ell s_\ell\,A_\ell\otimes B_\ell, \qquad A_\ell = \sum_{\bs_A\bs_A'}(u_\ell)_{\bs_A\bs_A'}\dyad{\bs_A}{\bs_A'},\quad B_\ell = \sum_{\bs_B\bs_B'}(w_\ell^*)_{\bs_B\bs_B'}\dyad{\bs_B}{\bs_B'},
+\end{equation}
+with $\Tr(A_\ell^\dagger A_{\ell'}) = \Tr(B_\ell^\dagger B_{\ell'}) = \delta_{\ell\ell'}$ and $\sum_\ell s_\ell^2 = \Tr(\rho^\dagger\rho)$. With the normalized weights $w_\ell = s_\ell^2/\sum_{\ell'}s_{\ell'}^2$,
+\begin{equation}
+S_{\mathrm{op}}(\rho) = -\sum_\ell w_\ell\ln w_\ell, \qquad 0 \le S_{\mathrm{op}} \le 2L_A\ln2 ;
+\end{equation}
+the $s_\ell^2$ are computed as the eigenvalues of $MM^\dagger$ ($4^{L_A}\times4^{L_A}$, \texttt{zheevd}).
+
+\textbf{Pure states.} For $\rho = \dyad\psi\psi$ with $\ket\psi = \sum_\ell\sqrt{p_\ell}\ket{\varphi_\ell}_A\ket{\chi_\ell}_B$,
+\[ \rho = \sum_{\ell\ell'}\sqrt{p_\ell p_{\ell'}}\;\dyad{\varphi_\ell}{\varphi_{\ell'}}\otimes\dyad{\chi_\ell}{\chi_{\ell'}} . \]
+The operators $\dyad{\varphi_\ell}{\varphi_{\ell'}}$ are orthonormal for $\Tr(A^\dagger B)$, and so are the $\dyad{\chi_\ell}{\chi_{\ell'}}$, so this is already the operator Schmidt decomposition, with one term per pair $(\ell, \ell')$ and weights $w_{\ell\ell'} = p_\ell p_{\ell'}$ (they sum to $1$). Hence $S_{\mathrm{op}} = -\sum_{\ell\ell'}p_\ell p_{\ell'}\ln(p_\ell p_{\ell'}) = -2\sum_\ell p_\ell\ln p_\ell = 2S_A$. In the same way, for two eigenstates with Schmidt decompositions $\ket n = \sum_\ell\sqrt{p_\ell}\ket{\varphi_\ell}_A\ket{\chi_\ell}_B$ and $\ket m = \sum_{\ell'}\sqrt{q_{\ell'}}\ket{\varphi'_{\ell'}}_A\ket{\chi'_{\ell'}}_B$ (different bases),
+\[ \dyad nm = \sum_{\ell\ell'}\sqrt{p_\ell q_{\ell'}}\;\dyad{\varphi_\ell}{\varphi'_{\ell'}}\otimes\dyad{\chi_\ell}{\chi'_{\ell'}} \]
+is again a Schmidt decomposition (the $\dyad{\varphi_\ell}{\varphi'_{\ell'}}$ are orthonormal), with weights $p_\ell q_{\ell'}$, and
+\begin{equation}
+S_{\mathrm{op}}\big(\dyad nm\big) = S_n + S_m
+\end{equation}
+exactly (checked by SVD for random states, $2\times10^{-15}$). Fig.~\ref{fig:opent} is computed this way from the eigenstate entropies, without further diagonalization.
+
+\textbf{Liouvillian modes.} An eigenmatrix $X$ is not Hermitian, and its normalization and phase are arbitrary. The two positive, unit-trace operators
+\begin{equation}
+\rho_L = \frac{XX^\dagger}{\Tr(XX^\dagger)}, \qquad \rho_R = \frac{X^\dagger X}{\Tr(X^\dagger X)}
+\end{equation}
+are density matrices; we use $S_L = S_{\mathrm{op}}(\rho_L)$, $S_R = S_{\mathrm{op}}(\rho_R)$ and the energies $E_{L,R} = \Tr(\rho_{L,R}H)$. For $X = \dyad nm$, $\rho_L = \dyad nn$ and $S_L = 2S_n$. Since $X(\lambda^*) = X(\lambda)^\dagger$, $\rho_L(\lambda^*) = \rho_R(\lambda)$, and the $(E_R, S_R)$ set equals the $(E_L, S_L)$ set.
+
+\subsection{Other single-site noise channels}
+\label{sec:channels}
+
+Besides the $\sigma^z$ dephasing of all the main results, the code (\texttt{rust/src/noise.rs}) has five more uniform single-site channels, each a set of jump operators on every site $j$:
+\begin{center}
+\small
+\begin{tabular}{lll}
+\toprule
+channel & jump operators & \\
+\midrule
+$z$ (default) & $\sqrt\gamma\,\sigma^z_j$ & dephasing \\
+$x$, $y$ & $\sqrt\gamma\,\sigma^x_j$, $\sqrt\gamma\,\sigma^y_j$ & dephasing along $x$ or $y$ \\
+depolarizing & $\sqrt{\gamma/2}\,\sigma^\alpha_j$, $\alpha = x, y, z$ & every Pauli factor decays at $2\gamma$ \\
+decay & $\sqrt\gamma\,\sigma^-_j$, $\sigma^- = \dyad{\downarrow}{\uparrow}$ & amplitude damping towards $\ket\downarrow$ \\
+thermal & $\sqrt{\gamma(\bar n+1)}\,\sigma^-_j$ and $\sqrt{\gamma\bar n}\,\sigma^+_j$ & relaxation to a thermal spin \\
+\bottomrule
+\end{tabular}
+\end{center}
+The depolarizing normalization makes every single-site Pauli factor decay at $2\gamma$, the rate of the transverse coherence under $\sigma^z$ dephasing.
+
+\paragraph{Coordinates.} For jump operators $L_k$ the dissipator is $\D(\rho) = \sum_k(L_k\rho L_k^\dagger - \tfrac12\{L_k^\dagger L_k, \rho\})$, and by the cyclic property
+\begin{equation}
+\dot r_P\big|_{\D} = \Tr\big(P\,\D(\rho)\big) = \Tr\big(\D^\dagger(P)\,\rho\big), \qquad \D^\dagger(P) = \sum_k\Big(L_k^\dagger P L_k - \tfrac12\{L_k^\dagger L_k, P\}\Big).
+\end{equation}
+Every $L_k$ acts on one site, so $\D^\dagger$ is a sum over sites of maps acting on the factor of $P$ on that site only, and it suffices to know $\D^\dagger$ on $\sigma^0, \sigma^x, \sigma^y, \sigma^z$.
+
+\paragraph{Hermitian channels.} For $L = \sqrt{g}\,\sigma^\alpha$, $L^\dagger L = g\,\mathds 1$ and $\D^\dagger(P) = g(\sigma^\alpha P\sigma^\alpha - P)$, which is $0$ if the factor $P$ commutes with $\sigma^\alpha$ and $-2gP$ if it anticommutes. For $\sigma^z$ dephasing ($g = \gamma$) this is the familiar $-2\gamma$ on $\sigma^x$ and $\sigma^y$. For the depolarizing channel ($g = \gamma/2$ for each $\alpha$) a non-identity factor anticommutes with two of the three $\sigma^\alpha$, so it decays at $2\cdot2\cdot\gamma/2 = 2\gamma$.
+
+\paragraph{Decay.} With $L = \sqrt\gamma\,\sigma^-$, $\sigma^- = \dyad{\downarrow}{\uparrow}$, $L^\dagger = \sqrt\gamma\,\dyad{\uparrow}{\downarrow}$ and $L^\dagger L = \gamma\dyad{\uparrow}{\uparrow} = \tfrac\gamma2(\mathds 1 + \sigma^z)$:
+\begin{itemize}
+\item $\D^\dagger(\mathds 1) = \gamma\dyad\uparrow\uparrow - \gamma\dyad\uparrow\uparrow = 0$ (trace preservation);
+\item $\D^\dagger(\sigma^z) = \gamma\,\ket\uparrow\langle\downarrow\vert\sigma^z\vert\downarrow\rangle\bra\uparrow - \tfrac\gamma2\{\dyad\uparrow\uparrow, \sigma^z\} = -\gamma\dyad\uparrow\uparrow - \gamma\dyad\uparrow\uparrow = -\gamma(\mathds 1 + \sigma^z)$;
+\item $\D^\dagger(\sigma^x) = \gamma\,\ket\uparrow\langle\downarrow\vert\sigma^x\vert\downarrow\rangle\bra\uparrow - \tfrac\gamma2\{\dyad\uparrow\uparrow, \sigma^x\} = 0 - \tfrac\gamma2\sigma^x$, since $\langle\downarrow\vert\sigma^x\vert\downarrow\rangle = 0$ and $\dyad\uparrow\uparrow\sigma^x + \sigma^x\dyad\uparrow\uparrow = \sigma^x$; the same for $\sigma^y$.
+\end{itemize}
+The thermal channel adds $\sqrt{\gamma\bar n}\,\sigma^+$, which by exchanging $\uparrow \leftrightarrow \downarrow$ gives $\D^\dagger(\sigma^z) = \gamma\bar n(\mathds 1 - \sigma^z)$ and $-\tfrac{\gamma\bar n}2$ on $\sigma^{x,y}$; with $\gamma(\bar n+1)$ for the decay part the sum is $\D^\dagger(\sigma^z) = -\gamma(2\bar n+1)\sigma^z - \gamma\mathds 1$.
+
+\paragraph{Summary per unit of $\gamma$} ($\D^\dagger$ on the single-site factors):
+\begin{center}
+\small
+\begin{tabular}{lcccc}
+\toprule
+channel & $\mathds 1$ & $\sigma^x$ & $\sigma^y$ & $\sigma^z$ \\
+\midrule
+$z$ & $0$ & $-2\sigma^x$ & $-2\sigma^y$ & $0$ \\
+$x$ & $0$ & $0$ & $-2\sigma^y$ & $-2\sigma^z$ \\
+$y$ & $0$ & $-2\sigma^x$ & $0$ & $-2\sigma^z$ \\
+depolarizing & $0$ & $-2\sigma^x$ & $-2\sigma^y$ & $-2\sigma^z$ \\
+decay & $0$ & $-\tfrac12\sigma^x$ & $-\tfrac12\sigma^y$ & $-\sigma^z - \mathds 1$ \\
+thermal & $0$ & $-\tfrac{2\bar n+1}2\sigma^x$ & $-\tfrac{2\bar n+1}2\sigma^y$ & $-(2\bar n+1)\sigma^z - \mathds 1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Summing over the sites, a string $P = P_{\bmu\bnu}$ is damped at the sum of the diagonal entries of its factors. For decay and thermal there is in addition a \emph{feed}: for every site $j$ where $P$ carries $\sigma^z$ ($\mu_j = 0$, $\nu_j = 1$), the term $-\gamma\mathds 1$ of $\D^\dagger(\sigma^z_j)$ gives
+\begin{equation}
+\dot r_P\big|_{\mathrm{feed}} = -\gamma\sum_{j:\,\mu_j = 0,\,\nu_j = 1} r_{P^{(j)}}, \qquad P^{(j)} = P_{\bmu,\,\bnu\oplus\be_j}
+\end{equation}
+($P$ with that $\sigma^z$ replaced by $\mathds 1$). This off-diagonal term is implemented only in the full Pauli basis. On one site, $\dot r_z = -\gamma(2\bar n+1)r_z - \gamma r_{\mathds 1}$ with $r_{\mathds 1} = 1$, so $\langle\sigma^z\rangle \to -1/(2\bar n+1)$, i.e.\ $-1$ for the decay ($\bar n = 0$). The decay drives every spin to $\ket\downarrow$, i.e.\ the chain to $\ket{\Phi_L} = \ket{\downarrow\cdots\downarrow}$, a state of the tower.
+
+\paragraph{Diffusive unravelling of the Hermitian channels.} As for $\sigma^z$, each Hermitian jump operator $\sqrt{g}\,\sigma^\alpha_j$ becomes a random rotation $e^{-i\theta\sigma^\alpha_j}$ with $\theta \sim \mathcal N(0, g\,dt)$ in every step. In the eigenbasis of $\sigma^\alpha$ the rotation multiplies the coherence by $e^{-2i\theta}$, whose average $e^{-2g\,dt}$ is exactly the damping by the channel of $\sqrt g\,\sigma^\alpha$ over $dt$. Explicitly, on the pair $(\psi(\bs), \psi(\bs\oplus\be_j))$ with $s_j = 0$: $e^{-i\theta\sigma^x} = \cos\theta - i\sin\theta\,\sigma^x$ and $e^{-i\theta\sigma^y} = \begin{pmatrix}\cos\theta & -\sin\theta\\ \sin\theta & \cos\theta\end{pmatrix}$. The depolarizing channel uses three independent rotations per site, about $x$, $y$ and $z$, each with $g = \gamma/2$; their product reproduces the sum of the three generators up to $O(dt^2)$, like the splitting with $H$. The jump unravelling is written for $\sigma^z$ only; decay and thermal have non-Hermitian jump operators and are run with the exact $\rho$ evolution only.
+
+\subsection{Operator observables of $\rho$}
+\label{sec:opobs}
+
+The exact runs can also write (option \texttt{--obs-dt}), from the coordinates $r_P$:
+\begin{itemize}
+\item the \textbf{purity} $\Tr\rho^2 = 2^{-2L}\sum_{P,Q}r_Pr_Q\Tr(PQ) = 2^{-L}\sum_P r_P^2$;
+\item the distribution of $\rho$ over strings, with weights $w_P = r_P^2/\sum_Q r_Q^2$ (identity included, $w_{\mathds 1} = 1/\sum_Q r_Q^2$), and from it: the \textbf{size} distribution $P(n) = \sum_{P:\,n(P) = n} w_P$, $n(P) = \lvert\bmu\vee\bnu\rvert$ the number of non-identity sites (sites with $\mu_j = 1$ or $\nu_j = 1$); the mean $\langle n_{xy}\rangle = \sum_P w_P\lvert\bmu\rvert$; the \textbf{support} distribution $P(\ell)$, with $\ell(P)$ the length of the shortest arc of the ring that contains all non-identity sites of $P$ ($L$ minus the longest circular run of identity sites; $\ell = 0$ for $\mathds 1$).
+\end{itemize}
+\textbf{Purity identity for $\sigma^z$ dephasing.} With $\dot r = Gr$, $G = A - \Gamma$ ($A$ antisymmetric from $H$, $\Gamma$ diagonal with entries $2\gamma n_{xy}(P)$, Eq.~\eqref{eq:generator}),
+\begin{equation}
+\frac{d}{dt}\sum_P r_P^2 = 2\,r^{\mathsf T}Gr = -2\,r^{\mathsf T}\Gamma r = -4\gamma\sum_P n_{xy}(P)\,r_P^2
+\quad\Rightarrow\quad
+\frac{d\ln\Tr\rho^2}{dt} = -4\gamma\,\langle n_{xy}\rangle ,
+\end{equation}
+because $r^{\mathsf T}Ar = 0$: the Hamiltonian conserves $\sum_P r_P^2$, and only the dephasing, through the weight on strings with $\sigma^x$ or $\sigma^y$, lowers the purity.
+
+\textbf{Operator entanglement of $\rho$} (option \texttt{--op-ent-dt}). Every string factorizes across the cut, $P = P_A\otimes P_B$, and the normalized strings $P_A/2^{L_A/2}$, $P_B/2^{(L-L_A)/2}$ are orthonormal for $\Tr(X^\dagger Y)$. So
+\begin{equation}
+\rho = 2^{-L/2}\sum_{P_A,P_B} R_{P_AP_B}\,\frac{P_A}{2^{L_A/2}}\otimes\frac{P_B}{2^{(L-L_A)/2}}, \qquad R_{P_AP_B} = r_{P_A\otimes P_B},
+\end{equation}
+is already written in orthonormal product bases, and the operator Schmidt coefficients of $\rho$ are proportional to the singular values of the real $4^{L_A}\times4^{L-L_A}$ matrix $R$. The normalized weights $w_\ell = s_\ell^2/\sum s^2$ come from the eigenvalues of $RR^{\mathsf T}$ on the smaller side (a $4096\times4096$ problem at $L = 12$), and give $S_{\mathrm{op}}$ and the Rényi-2 entropy $-\ln\sum_\ell w_\ell^2$ as in Sec.~\ref{sec:methods}.
+
+\subsection{Entanglement along trajectories and after a single flip}
+
+\begin{itemize}
+\item \texttt{states\_traj --ent-dt}: for every trajectory, the half-chain $S_A$ and the Rényi-2 entropy $S_2 = -\ln\Tr\rho_A^2$ of its pure state, with $\rho_A = \Psi\Psi^\dagger$ as above, averaged over the trajectories (with standard errors). This \emph{diffusive-trajectory entanglement} depends on the unravelling (diffusive and jump trajectories with the same average $\rho$ have different mean $S_A$), so it is not a property of $\rho$. The operator entanglement, purity, size and support above are.
+\item \texttt{single\_flip --ent-dt}: $S$ and $S_2$ of the blocks $[0, \ell)$, $\ell = 1, \dots, L/2$ (\texttt{--ent-max}), of every single-flip run: how the entanglement created by one kick spreads.
+\end{itemize}
+
+\subsection{Eigenvalues without LAPACK}
+
+The entanglement spectra are computed in \texttt{rust/src/entanglement.rs} without external libraries, so the same binaries run on every machine. A real symmetric $n\times n$ matrix is brought to tridiagonal form by $n-2$ Householder reflections $H_k = \mathds 1 - \beta vv^{\mathsf T}$ acting on the trailing block, $B \to B - vw^{\mathsf T} - wv^{\mathsf T}$ with $p = \beta Bv$, $w = p - \tfrac\beta2(v^{\mathsf T}p)\,v$. The column is first divided by its largest entry: a tiny column would otherwise make $v^{\mathsf T}v$ underflow and $\beta = 2/v^{\mathsf T}v$ overflow (this produced NaN for the scar state, whose amplitudes carry round-off imaginary parts $\approx 4\times10^{-17}$). The tridiagonal eigenvalues follow from implicit QL iterations with Wilkinson shifts; an off-diagonal element is set to zero when it is below $\varepsilon$ times the sum of its two diagonal neighbours \emph{or} below $\varepsilon$ times the largest row sum of the tridiagonal matrix (the absolute test is needed for the many zero eigenvalues of a low-rank $\rho_A$). A Hermitian $M = X + iY$ is handled through the real symmetric matrix $\begin{pmatrix}X & -Y\\ Y & X\end{pmatrix}$, which has every eigenvalue of $M$ twice. Speed on one core $\approx 5$ GFLOP/s ($n = 1024$ in $0.3$ s, $n = 2048$ in $3.4$ s); inside the parallel loops over trajectories or single-flip runs it runs on one thread per matrix.
+
+\subsection{Run options and file names}
+
+\begin{itemize}
+\item \texttt{--channel z|x|y|dep|decay|thermal} (and \texttt{--nbar}); the output files get \texttt{\_chx}, \texttt{\_chy}, \texttt{\_chdep}, \texttt{\_chdecay} or \texttt{\_chthermal\_n<$\bar n$>} (nothing for $\sigma^z$).
+\item \texttt{--seed $N$}: another random-$c$ realization (generator seeded with $1000N + L$); for $N \ne 1$ every output file gets \texttt{\_seed<$N$>} and the realization is \texttt{states\_realization\_L<L>\_seed<$N$>.csv}, so the seed-1 files are never overwritten.
+\item \texttt{--stop-te $F$}: the run also stops at $t = F\,t_1$, $t_1$ the first time the signal drops below $1/e$. With $F = 1.5$ this is enough for $\Ge$ without knowing $t_e$ in advance (as for the new channels).
+\item New outputs:
+  \begin{itemize}
+  \item \texttt{states\_obs\_*.csv}: purity, $\langle n\rangle$, $\langle n_{xy}\rangle$, $S_{\mathrm{op}}$, $S_{2,\mathrm{op}}$, $P(n)$, $P(\ell)$;
+  \item \texttt{states\_traj\_ent\_*.csv}: $S_A$, $S_2$ and their errors;
+  \item \texttt{single\_flip\_ent\_*.csv}: $S$, $S_2$ per block.
+  \end{itemize}
+\end{itemize}
+
+\paragraph{Tests of the new code} (\texttt{cargo test --release}, 17 tests in all):
+\begin{itemize}
+\item every new channel with free spins ($H_I = 0$, random product state) against the single-spin Bloch equations $\dot r_x = -hr_y + \gamma d_xr_x$, $\dot r_y = hr_x + \gamma d_yr_y$, $\dot r_z = \gamma d_zr_z + \gamma f$ ($d$ the diagonal entries, $f$ the feed) integrated by RK4: agreement to $10^{-10}$;
+\item diffusive trajectories with $\sigma^x$ dephasing and with depolarizing noise against the exact $\rho$ with the full $H$ ($L = 4$, 3000 trajectories): within $5\sigma$;
+\item the purity identity above, by finite differences ($L = 6$);
+\item eigenvalues of random symmetric ($n$ up to $600$, both code paths) and Hermitian matrices against $\Tr M$, $\Tr M^2$, $\Tr M^3$; Dicke-state block entropies against the exact formula for every block size; product states, including the scar state as the trajectories build it, give $0$, and the GHZ state $\ln 2$;
+\item $S_{\mathrm{op}}(\rho) = 2S_A(\psi)$ and $S_{2,\mathrm{op}} = 2S_2$ for a pure entangled state evolved independently as $\rho$ in the Pauli basis and as a state vector ($L = 6$, $10^{-8}$).
+\end{itemize}
+
+\subsection{Tensor networks: $\rho$ as a matrix product state, TDVP, influence matrix, CLIK}
+\label{sec:tn}
+
+\paragraph{$\rho$ as an MPS.} The Pauli coordinates factorize over sites, $r_P = r_{p_0p_1\dots p_{L-1}}$ with $p_j \in \{0, x, y, z\}$ the factor of $P$ on site $j$, so $\rho$ is a vector in $(\mathbb R^4)^{\otimes L}$ and can be written as a matrix product state
+\begin{equation}
+r_{p_0\dots p_{L-1}} = A_0^{p_0}A_1^{p_1}\cdots A_{L-1}^{p_{L-1}},
+\end{equation}
+with $\chi_{j}\times\chi_{j+1}$ matrices $A_j^{p}$ ($\chi_0 = \chi_L = 1$; ITensor, site type \texttt{PauliVec}, \texttt{julia/lindblad\_tdvp.jl}). The singular values of the matrix $r_{(p_0\dots p_{j-1}),(p_j\dots p_{L-1})}$ are the operator Schmidt values of $\rho$ across the cut between sites $j-1$ and $j$ (Sec.~\ref{sec:methods}, the strings being orthogonal with equal norms). The representation is exact for $\chi_j = 4^{\min(j, L-j)}$. A truncation to bond dimension $\chi$ keeps the $\chi$ largest Schmidt values and, in the normalized vector, loses the weight $\varepsilon^2 = \sum_{\ell>\chi}w_\ell$. The operator entanglement $S_{\mathrm{op}}$ of $\rho(t)$ therefore sets the cost: $\chi \gtrsim e^{S_{\mathrm{op}}}$ is needed for small errors. Expectation values are contractions: $\langle\sigma^\alpha_j\rangle = r_{0\dots\alpha_j\dots0}$, read off by projecting every other site on $p = 0$.
+
+\paragraph{The generator as an MPO.} Left multiplication by a Pauli matrix permutes Pauli matrices with phases, $\sigma^a\sigma^b = \sum_c (A^a + iB^a)_{cb}\,\sigma^c$ with real $4\times4$ matrices $A^a$, $B^a$ ($A^a$ the symmetric part: $\sigma^a\sigma^0 = \sigma^a$, $\sigma^a\sigma^a = \sigma^0$; $B^a$ the antisymmetric part from $\sigma^a\sigma^b = i\epsilon_{abc}\sigma^c$), and right multiplication gives $A^a - iB^a$. For a string $P$ with factors $a_j$, $[P, X]$ acts on the coordinates as $\bigotimes_j(A^{a_j} + iB^{a_j}) - \bigotimes_j(A^{a_j} - iB^{a_j})$, so
+\begin{equation}
+-i[P,\cdot\,] \;\longrightarrow\; 2\operatorname{Im}\bigotimes_j\big(A^{a_j} + iB^{a_j}\big),
+\end{equation}
+a real operator, and the dephasing is the diagonal $-2\gamma\sum_j(\text{projector on } p_j \in \{x, y\})$. Summing over the strings of $H$ gives $G$ as a real matrix product operator; the periodic boundary enters as long-range terms.
+
+\paragraph{TDVP: forward and backward sweeps.} The time-dependent variational principle (Dirac--Frenkel) keeps the state on the manifold $\mathcal M_\chi$ of MPS of bond dimension $\chi$ by projecting the generator onto its tangent space,
+\begin{equation}
+\frac{d}{dt}\ket{r} = \mathcal P_{T_r\mathcal M_\chi}\,G\ket{r}.
+\end{equation}
+In mixed-canonical gauge the tangent-space projector decomposes into one-site and bond terms, $\mathcal P_T = \sum_{j}\mathcal P^{(1)}_j - \sum_{j}\mathcal P^{(0)}_{j,j+1}$, and the projector-splitting integrator solves the terms one after the other. In a left-to-right sweep, the site tensor $A_j$ is evolved \emph{forward} by $\delta t$ with its local effective generator, split by a QR decomposition into a left-orthonormal tensor and a bond matrix, and the bond matrix is evolved \emph{backward} by $\delta t$ (the minus sign of $\mathcal P^{(0)}$) before it is absorbed into $A_{j+1}$. A right-to-left sweep with $\delta t/2$ after a left-to-right one with $\delta t/2$ makes the step symmetric and second order. The two-site variant evolves two-site tensors forward and single-site tensors backward, and splits the two-site tensor by an SVD, so the bond dimension can grow up to $\chi_{\max}$; the truncation is the only approximation beyond the projection. The local exponentials are applied with Krylov (Arnoldi, $G$ is not symmetric) methods. Two points matter here:
+\begin{itemize}
+\item \emph{Projection error at small bonds:} terms of $G$ that act on more than two sites (the range-4 terms of $H$, the long-range periodic terms) leave the two-site tangent space while the bonds are small, and two-site TDVP then misses them. A global subspace expansion (enlarging the bond basis with Krylov vectors $G^k\ket r$ of the full generator before the sweep) removes this; once every bond has its full dimension TDVP is exact.
+\item \emph{Truncation error:} at fixed $\chi$ it is set by the operator Schmidt spectrum of $\rho(t)$, i.e.\ by $S_{\mathrm{op}}$.
+\end{itemize}
+Backward (Heisenberg) evolution of an observable uses the same machinery with $G^{\mathsf T}$, i.e.\ with $H \to -H$ (Sec.~\ref{sec:forward-backward}).
+
+\paragraph{Influence matrix and transverse contraction.} The standard contraction follows time: $\rho$ (or $A$) is evolved step by step as an MPS in space, and its cost is set by the operator entanglement in space. The influence-matrix approach contracts the same network along space instead.
+\begin{itemize}
+\item \emph{The space--time network.} With a Trotter step $\delta t$, $e^{\Lv\delta t} \approx \mathcal D\,\mathcal G$, where $\mathcal G$ is a brickwork of local unitary channels $X \mapsto U_gXU_g^\dagger$ (the terms of $H$ grouped into gates on a few neighbouring sites) and $\mathcal D = \bigotimes_j e^{\D_j\delta t}$ the single-site dephasing. In the Pauli (vectorized) representation each channel is a real tensor whose legs are 4-dimensional: every leg carries both the ket and the bra index of $\rho$, i.e.\ the forward and backward branches of the Keldysh contour folded together. Then
+\[ \langle A_x\rangle_{N\delta t} = \big\langle \mathds 1\big|\,A_x\,(\mathcal D\mathcal G)^N\,\big|\rho_0\big\rangle \]
+is a two-dimensional network of $N$ time layers by $L$ sites, closed by the product state $\rho_0$ at the bottom and by the trace $\langle\mathds 1|$ (identity on every site except $x$) at the top.
+\item \emph{Light cone.} A unitary channel acting on identities returns identities, and the dephasing does not change $\mathds 1$ (trace preservation, unitality). Gates outside the backward light cone of the site $x$ and the final time therefore cancel, and only a cone of width $\approx 2vN\delta t$ contributes.
+\item \emph{Transverse contraction.} Grouping the network into columns, one per site (or unit cell), each column is a spatial transfer matrix $T_j$ acting on time-like vectors of dimension $4^N$, the full history of the boundary between two sites. For a translation-invariant infinite chain, $\langle A_x\rangle = \langle \mathrm{IM}_L|\,T_x[A]\,|\mathrm{IM}_R\rangle$, where the influence matrices $\langle\mathrm{IM}_L|$, $|\mathrm{IM}_R\rangle$ are the dominant (fixed-point) eigenvectors of $T$ from the left and from the right. They are found by applying $T$ repeatedly to a boundary vector and compressing the result as an MPS \emph{in time}: the transverse contraction. With site-dependent couplings (our random $c$) the fixed point is replaced by the product of the transfer matrices of the actual sites, applied from the boundaries.
+\item \emph{Meaning and cost.} The influence matrix is the Feynman--Vernon influence functional of the rest of the chain on the chosen site: it encodes all memory effects of the many-body environment on the local dynamics. Its cost is set by its \emph{temporal entanglement} (the entanglement of the IM as an MPS across a time cut), not by the spatial entanglement of $\rho(t)$. For a site coupled to a perfectly dephasing (Markovian) environment the IM is a product in time. Strong local dephasing lowers temporal entanglement, and the approach reaches $L = \infty$ directly. That is what the finite-size cap of Sec.~\ref{sec:small} prevents with exact methods at small $\gamma$.
+\end{itemize}
+
+\paragraph{CLIK: eigenvalues from time-evolved states.} CLIK (Westhoff, Moroder, Schollw\"ock and Paeckel) computes slow eigenvalues of $\Lv$ without diagonalizing it. By Eq.~\eqref{eq:spectral}, the evolved states $\rho_n = e^{\Lv z_n}\rho_0$, sampled at $z_n = n\,\delta t$, contain each mode $R_k$ with weight $e^{\lambda_kz_n}$: the slow modes survive, and the span of the samples approximates the slow invariant subspace (a Krylov-like space generated by $e^{\Lv\delta t}$). On this span $\Lv$ is projected (Rayleigh--Ritz, Galerkin): writing $r = \sum_nc_n\rho_n$ and demanding $\langle\rho_m, (\Lv - \lambda)r\rangle = 0$ for all $m$ gives the generalized eigenproblem
+\begin{equation}
+\mathsf L\,c = \lambda\,\mathsf M\,c, \qquad \mathsf M_{mn} = \langle\rho_m, \rho_n\rangle, \qquad \mathsf L_{mn} = \langle\rho_m, \Lv\rho_n\rangle,
+\end{equation}
+solved after removing the near-zero eigenvalues of the Gram matrix $\mathsf M$ (the samples are nearly linearly dependent). Two evolutions are combined: a physical state ($\Tr = 1$) in real time, for the steady state and slow modes, and a traceless state along the complex contour $z = t\,e^{-i\alpha}$. Along it mode $k$ is damped at $\xi_k = -\operatorname{Re}\lambda_k\cos\alpha - \operatorname{Im}\lambda_k\sin\alpha$, so modes with $\operatorname{Im}\lambda_k > 0$ are enhanced, provided $\alpha < \alpha_{\max} = \min_k(\varphi_k - \pi/2)$ ($\lambda_k = |\lambda_k|e^{i\varphi_k}$), beyond which some mode grows. Left eigenvectors come from the same construction with $\Lv^\dagger$ (backward evolution, Sec.~\ref{sec:forward-backward}). With exact states the method is limited only by the time needed to separate the modes ($T \sim$ a few $/\Delta$, $\Delta$ the gap between the wanted modes and the rest); with MPS states the span has an effective bond dimension of order $N_K\chi$, but every state carries its truncation error, which sets the noise floor of the Gram matrix. Implementation: \texttt{julia/clik.jl} (dense backend for $L \le 6$ with exact propagators, MPS backend with two-site TDVP and global expansion), following \texttt{data/docs/CLIK\_MPS/IMPLEMENTATION.md}.
+
+\paragraph{Decay rates} are defined in Sec.~\ref{sec:rates}.
 
 %======================================================================
 \section{How the decay rates are computed}
@@ -84,13 +517,13 @@ computed on the output grid ($dt = 0.1$, or $0.25$ for the small-$\gamma$ jump r
 \begin{equation}
 t_e = t_{i-1} + (t_i - t_{i-1})\,\frac{\ln E_{i-1} + 1}{\ln E_{i-1} - \ln E_i}, \qquad \Ge = \frac{1}{t_e}.
 \end{equation}
-This is \emph{not} a fit of $A_0 e^{-\Gamma t}$: there is no free amplitude and no fit window. It is the rate of the exponential that starts at the true initial value $S(0) = 1$ and passes through the measured envelope at $1/e$. For a single exponential $e^{-\Gamma t}$ it returns $\Gamma$ exactly. For a general decay, writing $E(t) = \exp[-\int_0^t \lambda(t')\,dt']$ with the instantaneous rate $\lambda = -d\ln E/dt$,
+This is \emph{not} a fit of $A_0 e^{-\Gamma t}$: there is no free amplitude and no fit window. It is the rate of the exponential that starts at the true initial value $S(0) = 1$ and passes through the measured envelope at $1/e$. For a single exponential $e^{-\Gamma t}$ it returns $\Gamma$ exactly. For a general decay, write $E(t) = \exp[-\int_0^t \lambda(t')\,dt']$ with the instantaneous rate $\lambda = -d\ln E/dt$ (this uses $E(0) = 1$). The crossing condition $\ln E(t_e) = -1$ reads $\int_0^{t_e}\lambda\,dt = 1$, so
 \begin{equation}
-\Ge = \frac{1}{t_e}\int_0^{t_e} \lambda(t)\,dt,
+\Ge = \frac{1}{t_e} = \frac{1}{t_e}\int_0^{t_e} \lambda(t)\,dt,
 \end{equation}
 the instantaneous rate averaged from $t = 0$ to the $1/e$ time. This matters here because the decays are not single exponentials. The scar decays multi-exponentially, and at small $\gamma$ it follows $\exp[-\gamma\int\Db]$, whose instantaneous rate grows from $2\gamma$ to $\gamma D_{\mathrm{sat}}$ (Sec.~\ref{sec:kick}). A fit of $A_0 e^{-\Gamma t}$ with $A_0$ free would instead depend on the window (Appendix~\ref{app:old}): with an early fast drop it gives $A_0 < 1$ and the slower late rate. The single-kick prediction of $\Ge$ uses the same definition, $\gamma\int_0^{t_e}\Db = 1$.
 
-\paragraph{Statistical error (trajectories).} With $\sigma_m(t)$ the standard error of the trajectory-averaged signal (from the errors of $m_x$, $m_y$ or $s_x$, $s_y$), the error of the crossing time is $\sigma_t = \sigma_m(t_e)/\lvert dE/dt\rvert$, with the slope taken over $\pm 4$ output steps, so that $\sigma_\Gamma = \Ge^2\sigma_t$. For an exponential near $t_e$, $\sigma_\Gamma/\Ge \approx e\,\sigma_m$. The exact evolution has no statistical error.
+\paragraph{Statistical error (trajectories).} With $\sigma_m(t)$ the standard error of the trajectory-averaged signal (from the errors of $m_x$, $m_y$ or $s_x$, $s_y$), a shift $\delta E$ of the envelope at the crossing moves the crossing time by $\delta t = \delta E/\lvert dE/dt\rvert$, so $\sigma_t = \sigma_m(t_e)/\lvert dE/dt\rvert$, with the slope taken over $\pm 4$ output steps. From $\Ge = 1/t_e$, $\delta\Ge = \delta t/t_e^2$, i.e.\ $\sigma_\Gamma = \Ge^2\sigma_t$. For an exponential near $t_e$, $\lvert dE/dt\rvert = \Ge/e$ there, so $\sigma_\Gamma/\Ge = e\,\sigma_m$. The exact evolution has no statistical error.
 
 \paragraph{Tail rate $\Gamma_{\mathrm{tail}}$.} A least-squares straight-line fit of $\ln E$ between the times where $E$ drops below $10^{-2}$ and $10^{-3}$. This one \emph{is} an $A_0e^{-\Gamma t}$ fit, with $A_0$ free, on the tail only; it measures the slowest modes (the tower edges for the scar). It is used for exact runs only: trajectory runs reach their statistical floor in that window. Runs stop once the signal stays below $\max(10^{-3}, 3\sigma)$ for 10 time units, or at a fixed $t_{\max}$ (the small-$\gamma$ runs, $t_{\max} = 3/(\gamma(L-1))$, past $t_e$).
 
@@ -105,6 +538,15 @@ the instantaneous rate averaged from $t = 0$ to the $1/e$ time. This matters her
   \end{itemize}
 \item \textbf{$\gamma = 0$.} It is not fitted. Its $\Ge$ is the mean over the fitted sizes; the scar never reaches $1/e$, so its $\Ge$ is $0$.
 \end{itemize}
+
+Figure~\ref{fig:wrap} shows the definition at work on the largest system, $L = 20$: at $\gamma = 0$ the precession is perfect and $\Ge = 0$; for $\gamma > 0$ the exponential $e^{-\Ge t}$ starts at $1$, meets the envelope at $1/e$, and bounds the oscillation of $m_x$, while the free-spin $e^{-2\gamma t}$ is far slower at small $\gamma$. The envelope is not a single exponential: at small $\gamma$ it lies above $e^{-\Ge t}$ before $t_e$ (by up to $\approx 0.1$ at $\gamma = 0.005$) and close to it or below after, because its instantaneous rate grows from $2\gamma$ to $\gamma D_{\mathrm{sat}}$ (Sec.~\ref{sec:kick}); $\Ge$ is the mean of that rate up to $t_e$. At $\gamma = 1$ it is almost a single exponential, close to $e^{-2\gamma t}$.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{scar_decay_L20.png}
+\caption{Scar at $L = 20$: $m_x$ (light), $m_\perp$ (blue) and its envelope $E$ (dashed) for $\gamma = 0$ and seven $\gamma > 0$ (jump trajectories for $\gamma < 0.01$, diffusive above; $\gamma = 0$ is one deterministic trajectory, run to $t = 20$). Orange: $\pm e^{-\Ge t}$; dot: $(t_e, 1/e)$; dotted: $e^{-2\gamma t}$. Each panel ends at $2.5\,t_e$ (\texttt{plot\_scar\_decay\_L20.py}).}
+\label{fig:wrap}
+\end{figure}
 
 %======================================================================
 \section{Exact results}
@@ -250,7 +692,7 @@ $z$-N\'eel $\Ginf$ & 5.04(9) & 5.03(9) & 5.08(19) & 4.89(7) & 4.72(5) & 4.28(2) 
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.95\textwidth]{states_thermodynamic_rate.png}
-\caption{$\Ginf$ against $\gamma$ for the three states (symlog axes; open diamonds: $\gamma = 0$). Scar at $\gamma < 0.01$ (Sec.~\ref{sec:small}): every $L \le 20$ sits at the finite-size cap, so $\Ginf$ is not extrapolated; triangles are $\Ge$ of the largest size ($L = 20$; $16$ at $\gamma = 0.0007, 0.0014$), lower bounds on $\Ginf$ since $\Ge$ grows with $L$ there. Open squares: $A + B/L$ on $L \ge 14$ only (Table~\ref{tab:large}; not converged at $\gamma < 0.01$). Dashed line and band: $\Ginf \propto \gamma^{1-\nu}$ through $\Ginf(0.05)$ with the collapse exponent $\nu = 0.33$ ($0.24$--$0.48$), continued to $\Ginf = 0$ at $\gamma = 0$ (\texttt{fit\_states\_inverse\_L.py}, \texttt{fit\_small\_gamma.py}).}
+\caption{$\Ginf$ against $\gamma$ for the three states (log-log, $\gamma > 0$ only). Scar at $\gamma < 0.01$ (Sec.~\ref{sec:small}): every $L \le 20$ sits at the finite-size cap, so $\Ginf$ is not extrapolated; triangles are $\Ge$ of the largest size ($L = 20$; $16$ at $\gamma = 0.0007, 0.0014$), lower bounds on $\Ginf$ since $\Ge$ grows with $L$ there. Open squares: $A + B/L$ on $L \ge 14$ only (Table~\ref{tab:large}; not converged at $\gamma < 0.01$). Dashed line and band: $\Ginf \propto \gamma^{1-\nu}$ through $\Ginf(0.05)$ with the collapse exponent $\nu = 0.33$ ($0.24$--$0.48$), extrapolated to $\gamma = 10^{-10}$ (data from $\gamma = 5\times10^{-4}$; free-spin $2\gamma$ over the same range) (\texttt{fit\_states\_inverse\_L.py}, \texttt{fit\_small\_gamma.py}).}
 \label{fig:ginf}
 \end{figure}
 
@@ -367,12 +809,21 @@ $\Ginf/\gamma$, $L \ge 8$ (Table~\ref{tab:ginf}) & -- & -- & -- & -- & -- & -- &
 \begin{equation}
 D(\tau) = \sum_j \big[1 - \operatorname{Re} c_j(\tau)\big], \qquad D(0) = 2,
 \end{equation}
-and its average $\Db(\tau)$ over 16 phases $\varphi = ht'$ and the kicked sites. If the damage of different kicks is independent and multiplies, each kick multiplies $m_\perp$ by $1 - D/L$. With kicks at total rate $\gamma L$, the Poisson average gives
+and its average $\Db(\tau)$ over 16 phases $\varphi = ht'$ and the kicked sites.
+
+\paragraph{Derivation of the prediction.} Write the transverse magnetization as the complex number $m_+ = m_x + i m_y = L^{-1}\sum_j(\langle\sigma^x_j\rangle + i\langle\sigma^y_j\rangle)$. Its noiseless value is $-e^{iht}$ (reference 1), so after one kick
+\[ \frac{m_+(t)}{-e^{iht}} = \frac1L\sum_j c_j(t - t') = 1 - \frac{D(t - t')}{L} + i\,\frac1L\sum_j\operatorname{Im}c_j(t - t'), \]
+and, to first order in $1/L$, $m_\perp = \lvert m_+\rvert = 1 - D(t-t')/L$: one kick at $t'$ multiplies $m_\perp$ by $f(t - t') = 1 - D(t - t')/L$. Two assumptions turn this into a prediction for the Lindblad dynamics:
+\begin{enumerate}
+\item \emph{independent kicks:} with kicks at $t_1, \dots, t_N$, the factors multiply, $m_\perp(t) \approx \prod_{i=1}^N f(t - t_i)$, i.e.\ the damaged regions of different kicks do not overlap;
+\item \emph{phase average:} each factor is replaced by its average over the kicked site and over the phase $\varphi = ht_i$ of the kick, $f \to 1 - \Db/L$ (the 16 phases sample one precession period).
+\end{enumerate}
+In the jump unravelling (Sec.~\ref{sec:methods}) the kick times form a Poisson process of rate $\gamma L$ on $[0, t]$, independent of the state. For a Poisson process of rate $r$ and any function $f$, $\mathbb E\big[\prod_i f(t_i)\big] = \exp\big[-r\int_0^t\big(1 - f(t')\big)\,dt'\big]$ (sum over the number of kicks, each uniform in $[0,t]$: $\sum_N e^{-rt}\frac{(rt)^N}{N!}\big(\tfrac1t\int_0^t f\big)^N$). With $r = \gamma L$ and $1 - f = \Db/L$,
 \begin{equation}
-m_\perp(t) \approx \exp\Big[-\gamma L \int_0^t \frac{\Db(\tau)}{L}\,d\tau\Big] = \exp\Big[-\gamma\int_0^t \Db(\tau)\,d\tau\Big],
+m_\perp(t) \approx \exp\Big[-\gamma L \int_0^t \frac{\Db(t - t')}{L}\,dt'\Big] = \exp\Big[-\gamma\int_0^t \Db(\tau)\,d\tau\Big],
 \label{eq:kick}
 \end{equation}
-which reproduces the free-spin $e^{-2\gamma t}$ for $D \equiv 2$. The predicted $\Ge$ solves $\gamma\int_0^{t_e}\Db = 1$, with no free parameter. Runs: all sites for $L = 12,\dots,20$ up to $\tau = 25$, and four sites ($0, L/4, L/2, 3L/4$) for $L = 22, 24$ up to $\tau = 8$. Beyond $\tau = 25$, $\Db$ is continued with its mean over $20 \le \tau \le 25$.
+independent of $L$ except through $\Db$. For free spins ($H_I = 0$) a kick reverses one spin and nothing else, $D \equiv 2$ exactly, the kicks are exactly independent, and Eq.~\eqref{eq:kick} gives the exact $e^{-2\gamma t}$. The instantaneous decay rate of the prediction is $\gamma\Db(t)$: $2\gamma$ at $t = 0$, $\gamma D_{\mathrm{sat}}$ once the damage has saturated. The predicted $\Ge$ solves $\gamma\int_0^{t_e}\Db = 1$, with no free parameter. Runs: all sites for $L = 12,\dots,20$ up to $\tau = 25$, and four sites ($0, L/4, L/2, 3L/4$) for $L = 22, 24$ up to $\tau = 8$. Beyond $\tau = 25$, $\Db$ is continued with its mean over $20 \le \tau \le 25$.
 
 \paragraph{Damage.} Fig.~\ref{fig:damage}. $\Db$ jumps from $2$ to $\approx 5.9$ within $\tau = 1$ for every $L$, then grows, and saturates with slow oscillations (period $\approx 6$). At $\tau = 4$: $9.10, 9.99, 10.66, 11.02, 11.35, 11.49, 11.60$ for $L = 12, 14, \dots, 24$; at $\tau = 8$: $9.73, 11.02, 12.36, 13.44, 14.62, 15.54, 16.32$. The saturation value is $11.0, 12.4, 14.0, 15.4, 17.1$ for $L = 12,\dots,20$, i.e.\ $\approx L - 1$ at $L = 12$ and still $0.6$--$1.9$ below $L - 1$ at $\tau = 25$ for the larger sizes. The size dependence sets in at $\tau \approx 3$ ($L = 12$) to $\tau \approx 6$ ($L = 22$ against $24$). For $L = 22, 24$, $\Db$ grows by $\approx 1.0$--$1.2$ per unit of $\tau$ between $\tau = 4$ and $8$, roughly linearly (only four kicked sites are sampled; the spread over the 64 runs is $\approx 1.2$ at $\tau = 8$).
 
@@ -404,6 +855,182 @@ which reproduces the free-spin $e^{-2\gamma t}$ for $D \equiv 2$. The predicted 
 \paragraph{Consequence.} In the thermodynamic limit at small $\gamma$, Eq.~\eqref{eq:kick} makes the lifetime a property of $\Db_\infty(\tau)$ alone. Linear growth $\Db \simeq 2v\tau$ (ballistic spreading of the damage) gives $\gamma v t_e^2 = 1$, i.e.\ $\Ginf = (\gamma v)^{1/2}$. Diffusive growth $\Db \propto \tau^{1/2}$ gives $\Ginf \propto \gamma^{2/3}$. If the damage stays bounded, $\Ginf \propto \gamma$. The measured $\Ginf$ ($\Ginf^2/\gamma \approx 2.0$--$2.3$ for $0.02 \le \gamma \le 0.1$) and the roughly linear growth of $\Db$ at $L = 22, 24$ for $4 \le \tau \le 8$ favour the ballistic case, but the collapse admits both. Deciding needs $\Db$ at longer $\tau$ in larger systems.
 
 %======================================================================
+\section{Next calculations: the lean data plan}
+\label{sec:lean}
+
+The plan (\texttt{lean-data-plan.md}, 25 October 2026) aims at better data at minimum cost. It addresses five open points: (i) $\Ginf$ at $\gamma = 0.01$--$0.02$ is the least converged (at $\gamma = 0.01$, $\Ge$ still grows at $L = 20$, and the fits on $L \ge 8$ and $L \ge 14$ differ by $15\%$); (ii) the growth of $\Db(\tau)$ at $L \ge 24$ and $\tau > 8$, which fixes $\Ginf$ at small $\gamma$ through Eq.~\eqref{eq:kick}; (iii) there is one disorder realization per $L$; (iv) new observables: entanglement, operator entanglement of $\rho$, operator size and support (Sec.~\ref{sec:opobs}); (v) other single-site noise channels (Sec.~\ref{sec:channels}). Existing data are never rerun. Costs are in Leonardo node-hours (NH; 1 NH $= 112$ core-hours).
+
+Rules for every new run: stop at $t \approx 1.5\,t_e$, which is enough for $\Ge$ (the tail is only needed from exact runs); diffusive rather than jump trajectories at small $\gamma$; the smallest number of trajectories and of single-flip phases and sites that gives $\le 2\%$ on the rates (set by step A below); the exact runs at $L \le 10$ and the trajectories at $L = 16$ on the workstation \emph{obelix}.
+
+\subsection{Step A: what the existing data say (no new runs)}
+
+Computed by \texttt{plot\_scripts/lean\_plan\_analysis.py} from the data of Secs.~\ref{sec:small}--\ref{sec:kick}.
+
+\paragraph{A1. Lindblad data against the single-kick damage.} By Eq.~\eqref{eq:kick}, $F(t) \equiv -\gamma^{-1}\ln m_\perp(t)$ should equal $\int_0^t\Db(\tau)\,d\tau$ for every $\gamma$. Figure~\ref{fig:leanA1} overlays $F$ for all $\gamma \le 0.02$ at $L = 16, 18, 20$ with $\int\Db$ of the same $L$: the curves fall on it, wiggles included. For the diffusive runs ($\gamma = 0.01$, $0.02$), $F/\int\Db = 0.90$--$0.98$ at $t = 4$--$12$, slightly below $1$ (the overlap of kicks); the jump runs scatter by $\pm25\%$, their noise amplified by $1/\gamma$. So the single-kick formula holds for the whole time dependence, not only for $\Ge$.
+
+The growth slope $s = d\Db/d\tau$ can \emph{not} be read from the Lindblad data at $L \le 20$. The damage of a kick reaches around the ring at $t \approx L/s$ ($s = 1.16$ from $\Db$ of $L = 24$ on $\tau = 4$--$8$; $L/s = 13.8$, $15.5$, $17.2$ for $L = 16, 18, 20$). On that window the slope of $F$, averaged over one precession period $2\pi/h$ to remove the wiggles, covers about one period, and $\Db$ of $L \le 20$ already bends towards saturation: even the noise-free $\Db$ of the same $L$ gives only $s = 0.24$--$0.31$ there, and the Lindblad values scatter (diffusive $0.17$--$0.71$, jump $-0.5$--$1$). $\Db$ also becomes $L$-dependent before $L/s$ ($\tau \approx 6$ for $L = 22$ against $24$). The integrals:
+\begin{center}
+\small
+\begin{tabular}{lccccccc}
+\toprule
+$L$ & 12 & 14 & 16 & 18 & 20 & 22 & 24 \\
+\midrule
+$\int_0^4\Db$ & 27.8 & 29.0 & 29.7 & 30.1 & 30.4 & 30.6 & 30.6 \\
+$\int_0^8\Db$ & 64.6 & 70.5 & 75.8 & 79.4 & 82.8 & 85.0 & 86.8 \\
+\bottomrule
+\end{tabular}
+\end{center}
+$\int_0^4\Db$ has converged at $L \ge 22$; $\int_0^8\Db$ still grows by $\approx 2\%$ per two sites at $L = 24$. Consequence: $s$ and the growth law beyond $\tau = 8$ can only come from \texttt{single\_flip} at $L \ge 24$ (B2) or from a tensor-network single-kick code (C2); a Lindblad run at $L = 22$ (B1) adds the finite-size trend of $\Ge$, not $s$.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{lean_A1_damage.png}
+\caption{$F(t) = -\gamma^{-1}\ln m_\perp$ for every $\gamma \le 0.02$ (jump trajectories for $\gamma < 0.01$, diffusive for $0.01$, $0.02$) at $L = 16, 18, 20$, shown while $m_\perp > 0.05$ and $> 3\sigma$; dashed: $\int_0^t\Db$ of the same $L$; dotted: $\int_0^t\Db$ of $L = 24$ ($\tau \le 8$); dash-dot: $t = L/s$ (\texttt{plot\_scripts/lean\_plan\_analysis.py}).}
+\label{fig:leanA1}
+\end{figure}
+
+\paragraph{A2. How many phases and sites \texttt{single\_flip} needs.} Almost all the spread of $D(\tau)$ is over the phase $\varphi$ of the kick: a single run differs from $\Db$ by up to $16\%$ ($L = 20$) and $17\%$ ($L = 24$), the site-averaged $D$ varies over phases by up to $16\%$, the phase-averaged $D$ over sites by only $1.2\%$ and $0.7\%$. Table~\ref{tab:leanA2} gives the error of $\Db$ from $n_\varphi$ equally spaced phases and $n_k$ equally spaced kicked sites (worst case over $\tau$ and over the offsets of the subsample). Four phases are needed, one or two leave $\approx 20\%$; eight reproduce the 16-phase mean to $< 0.01\%$, so the phase dependence has only low harmonics. With four phases, four sites give $\le 1.1\%$: 16 runs instead of $16 \times L$.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lccccccc}
+\toprule
+phases $\times$ sites & $1\times$ all & $2\times$ all & $4\times1$ & $4\times2$ & $4\times4$ & $4\times$ all & $8\times4$ \\
+\midrule
+$L = 20$ ($\tau \le 25$) & 26\% & 21\% & 3.4\% & 1.7\% & 1.1\% & 0.5\% & 0.6\% \\
+$L = 24$ ($\tau \le 8$, 4 sites) & 28\% & 21\% & 1.3\% & 1.1\% & 0.6\% & -- & $< 0.01\%$ \\
+\bottomrule
+\end{tabular}
+\caption{Worst relative error of $\Db(\tau)$ from a subsample of the 16 phases and of the kicked sites.}
+\label{tab:leanA2}
+\end{table}
+
+\paragraph{A3. How many trajectories.} With $\sigma_m(t_e)$ the standard error of $m_\perp$ at the $1/e$ time, the spread of one trajectory is $\sigma_1 = \sigma_m\sqrt n$, and a relative error $\sigma_\Gamma/\Ge = e\,\sigma_m$ (Sec.~\ref{sec:rates}) of $2\%$ needs $n = (e\,\sigma_1/0.02)^2$ trajectories (Table~\ref{tab:leanA3}). $\sigma_1$ does not depend on $L$ between 16 and 20. The jump/diffusive variance ratio is $\approx 60$--$100$, so jump trajectories cost $\approx 30\times$ more per error bar even after their first-kick saving: new small-$\gamma$ runs are diffusive. 56 diffusive trajectories give $\le 2\%$ at $\gamma \le 0.02$, 112 give $\approx 1.5$--$2\%$ at $\gamma = 0.05$.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+runs ($L = 16, 18, 20$) & $\sigma_1$ & $n$ for $2\%$ on $\Ge$ \\
+\midrule
+diffusive, $\gamma = 0.01, 0.02$ & 0.035--0.049 & 23--45 \\
+diffusive, $\gamma = 0.05$--$0.2$ & 0.056--0.085 & 58--133 \\
+diffusive, $\gamma = 0.5$--$10$ & 0.09--0.16 & 155--450 \\
+jump, $\gamma = 0.0005$--$0.007$ & 0.25--0.43 & 1200--3500 \\
+\bottomrule
+\end{tabular}
+\caption{Spread of one trajectory at $t_e$ and the number of trajectories for a $2\%$ error on $\Ge$.}
+\label{tab:leanA3}
+\end{table}
+
+\paragraph{A4. How long the new runs must be.} $t_e$ of the planned Lindblad runs, as an upper bound from $1/\Ge(L = 20)$ ($\Ge$ grows with $L$) and from Eq.~\eqref{eq:kick} with $\Db$ of the same $L$, continued past $\tau = 8$ either flat or linearly with slope $s$ (Table~\ref{tab:leanA4}); the runs stop at $1.5\,t_e$.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lccccc}
+\toprule
+run & $\gamma$ & $t_e$ from $L = 20$ & $t_e$ single kick & $t_{\max} = 1.5\,t_e$ \\
+\midrule
+B1, $L = 22$ & 0.005 & 15.9 & 14.0--15.4 & 23.9 \\
+B1, $L = 22$ & 0.01 & 9.4 & 8.9--9.0 & 14.1 \\
+B1, $L = 22$ & 0.02 & 5.8 & 5.6 & 8.7 \\
+B1, $L = 22$ & 0.05 & 3.2 & 3.0 & 4.7 \\
+B1$'$, $L = 24$ & 0.01 & 9.4 & 8.8 & 14.1 \\
+B1$'$, $L = 24$ & 0.02 & 5.8 & 5.5 & 8.7 \\
+\bottomrule
+\end{tabular}
+\caption{Predicted $1/e$ times and run lengths of the planned trajectory runs.}
+\label{tab:leanA4}
+\end{table}
+
+\subsection{Step B: the planned runs}
+
+Table~\ref{tab:leanB}, with the changes that follow from step A (56 trajectories at $\gamma \le 0.02$ in B1; $4\times4$ single-flip runs per realization in B3). The new disorder realizations are seeds $2$, $3$, $4$. The Leonardo parts run as Slurm jobs (generators in \texttt{data/bashes/}); the obelix parts as an unattended queue that keeps running after logout and skips finished runs. Both are being prepared; none of these runs has been done yet.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.8cm}>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{8.2cm}>{\raggedright\arraybackslash}p{1.9cm}}
+\toprule
+& run & details & cost (NH) \\
+\midrule
+B1 & scar, diffusive, $L = 22$ & $\gamma = 0.005, 0.01, 0.02, 0.05$; 56 trajectories at $\gamma \le 0.02$, 112 at $0.05$; $t_{\max} \approx 24, 14, 9, 5$; half-chain $S_A$, $S_2$ every $\Delta t = 1$ ($\gamma \le 0.01$) or $0.5$ & $\approx 13$ \\
+B1$'$ & scar, diffusive, $L = 24$ & $\gamma = 0.01, 0.02$; 112 trajectories (90 GB); optional, after B1 & $\approx 47$ \\
+B2 & \texttt{single\_flip}, longer $\tau$ & $L = 24$ to $\tau = 16$ ($\approx 4$ NH); $L = 26$ to $\tau = 14$ ($\approx 17$ NH, 51 GB; after the $L = 24$ result); $4$ phases $\times$ $4$ sites; block entanglement every $\Delta\tau = 1$ & $\approx 5$ (+17) \\
+B3 & disorder, seeds 2, 3, 4 & \texttt{single\_flip} $L = 20$, $4\times4$, $\tau \le 25$ ($\approx 0.3$ each); diffusive $L = 20$, $\gamma = 0.01, 0.05, 0.2$, 112 trajectories, $1.5\,t_e$ ($\approx 1.9$ each); the same at $L = 16$ on obelix & $\approx 7$ \\
+B4 & channel study, exact $\rho$ & scar, $x$-N\'eel, $z$-N\'eel $\times$ $\sigma^z$, $\sigma^x$, $\sigma^y$ dephasing, depolarizing, decay, thermal ($\bar n = 1$); $L = 12$, $\gamma = 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20$ and $\gamma = 0$; purity, $P(n)$, $\langle n_{xy}\rangle$, $P(\ell)$, $S_{\mathrm{op}}(\rho)$; runs stop at $1.5\,t_e$, Zeno-protected runs ($\sigma^{x,y}$ on the in-plane states, $\sigma^z$ on $z$-N\'eel, large $\gamma$) cut at $t = 15$; $L = 8, 10$ on obelix & $\approx 128$ (232 at the caps) \\
+B5 & channel study, trajectories & the same three states, Hermitian channels ($\sigma^z$, $\sigma^x$, $\sigma^y$, depolarizing), diffusive $L = 20$, $\gamma \le 2$, 56 trajectories at $\gamma \le 0.02$, 112 above (existing $\sigma^z$ scar and $x$-N\'eel runs not repeated); Zeno cut at $t = 8$; $L = 16$ on obelix & $\approx 24$ (56 at the caps) \\
+C1 & noise on one site & each channel, $\gamma_0 = 1$: exact $L \le 12$ (obelix), trajectories $L = 16$--$20$; optional & $\approx 6$ \\
+C2 & single kick at $L \approx 100$ & MPO/MPS version of \texttt{single\_flip} (new code), to $\tau \approx 20$; the exact $\gamma = 0$ revival is the go/no-go test; optional & 10--30 \\
+\bottomrule
+\end{tabular}
+\caption{Planned runs. Costs from the job generator (\texttt{data/bashes/make\_lean\_jobs.sh}, bench costs of 19 October): B1--B5 (B2 at $L = 24$) 41 Leonardo jobs, $\approx 176$ NH $\approx 19\,700$ core-hours expected, $314$ NH if every run reaches its time cap; with B2 at $L = 26$: $\approx 193$ NH. The obelix queue (\texttt{obelix/make\_queue.py}, 530 runs: B4 exact at $L = 8, 10$ for every state and channel, $\gamma = 0$ and $0.005$--$20$; B3 at $L = 16$; B5 diffusive at $L = 16$) takes $\approx 52$ hours. For comparison, the small-$\gamma$ batch of 19--20 October used $\approx 24\,100$ core-hours.}
+\label{tab:leanB}
+\end{table}
+
+Order: B4 and the obelix parts of B3 and B5 first (they need the new code of Secs.~\ref{sec:channels}--\ref{sec:opobs}), then B1 and B2 at $L = 24$, then B3 on Leonardo; B1$'$, B2 at $L = 26$ or C2 are decided from those results.
+
+%======================================================================
+\section{Entanglement of eigenstates and Liouvillian modes}
+\label{sec:ent}
+
+Sanity check 3 of the project plan: the bulk eigenstates should form a thermal dome and the scars should be low-entanglement outliers. Same random-$c$ realization as everywhere else (seed 1), periodic chain; the cut is sites $0, \dots, L_A - 1$, $L_A = \lfloor L/2 \rfloor$.
+
+\paragraph{Eigenstates of $H$.} All $2^L$ eigenstates of $H$ by dense diagonalization (\texttt{entanglement}, $L = 6$--$12$), with the half-chain entropy $S_A$ and the tower weight $\sum_n \lvert\langle\Phi_n\vert E\rangle\rvert^2$ (Fig.~\ref{fig:ent}). Exactly $L + 1$ eigenstates have tower weight above $1/2$ (it is $1$ to $10^{-6}$), at $E = h(L/2 - n)$: the scars. Their entropies are those of the Dicke states, $S = -\sum_k p_k \ln p_k$ with $p_k = \binom{L_A}{k}\binom{L - L_A}{n - k}/\binom{L}{n}$, to $5\times10^{-13}$. The two edge scars are product states ($S = 0$); the middle one has $S = 1.02$ ($L = 6$) to $1.32$ ($L = 12$), growing roughly as $\tfrac12 \ln L$. The bulk forms a dome whose middle approaches the Page value $S_{\mathrm{Page}} = L_A \ln 2 - 2^{2L_A - L - 1}$: the mean $S_A$ of the bulk states with $\lvert E\rvert < 1$ is $0.90$, $0.92$, $0.92$, $0.95$, $0.96$, $0.97$, $0.97$ of it for $L = 6, \dots, 12$. Low-entanglement bulk states exist only at the edges of the spectrum: at $\lvert E\rvert < 1$ the least entangled bulk state has $S_A = 3.41$ at $L = 12$, against $1.32$ for the scar there.
+
+\paragraph{Operator entanglement of $\dyad{n}{m}$.} The operator Schmidt decomposition of $\dyad{n}{m}$ is the product of the Schmidt decompositions of $\ket{n}$ and $\ket{m}$, so its operator entanglement is exactly $S_n + S_m$ (checked by SVD for random states, $2\times10^{-15}$); no further diagonalization is needed (Fig.~\ref{fig:opent}). Three families separate: bulk--bulk pairs up to twice the Page value, scar--bulk pairs in between, and scar--scar pairs, the tower coherences, below $2.6$ at $L = 12$.
+
+\paragraph{Liouvillian modes.} Right eigenmatrices $X$ of $\Lv$ by dense diagonalization (\texttt{lindblad\_\allowbreak entanglement}; $\gamma = 0$ for $L = 4$--$7$, $\gamma = 0.01$ for $L = 4$--$6$). From each $X$: $\rho_L = XX^\dagger/\Tr$, $\rho_R = X^\dagger X/\Tr$, their energies $E = \Tr(\rho H)$, the operator entanglement $S_{\mathrm{op}}$ (at most $2L_A\ln 2$; $2S$ for a pure state) and the tower weight $\lVert \Ptow X \Ptow\rVert/\lVert X\rVert$. $\Lv$ has degenerate eigenspaces (the kernel, the edge pairs $\dyad{\Phi_0}{\Phi_n}$, $\dyad{\Phi_{L-n}}{\Phi_L}$, and at $\gamma = 0$ every $\dyad{n}{n}$ and every tower spacing); there the basis is the one that diagonalizes $\Tr(X_i^\dagger H X_j)$ against $\Tr(X_i^\dagger X_j)$, which splits each edge pair exactly. Checks: at $\gamma = 0$ the modes are the $\dyad{n}{m}$, $\rho_L$ is pure and $S_L = 2S_n$, equal to the eigenstate values to $7\times10^{-12}$; the edge modes give the Dicke-state $E$ and $S$ to $10^{-13}$; since $\Lv$ is real, the $(E_R, S_R)$ and $(E_L, S_L)$ sets coincide.
+
+At $\gamma = 0$ the $(L+1)^2 = 25, 36, 49, 64$ tower coherences have tower weight $1$. At $\gamma = 0.01$, $22$, $32$, $44$ modes keep tower weight above $0.9$ ($L = 4, 5, 6$): the dephasing mixes a few mid-tower coherences with the bulk (as in the earlier spectrum, App.~\ref{app:old}). These modes stay low-entanglement outliers (Fig.~\ref{fig:lindent}): $S_L \le 1.74$, $1.81$, $2.05$ for $L = 4, 5, 6$, against the maximum $2.77$, $2.77$, $4.16$ and the median over all modes $1.39$, $1.82$, $2.60$; from $\gamma = 0$ to $0.01$ their largest $S_L$ changes by less than $0.02$. Points at $S_L = 0$ are the modes with $\rho_L = \dyad{\Phi_0}{\Phi_0}$ or $\dyad{\Phi_L}{\Phi_L}$; at $\gamma > 0$ these include the $2^{L+1}$ half-dark modes $\dyad{\Phi_0}{\psi}$, $\dyad{\Phi_L}{\psi}$, which have tower weight $\approx 0$ but the same $\rho_L$. Only $L \le 7$ is accessible this way ($4^L$-dimensional dense diagonalization; $L = 7$ takes $18$ minutes and $4.4$ GB on the laptop).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{entanglement.png}
+\caption{Half-chain entropy of all eigenstates of $H$ against their energy, $L = 6$--$12$; scars $\ket{\Phi_n}$ in orange, Page value dotted (\texttt{entanglement}, \texttt{plot\_entanglement.py}).}
+\label{fig:ent}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{operator_entanglement.png}
+\caption{Operator entanglement $S_n + S_m$ of $\dyad{n}{m}$ for all eigenstate pairs against $E_m - E_n$: bulk--bulk as a density, scar--bulk and scar--scar as points; twice the Page value dotted (\texttt{plot\_operator\_entanglement.py}).}
+\label{fig:opent}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\textwidth]{lindblad_entanglement_g0.01.png}
+\caption{Operator entanglement of $\rho_L$ (left) and $\rho_R$ (right) of every Liouvillian mode against its energy, $\gamma = 0.01$, $L = 4, 5, 6$; tower weight $> 0.9$ in orange, $2L_A\ln 2$ dotted (\texttt{lindblad\_entanglement}, \texttt{plot\_lindblad\_entanglement.py}; the $\gamma = 0$ figure, $L = 4$--$7$, is \texttt{lindblad\_entanglement\_g0.png}).}
+\label{fig:lindent}
+\end{figure}
+
+%======================================================================
+\section{Tensor-network and Krylov (CLIK) results}
+\label{sec:tn-results}
+
+\paragraph{TDVP of $\rho$ from the scar state} (previous coefficients, $\gamma = 0.01$, $t \le 10$, $\delta t = 0.1$). The MPS of $\rho(t)$ reaches its maximal bond dimension by $t \approx 0.5$. Against the exact evolution, the error of the magnetization is $10^{-2}$ at $\chi = 32$ and $8\times10^{-5}$ at $\chi = 64$ for $L = 6$ (full $\chi = 4^3 = 64$), and $2\times10^{-2}$ at $\chi = 64$ for $L = 8$ (full $256$). The dissipated scar state needs nearly the full bond dimension: the weight that the dephasing moves out of the tower, at rate $\approx\gamma(L-1)$ (Eq.~\eqref{eq:cap}), is thermalized by $H_I$, and that part has large operator entanglement. B4 measures $S_{\mathrm{op}}(\rho(t))$ directly.
+
+\paragraph{CLIK} (current coefficients, random $c$, $\gamma = 0.01$, $\delta t = 0.5$, $K = 4$ product terms per initial state; errors against the exact spectrum of $\Lv$).
+\begin{itemize}
+\item \textbf{Checks.} The Julia $\Lv$ (MPO, contracted) has the Rust ED spectrum to $5\times10^{-12}$ ($L = 4, 5, 6$, ring and open chain). At the full bond dimension $4^{L/2}$ the MPS backend reproduces the dense Krylov matrices to $10^{-12}$ ($L = 4$) and $10^{-13}$ ($L = 6$), but only with the global subspace expansion; without it two-site TDVP misses the range-4 terms while the bonds are small ($10^{-2}$ error from the first step).
+\item \textbf{The complex contour does not help here.} From the ED, $\alpha_{\max} = 0.0020$, $0.0031$, $0.0027$ (ring, $L = 4, 5, 6$) and $0.0037$ (open, $L = 6$), set by bulk modes with $\operatorname{Im}\lambda \approx 15$--$23$, not by the slow modes. The boost of slow modes is therefore negligible and CLIK works as a real-time Krylov method, converging after $T \approx 3$--$5/\Delta \approx 200$--$300$ ($\Delta \approx 0.015$--$0.018$).
+\item \textbf{Ring, random initial states, dense, $T = 400$:} $\lambda = 0$ to $10^{-15}$; the edge mode $-0.02 + i$ to $3\times10^{-14}$, $10^{-10}$, $10^{-9}$ ($L = 4, 5, 6$); the slowest bulk mode to $8\times10^{-11}$, $3\times10^{-8}$, $3\times10^{-7}$; some real bulk modes never converge ($10^{-3}$--$10^{-2}$).
+\item \textbf{Open chain, $L = 6$, scar initial states} (mixtures of spin coherent states $\dyad{\mathbf n}{\mathbf n}^{\otimes L}$, all inside the tower) against random ones, dense, $T = 200$: the tower modes converge 2--4 orders of magnitude better ($\lambda = 0$: $8\times10^{-11}$ against $2\times10^{-9}$; $-0.02 + i$: $3\times10^{-9}$ against $10^{-5}$; $-0.04 + 2i$: $3\times10^{-7}$ against $5\times10^{-3}$).
+\item \textbf{Truncation} (open chain, scar initial states, $\chi = 16$ and $32$ of the full $64$): only $\lambda = 0$ ($4\times10^{-8}$, $2\times10^{-7}$) and the first edge mode ($9\times10^{-6}$, $2\times10^{-5}$) converge; every other tower mode stays at $\approx10^{-3}$, and the trace of the traceless state leaks to $3\times10^{-3}$ and $7\times10^{-3}$. This is not a time-step error: at $t \le 10$ and $\chi = 32$ the Krylov matrices differ from the dense ones by $3\times10^{-3}$ for internal steps $0.25$ and $0.05$ alike. As for TDVP: $\rho(t)$ from scar states needs nearly the full bond dimension at $L = 6$.
+\end{itemize}
+
+\paragraph{Forward/backward evolution} (\texttt{julia/forward\_backward.jl}, current coefficients, random $c$). Eq.~\eqref{eq:meet} in Pauli coordinates: $\rho$ is evolved with $G$, the observable coordinates $o_P = \Tr(AP)/2^L$ with $G^{\mathsf T}$, and $\langle A\rangle_{t_1+t_2} = o(t_2)\cdot r(t_1)/\Tr\rho(t_1)$. $G^{\mathsf T}$ is built as an MPO from the same terms: the Hamiltonian part with $H \to -H$, the dissipator diagonal unchanged, the feed of decay and thermal noise transposed ($\mathds 1 \to \sigma^z$); checked against the transpose of the contracted $G$ to $5\times10^{-15}$ at $L = 6$. The same run also gives the forward-only and backward-only values at the same $\chi$, and the spread of $\langle A\rangle_t$ over all splits $t_1 + t_2 = t$, a truncation-error estimate.
+\begin{itemize}
+\item \textbf{Time stepping.} Two-site TDVP is wrong while the bond dimension is small: one step $\delta t = 0.1$ from $\ket{-}^{\otimes 6}$ is off by $10^{-2}$ in norm, with or without global Krylov expansion, scaling as $\delta t^2$ (the range-4 terms of $H$ leave the two-site tangent space). A Taylor series of $e^{G\tau}$ with exact MPO applications has no such error ($6\times10^{-8}$ for the same step, $\chi$ stays 1 as it must at $\gamma = 0$) but costs $\approx 25$\,s per substep at $\chi = 64$. The code uses Taylor while $\chi < 16$ and TDVP above.
+\item \textbf{Validation at $L = 6$} (full $\chi = 64$, $\delta t = 0.1$, $t \le 5$, against the exact Rust evolution). Scar at $\gamma = 0$ (perfect revivals): largest deviation of $m_x$, $m_y$ $2.5\times10^{-6}$ (forward only), $1.3\times10^{-6}$ (meet in the middle), $8\times10^{-9}$ (backward only); all six magnetizations below $3\times10^{-6}$. Scar, $\sigma^z$ dephasing, $\gamma = 0.1$: below $3\times10^{-7}$ (forward, middle) and $5\times10^{-9}$ (backward). Other channels at $\gamma = 0.1$: scar under $\sigma^x$ dephasing $9\times10^{-6}$ and under decay $2\times10^{-6}$ (forward, middle; backward $\le 7\times10^{-9}$); $x$-N\'eel ($s_x$, $s_y$) under $\sigma^z$ dephasing and decay, and $z$-N\'eel ($s_z$) under $\sigma^z$, $\sigma^x$ dephasing and decay: $\le 6\times10^{-8}$ for all three. The backward half is the more accurate one from the scar state, because the forward state stays at small $\chi$ (where TDVP is not used, but the Taylor steps are compressed with a cutoff) for longer.
+\item \textbf{Cost.} At $L = 6$ and full $\chi$ one run ($t \le 5$, one or two observables) takes 150--260\,s on the laptop (8 threads); with all six observables 370\,s ($\gamma = 0.1$) and 1070\,s ($\gamma = 0$). Dense vectors are far cheaper at this size; the method is meant for $L \gtrsim 14$, where it has not been run yet.
+\end{itemize}
+
+%======================================================================
 \section{Summary and open points}
 
 \begin{itemize}
@@ -411,7 +1038,103 @@ which reproduces the free-spin $e^{-2\gamma t}$ for $D \equiv 2$. The predicted 
 \item At fixed $L$ and $\gamma \to 0$, $\Ge/\gamma \to L - 1$, the loss rate of the tower weight: the local signal then behaves like a global one.
 \item Extrapolating only the large sizes ($L = 14$--$20$) gives estimates of $\Ginf$ down to $\gamma = 0.0005$ ($\Ginf/\gamma \approx 18$--$34$ for $\gamma < 0.01$, not converged), consistent with $\Ginf \propto \gamma^{0.58}$--$\gamma^{0.66}$ over $0.0005 \le \gamma \le 0.05$ and with the collapse.
 \item A single kick evolved with $H$ predicts the scar decay at every $L \le 20$ and $\gamma \le 0.05$ to within $\approx 5\%$ without parameters. The small-$\gamma$ lifetime is therefore the integral of the single-kick damage.
+\item Entanglement (Sec.~\ref{sec:ent}): the $L + 1$ scars are the Dicke states, with $S \le 1.32$ at $L = 12$ against a bulk dome that reaches $97\%$ of the Page value in the middle of the spectrum. Among the Liouvillian modes ($L \le 6$, $\gamma = 0.01$) the tower coherences stay low-entanglement outliers, almost unchanged from $\gamma = 0$.
+\item Next (Sec.~\ref{sec:lean}): the existing data confirm the single-kick formula for the whole $m_\perp(t)$ and show that the growth of $\Db$ must come from single-kick runs at $L \ge 24$; the planned runs ($\approx 40$ NH, 57 with $L = 26$) add $L = 22$ rates, longer $\Db(\tau)$, three more disorder realizations, operator observables of $\rho$ and five other noise channels.
+\item Theory (Sec.~\ref{sec:theory}): at fixed $L$ and $\gamma \to 0$ first-order perturbation theory gives the cap $\Gamma = \gamma(L - 1 + 2/L)$; in the thermodynamic limit the single-kick damage growth $\Db_\infty \propto \tau^\beta$ gives $\Ginf \propto \gamma^{1/(1+\beta)}$ and the collapse exponent $\nu = \beta/(1+\beta)$ (ballistic: $\gamma^{1/2}$, $\nu = 1/2$; diffusive: $\gamma^{2/3}$, $\nu = 1/3$).
+\item Tensor networks (Sec.~\ref{sec:tn-results}): TDVP and truncated CLIK need nearly the full bond dimension for $\rho(t)$ from the scar state, because the weight that leaves the tower thermalizes and carries operator entanglement.
 \item Open: the growth law of $\Db_\infty(\tau)$ (ballistic or diffusive) at $\tau > 8$, which fixes the exponent of $\Ginf$ as $\gamma \to 0$; one disorder realization per $L$; the $\gamma = 0.01$--$0.02$ extrapolation, which is the least converged.
+\end{itemize}
+
+%======================================================================
+\section{Data computed so far}
+\label{sec:data}
+
+Everything the current analysis uses is in \texttt{data/used\_data/} (not tracked by git; 505 files); older and superseded data are in \texttt{data/non\_used\_data/}. All runs with the current coefficients use the same random-$c$ realization per $L$ (seed $1$), stored as \texttt{states\_realization\_L<L>.csv} for $L = 4,\dots,12, 14, \dots, 24$. Standard $\gamma$ grid: $\gamma \in \{0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10\}$. Small-$\gamma$ grid: $\{0.0005, 0.0007, 0.001, 0.0014, 0.002, 0.003, 0.004, 0.005, 0.007\}$. Methods as in Sec.~\ref{sec:methods}; cluster runs on Leonardo (Cineca), the rest on the laptop.
+
+\subsection{Time evolution, current coefficients}
+
+Files \texttt{states\_<state>\_L<L>\_g<$\gamma$>.csv} (exact), \texttt{states\_traj\_<state>\_L<L>\_g<$\gamma$>.csv} (diffusive) and \texttt{states\_traj\_<state>\_L<L>\_g<$\gamma$>\_jump\_s<N>.csv} (jump, one file per noise seed $N$); columns $t$, $m_{x,y,z}$, $s_{x,y,z}$ (and their standard errors for trajectories). Runs stop once the signal stays below $\max(10^{-3}, 3\sigma)$ for 10 time units; $\gamma = 0$ runs to $t = 50$; the small-$\gamma$ runs stop at $t_{\max} = 3/(\gamma(L-1))$.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{>{\raggedright\arraybackslash}p{1.5cm}>{\raggedright\arraybackslash}p{1.7cm}>{\raggedright\arraybackslash}p{2.0cm}>{\raggedright\arraybackslash}p{4.1cm}>{\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}p{1.8cm}}
+\toprule
+state & method & $L$ & $\gamma$ & trajectories & batch \\
+\midrule
+scar & exact $\rho$ & $4,\dots,12$ & standard grid & -- & Oct 15 \\
+scar & exact $\rho$ & $14$ & standard grid; $\gamma \le 0.02$ cut at 24 h ($t \approx 25$--$32$) & -- & Oct 16 \\
+scar & exact $\rho$ & $8, 10$ & small-$\gamma$ grid & -- & Oct 19--20 \\
+scar & exact $\rho$ & $12$ & $0.002$--$0.007$ (5 values) & -- & Oct 19--20 \\
+scar & diffusive & $12, 14, \dots, 20$ & standard grid & 224 (112 at $L = 20$) & Oct 16 \\
+scar & diffusive & $12, 14$ & $0.002, 0.005$ (cross-check) & 448 & Oct 19--20 \\
+scar & jump & $12, 14, 16$ & small-$\gamma$ grid & 448 & Oct 19--20 \\
+scar & jump & $18, 20$ & $0.0005, 0.001$; $0.002$--$0.007$ & 224; 448 & Oct 19--20 \\
+$x$-N\'eel & exact $\rho$ & $4, 6, \dots, 14$ & standard grid ($L = 14$, $\gamma \le 0.02$ cut at 24 h) & -- & Oct 16 \\
+$x$-N\'eel & diffusive & $12, 14, \dots, 20$ & standard grid & 224 (112 at $L = 20$) & Oct 16 \\
+$z$-N\'eel & exact $\rho$ & $4, 6, \dots, 12$ & standard grid & -- & Oct 15 \\
+\bottomrule
+\end{tabular}
+\caption{Time-evolution runs with the current coefficients (random $c$). Jump runs use output step $0.25$, all others $\min(0.1, 0.05/\gamma)$. At $\gamma = 0$ the trajectory runs are one deterministic trajectory, to $t = 50$ ($t = 20$ at $L = 18, 20$). Batches: Leonardo, October 2026. Exact runs: 133 (scar), 66 ($x$-N\'eel), 55 ($z$-N\'eel) files; trajectories: 59 diffusive and 46 jump files (scar), 55 diffusive ($x$-N\'eel). One run of the small-$\gamma$ batch ended early by a node failure ($L = 18$, $\gamma = 0.001$, jump: $t = 125.8$ of $176.5$, past $t_e$).}
+\label{tab:data-states}
+\end{table}
+
+\subsection{Single-kick runs}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{llllll}
+\toprule
+$L$ & phases & kicked sites & $\tau_{\max}$ & output step & file \\
+\midrule
+$12, 14, 16, 18, 20$ & 16 & all $L$ & 25 & 0.1 & \texttt{single\_flip\_L<L>.csv} (30--81 MB) \\
+$22$ & 16 & $0, 5, 11, 16$ & 8 & 0.1 & \texttt{single\_flip\_L22\_sites0-5-11-16.csv} \\
+$24$ & 16 & $0, 6, 12, 18$ & 8 & 0.1 & \texttt{single\_flip\_L24\_sites0-6-12-18.csv} \\
+\bottomrule
+\end{tabular}
+\caption{\texttt{single\_flip} runs (Leonardo, Oct 19--20): one row per (phase, kicked site, $\tau$) with $D$ and, per site, $\operatorname{Re}c_j$, $\operatorname{Im}c_j$, $\langle\sigma^z_j\rangle$.}
+\label{tab:data-flip}
+\end{table}
+
+\subsection{Spectra, entanglement and Lindbladian eigenvalues (laptop)}
+
+\begin{itemize}
+\item \textbf{Eigenstates of $H$:} \texttt{entanglement\_L<L>.csv}, $L = 6,\dots,12$ (random $c$): energy, half-chain entropy and tower weight of all $2^L$ eigenstates (2026-10-22).
+\item \textbf{Liouvillian modes:} \texttt{lindblad\_entanglement\_L<L>\_g<$\gamma$>.csv}, $\gamma = 0$ for $L = 4,\dots,7$ and $\gamma = 0.01$ for $L = 4, 5, 6$: every eigenvalue of $\Lv$ with $E_{L,R}$, $S_{L,R}$ and the tower weight (2026-10-22).
+\item \textbf{Open chain, full ED of $\Lv$:} \texttt{spectrum\_open\_L<L>.csv}, $L = 4, 5, 6$, $\gamma = 0.01$ (reference for CLIK).
+\item \textbf{CLIK} (Lindbladian eigenvalues from time-evolved states, \texttt{julia/clik.jl}, $\gamma = 0.01$, 2026-10-23; results in Sec.~\ref{sec:tn-results}): dense backend for the ring at $L = 4, 5, 6$ (random initial states) and the open chain at $L = 6$ (random and scar initial states); MPS backend for the ring at $L = 6$, $\chi = 64$, and the open chain at $L = 6$ with scar initial states, $\chi = 16, 32$; full ED references \texttt{clik\_ed\_L<L>\_g0.01[\_open].csv}; errors in \texttt{clik\_errors.csv}. The Hamiltonians are exported as \texttt{data/hamiltonian[\_open]\_L<L>.csv} ($L = 4,\dots,10$; open up to $12$).
+\end{itemize}
+
+\subsection{Derived tables}
+
+Produced by the scripts from the runs above, in \texttt{data/used\_data/}:
+\begin{itemize}
+\item \texttt{states\_rates.csv}: $\Ge$ and $\Gamma_{\mathrm{tail}}$ of every run (\texttt{fit\_states.py});
+\item \texttt{states\_inverse\_L.csv}: $\Ginf$ from $A + B/L$ on $L \ge 8$ (\texttt{fit\_states\_inverse\_L.py});
+\item \texttt{states\_inverse\_L\_large.csv}: the scar fit on $L \ge 14$;
+\item \texttt{small\_gamma\_rates.csv}, \texttt{small\_gamma\_checks.csv}, \texttt{small\_gamma\_collapse.csv}: scar $\Ge$ with statistical errors, jump against exact and diffusive, $\nu$ and its range (\texttt{fit\_small\_gamma.py});
+\item \texttt{single\_kick\_damage.csv}, \texttt{single\_kick\_rates.csv}: $\Db(\tau)$ and measured against predicted $\Ge$ (\texttt{single\_kick.py});
+\item job costs in \texttt{data/non\_used\_data/logs/} (Oct 16 batch, jump bench, small-$\gamma$ batch, each with \texttt{jobs\_summary.csv}); machine benchmarks in \texttt{data/*\_benchmarks.md} and \texttt{data/non\_used\_data/bench\_tests/}.
+\end{itemize}
+
+\subsection{Analysis outputs of step A}
+
+From \texttt{plot\_scripts/lean\_plan\_analysis.py} (Sec.~\ref{sec:lean}), in \texttt{data/used\_data/}:
+\begin{itemize}
+\item \texttt{lean\_A1\_damage.png}: $F(t)$ against $\int\Db$ (Fig.~\ref{fig:leanA1});
+\item \texttt{lean\_A2\_subsampling.csv}: error of $\Db$ from subsamples of phases and sites;
+\item \texttt{lean\_A3\_spread.csv}: spread of one trajectory at $t_e$ and the trajectory counts for $2\%$;
+\item \texttt{lean\_A4\_t\_e.csv}: predicted $t_e$ and $t_{\max}$ of the planned runs.
+\end{itemize}
+The step-B runs of Table~\ref{tab:leanB} have not been done yet.
+
+\subsection{Older data (\texttt{data/non\_used\_data/})}
+
+\begin{itemize}
+\item \textbf{Previous coefficients} (\texttt{previous\_coefficients/}, laptop, 13--14 October 2026; Appendix~\ref{app:old}): exact evolution of the scar, uniform $c$, $\gamma = 0$ and $0.01$, $L = 4,\dots,10$, $t \le 100$ (\texttt{evolution\_L<L>.csv}), and from random product states (\texttt{evolution\_random\_L<L>.csv}); diffusive trajectories $L = 4,\dots,8$, $\gamma = 0.01$ (2000 trajectories; 20000 at $L = 4, 5$); TDVP of $\rho$ as an MPS, $L = 6$ ($\chi = 8$--$64$) and $L = 8$ ($\chi = 16$--$128$); cone initial states $L = 4,\dots,8$ (\texttt{disorder\_L<L>.csv}); probes P1, P2, P3 and the free-spin check, $L = 4,\dots,8$, $\gamma = 0, 0.01$, and the $\gamma$ scan at $L = 6$ ($\gamma = 0.002$--$1$, $3$, $6$); Liouvillian ED at $\gamma = 0.01$, $L = 4, 5, 6$ (\texttt{spectrum\_L<L>.csv}); first-pass envelope runs, $L \le 8$, $\gamma = 0.01$--$0.2$ (\texttt{first\_pass/}).
+\item \textbf{Current coefficients, uniform $c$} (\texttt{uniform\_c\_2026-10-24/}): exact evolution of the scar, $\gamma = 0$ and $0.01$, $L = 4,\dots,10$, $t \le 100$; not used.
+\item \textbf{Superseded:} the first cluster batch (\texttt{states\_batch\_2026-10-15/}, identical run files are in \texttt{used\_data}), old analysis outputs (\texttt{states2\_leftovers/}), and the archives received from Leonardo (\texttt{archives/}).
 \end{itemize}
 
 %======================================================================
@@ -420,6 +1143,8 @@ which reproduces the free-spin $e^{-2\gamma t}$ for $D \equiv 2$. The predicted 
 \label{app:old}
 
 The results of this appendix (14 October 2026) were obtained with $h = 0.5$, $a = (0.73, 0.41, 0.29)$, $b = (0.58, -0.37, 0.66)$, and only $c_{xz}, c_{zy}, c_{yx}$ nonzero with baseline values $0.31, -0.44, 0.27$ (random factors in $[0.5, 1.5]$ where stated), with exact evolution and full Liouvillian ED for $L \le 10$, for the scar state and the probes below (the tilted cone initial states studied then are left out). Rates are fits of $A_0e^{-\Gamma t}$ with $A_0$ free in fixed windows, not the $1/e$ rates of the main text (Sec.~\ref{sec:rates}).
+
+The tables of this appendix keep those numbers. Figures~\ref{fig:baseline}--\ref{fig:scaling} are redrawn from the runs with the current coefficients (random $c$, Secs.~\ref{sec:states}, \ref{sec:small}) and show $\Ge$: the same quantities where the current runs have them, the $x$- and $z$-N\'eel states in place of the probes P2, P3, which were not rerun.
 
 \subsection{Scar oscillations and their decay}
 
@@ -441,8 +1166,8 @@ $\Gamma/\gamma$, random $c$  & 3.06 & 3.89 & 4.68 & 5.81 & 6.69 & -- & -- \\
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\textwidth]{decay_fit.png}
-\caption{Uniform model, $\gamma = 0.01$: decay of $m_\perp$ from $\ket{-}^{\otimes L}$ for $L = 4,\dots,10$ and the fitted rate against $L$ (\texttt{plot\_scripts/fit\_decay.py}).}
+\includegraphics[width=\textwidth]{rates_vs_L_scar.png}
+\caption{Current coefficients, random $c$, $\gamma = 0.01$: $m_\perp$ from $\ket{-}^{\otimes L}$ for $L = 4,\dots,20$ (exact up to $12$, trajectories above) and $\Ge/\gamma$ against $L$: $3.40$, $4.24$, $5.24$, $5.77$, $6.73$, $7.27$, $7.84$, $8.20$, $8.49$ ($L = 4,\dots,12$), $8.88$, $9.56$, $10.24$, $10.61$ ($L = 14,\dots,20$). A power law fits better ($\propto L^{0.68}$, rms residual $6.8\%$) than an exponential ($14.6\%$); the points follow the cap $L - 1$ up to $L \approx 8$ and fall below it after (\texttt{plot\_scripts/plot\_rates\_vs\_L.py}). With the previous coefficients the window fits gave $\propto L^{1.13}$ for $L \le 10$ (Table~\ref{tab:baseline}).}
 \label{fig:baseline}
 \end{figure}
 
@@ -457,8 +1182,8 @@ Three probes, evolved with the same Lindbladian (random $c$, $L = 4,\dots,8$, $\
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\textwidth]{probe_timeseries.png}
-\caption{The three probes against time, $\gamma = 0.01$ (solid) and $\gamma = 0$ (dashed); dotted lines are the fits (\texttt{plot\_scripts/fit\_probes.py}).}
+\includegraphics[width=\textwidth]{rates_vs_L_series.png}
+\caption{Current coefficients: the scar $m_\perp$ (P1) and the two thermal references, $x$-N\'eel $s_\perp$ (in place of P3) and $z$-N\'eel $\lvert s_z\rvert$, against time, $\gamma = 0.01$ (solid) and $\gamma = 0$ (dashed); exact evolution (\texttt{plot\_rates\_vs\_L.py}). The thermal signals drop within $t \approx 1$ to a finite-size floor, at both $\gamma$; the scar decays only through the dephasing.}
 \label{fig:probes}
 \end{figure}
 
@@ -483,8 +1208,8 @@ P3 thermal $\Delta\Gamma$, $t\in[0,1]$   & 2.25 & -- & 2.25 & -- & 1.85 & $L^{-0
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\textwidth]{probe_scaling.png}
-\caption{Decay rate against $L$ (log-log) with power-law fits; scar (left) and non-scar probes (right).}
+\includegraphics[width=\textwidth]{rates_vs_L_scaling.png}
+\caption{Current coefficients: $\Ge$ against $L$. Left: scar $\Ge/\gamma$ at $\gamma = 0.01$ (log-log) with the power law, the cap $L - 1$ and the free-spin value $2$. Right: $x$-N\'eel ($L \ge 8$) and $z$-N\'eel ($L \ge 10$) $\Ge$ at $\gamma = 0$ and $0.01$: $4.6$--$5.0$, independent of $L$ and of $\gamma$, set by the closed-system thermalization (\texttt{plot\_rates\_vs\_L.py}).}
 \label{fig:scaling}
 \end{figure}
 
@@ -535,20 +1260,6 @@ P3 $\Delta\Gamma$ & 1.60 & 1.60 & 1.60 & 1.60 & 1.60 & 1.61 & 1.62 & 1.66 & 1.72
 \label{tab:gamma}
 \end{table}
 
-Three regimes for the scar (Fig.~\ref{fig:gamma}): weak dephasing, $\gamma\le0.05$, with $\Gamma\propto\gamma^{0.984\pm0.002}$ at $\approx4.7\gamma$ (the cap $\approx L - 1$ of the main text); a crossover around $\gamma\approx0.1$, where $\gamma L\approx h$, with a maximum $5.7\gamma$; strong dephasing, $\gamma\gtrsim1$, with $\Gamma\to2\gamma$. The non-scar rates are also linear in $\gamma$ for weak dephasing ($\gamma^{0.977}$ for P2, $\gamma^{1.001}$ for P3). At strong dephasing the energy probe slows down ($1.27\gamma$ at $\gamma = 6$).
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=\textwidth]{gamma_scan_scar.png}
-\caption{Scar decay rate against $\gamma$ at $L = 6$; the power law is fitted for $\gamma\le0.05$ (\texttt{plot\_scripts/plot\_gamma\_scan.py}).}
-\label{fig:gamma}
-\end{figure}
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=\textwidth]{gamma_scan.png}
-\caption{As Fig.~\ref{fig:gamma}, with the non-scar probes.}
-\label{fig:gamma-all}
-\end{figure}
+Three regimes for the scar (Table~\ref{tab:gamma}): weak dephasing, $\gamma\le0.05$, with $\Gamma\propto\gamma^{0.984\pm0.002}$ at $\approx4.7\gamma$ (the cap $\approx L - 1$ of the main text); a crossover around $\gamma\approx0.1$, where $\gamma L\approx h$, with a maximum $5.7\gamma$; strong dephasing, $\gamma\gtrsim1$, with $\Gamma\to2\gamma$. The non-scar rates are also linear in $\gamma$ for weak dephasing ($\gamma^{0.977}$ for P2, $\gamma^{1.001}$ for P3). At strong dephasing the energy probe slows down ($1.27\gamma$ at $\gamma = 6$).
 
 \end{document}

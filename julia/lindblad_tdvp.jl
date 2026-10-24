@@ -79,10 +79,10 @@ function hamiltonian_terms(L; h = 0.5, a = (0.73, 0.41, 0.29), b = (0.58, -0.37,
     return filter(t -> t.second != 0, terms)
 end
 
-"The Lindbladian as an OpSum over the PauliVec sites."
-function lindbladian(L, γ)
+"The Lindbladian as an OpSum over the PauliVec sites; `terms` in the format of `hamiltonian_terms`."
+function lindbladian(L, γ; terms = hamiltonian_terms(L))
     os = OpSum()
-    for (string, coef) in hamiltonian_terms(L)
+    for (string, coef) in terms
         k = length(string)
         # 2 Im Π_j (A_j + i B_j): every way of taking B on an odd number of sites
         for mask in 1:(2^k - 1)

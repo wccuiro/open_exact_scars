@@ -22,6 +22,7 @@
 use rayon::prelude::*;
 
 use crate::model::{hamiltonian_terms, Params};
+use crate::noise::Channel;
 use crate::pauli::Pauli;
 
 /// Translation orbits of Pauli strings on a ring of `l` sites.
@@ -89,8 +90,14 @@ pub const MATRIX_FREE_MIN_L: usize = 11;
 pub struct Liouvillian {
     pub sector: Sector,
     hamiltonian: HamiltonianPart,
-    /// Number of X/Y sites of each orbit; the dephasing part is −2γ times this, on the diagonal.
+    /// Number of X/Y sites of each orbit (the σᶻ-dephasing part is −2γ times this, on the diagonal).
     pub n_xy: Vec<f64>,
+    /// The noise channel (default σᶻ dephasing) and its diagonal per unit of γ, for each orbit.
+    pub channel: Channel,
+    diag: Vec<f64>,
+    /// Off-diagonal part of decay and thermal (per unit of γ; 0 otherwise): dr_P/dt gets feed · γ · r_{P'} for every σᶻ
+    /// of P, P' = P with that σᶻ replaced by 𝟙. Full basis only.
+    feed: f64,
 }
 
 /// The Hamiltonian part −i[H, ·] (real antisymmetric in the orthonormal orbit basis).
@@ -117,8 +124,40 @@ impl Liouvillian {
     pub fn matrix_free(params: &Params) -> Self {
         let sector = Sector::full(params.l);
         let terms = hamiltonian_terms(params).into_iter().map(|(p, h)| (p.x, p.z, p.n_y(), h)).collect();
-        let n_xy = sector.reps.par_iter().map(|p| p.n_xy() as f64).collect();
-        Liouvillian { sector, hamiltonian: HamiltonianPart::MatrixFree { terms }, n_xy }
+        let n_xy: Vec<f64> = sector.reps.par_iter().map(|p| p.n_xy() as f64).collect();
+        let diag = n_xy.iter().map(|n| -2.0 * n).collect();
+        Liouvillian { sector, hamiltonian: HamiltonianPart::MatrixFree { terms }, n_xy, channel: Channel::Z, diag, feed: 0.0 }
+    }
+
+    /// Replaces the σᶻ dephasing by another uniform single-site channel (noise.rs). Decay and thermal need the
+    /// full Pauli basis (their feed term is not written for translation orbits).
+    pub fn set_channel(&mut self, channel: Channel) {
+        let feed = channel.feed();
+        assert!(feed == 0.0 || self.is_full(), "decay and thermal channels need the full Pauli basis");
+        self.diag = self.sector.reps.par_iter().map(|p| channel.diag(p.x, p.z)).collect();
+        self.channel = channel;
+        self.feed = feed;
+    }
+
+    /// True in the full Pauli basis (index of a string = x | z << L).
+    pub fn is_full(&self) -> bool {
+        self.sector.dim() == 1usize << (2 * self.sector.l)
+    }
+
+    /// Calls f(column, value) for the feed entries of row i (per unit of γ): one per σᶻ factor of string i.
+    #[inline]
+    fn for_each_feed(&self, i: usize, mut f: impl FnMut(usize, f64)) {
+        if self.feed == 0.0 {
+            return;
+        }
+        let l = self.sector.l;
+        let (x, z) = (i & ((1 << l) - 1), i >> l);
+        let mut only_z = z & !x;
+        while only_z != 0 {
+            let j = only_z.trailing_zeros() as usize;
+            only_z &= only_z - 1;
+            f(i ^ (1usize << (j + l)), self.feed);
+        }
     }
 
     /// Sparse Hamiltonian part in the given sector.
@@ -160,8 +199,9 @@ impl Liouvillian {
             }
             row_ptr.push(col.len());
         }
-        let n_xy = sector.reps.iter().map(|p| p.n_xy() as f64).collect();
-        Liouvillian { sector, hamiltonian: HamiltonianPart::Csr { row_ptr, col, val }, n_xy }
+        let n_xy: Vec<f64> = sector.reps.iter().map(|p| p.n_xy() as f64).collect();
+        let diag = n_xy.iter().map(|n| -2.0 * n).collect();
+        Liouvillian { sector, hamiltonian: HamiltonianPart::Csr { row_ptr, col, val }, n_xy, channel: Channel::Z, diag, feed: 0.0 }
     }
 
     pub fn is_matrix_free(&self) -> bool {
@@ -205,7 +245,8 @@ impl Liouvillian {
         out.par_iter_mut().enumerate().with_min_len(1024).for_each(|(i, o)| {
             let mut acc = 0.0;
             self.for_each_in_row(i, |c, x| acc += x * v[c]);
-            *o = acc - 2.0 * gamma * self.n_xy[i] * v[i];
+            self.for_each_feed(i, |c, x| acc += gamma * x * v[c]);
+            *o = acc + gamma * self.diag[i] * v[i];
         });
     }
 
@@ -215,12 +256,13 @@ impl Liouvillian {
         let mut m = vec![0.0; n * n];
         for i in 0..n {
             self.for_each_in_row(i, |c, x| m[c * n + i] += x);
-            m[i * n + i] -= 2.0 * gamma * self.n_xy[i];
+            self.for_each_feed(i, |c, x| m[c * n + i] += gamma * x);
+            m[i * n + i] += gamma * self.diag[i];
         }
         m
     }
 
-    /// Largest absolute row sum (equal to the largest column sum, by antisymmetry).
+    /// Largest absolute row sum (equal to the largest column sum for the Hermitian channels).
     pub fn norm_bound(&self, gamma: f64) -> f64 {
         (0..self.dim())
             .into_par_iter()
@@ -228,7 +270,8 @@ impl Liouvillian {
             .map(|i| {
                 let mut h = 0.0;
                 self.for_each_in_row(i, |_, x| h += x.abs());
-                h + 2.0 * gamma * self.n_xy[i]
+                self.for_each_feed(i, |_, x| h += gamma * x.abs());
+                h + gamma * self.diag[i].abs()
             })
             .reduce(|| 0.0, f64::max)
     }

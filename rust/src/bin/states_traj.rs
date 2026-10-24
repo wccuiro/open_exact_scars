@@ -11,6 +11,14 @@
 //!                                              [--gammas 0,0.01,0.1] [--trajectories 112] [--dt 0.1]
 //!                                              [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1]
 //!                                              [--unravel diffusive|jump] [--traj-seed N]
+//!                                              [--channel z|x|y|dep] [--ent-dt 0] [--stop-te 0]
+//!
+//! --channel: Hermitian single-site noise (noise.rs; default σᶻ dephasing), diffusive unravelling only.
+//! --ent-dt Δ > 0: every Δ the half-chain entanglement of every trajectory (sites 0 … L/2 − 1 | rest; von Neumann
+//! S_A and Rényi-2), averaged over the trajectories ("diffusive-trajectory entanglement": it depends on the
+//! unravelling). One Hermitian 2^{L/2} eigenvalue problem per trajectory and time.
+//! --stop-te F > 0: also stop at t = F · t₁, t₁ the first time the signal drops below 1/e.
+//! A realization seed N ≠ 1 adds _seed<N> to the file names (and to states_realization).
 //!
 //! Model coefficients: src/parameters.rs. H has random c (Params::random_c, generator seeded with
 //! 1000 · seed + L, the same realization as `states` for the same parameters).
@@ -31,8 +39,9 @@
 //! average is O(dt²).
 //!
 //! Output (data/ or $SCARS_DATA_DIR), one row per step, flushed every row:
-//!   states_traj_<state>_L<L>_g<γ>[_jump][_s<traj-seed>].csv   L, gamma, trajectories, t, mx, my, mz, sx, sy,
-//!       sz, then the standard errors mx_err … sz_err (_jump: jump unravelling)
+//!   states_traj_<state>_L<L>_g<γ>[_jump][_ch…][_seed<N>][_s<traj-seed>].csv   L, gamma, trajectories, t, mx, my,
+//!       mz, sx, sy, sz, then the standard errors mx_err … sz_err (_jump: jump unravelling; _ch…: channel ≠ σᶻ)
+//!   states_traj_ent_<same>.csv (with --ent-dt)   L, gamma, trajectories, t, S_A, S_A_err, S2, S2_err
 //!       m_α = (1/L) Σ_j ⟨σ^α_j⟩,  s_α = (1/L) Σ_j (−1)^j ⟨σ^α_j⟩, averaged over the trajectories
 //!   states_realization_L<L>.csv         j, and the c coefficients of bond (j, j+1)
 
@@ -44,8 +53,10 @@ use std::time::Instant;
 use rayon::prelude::*;
 
 use open_exact_scars::cli::Options;
-use open_exact_scars::model::{write_realization, Params};
-use open_exact_scars::trajectory::{Hamiltonian, JumpTrajectory, Rng, Trajectory};
+use open_exact_scars::entanglement::{block_spectrum, entropies};
+use open_exact_scars::model::{seed_suffix, write_realization, Params};
+use open_exact_scars::noise::Channel;
+use open_exact_scars::trajectory::{Amp, Hamiltonian, JumpTrajectory, Rng, Trajectory};
 
 /// γ > 0: stop once the signal has stayed below threshold for this long (longer than the period 2π/h).
 const STOP_WINDOW: f64 = 10.0;
@@ -85,13 +96,24 @@ impl Traj<'_> {
             Traj::Jump(traj) => traj.per_site(),
         }
     }
+
+    /// The state vector (None for a jump trajectory before its first kick: a product state).
+    fn state(&self) -> Option<&[Amp]> {
+        match self {
+            Traj::Diffusive(traj) => Some(&traj.psi),
+            Traj::Jump(traj) => traj.state(),
+        }
+    }
 }
 
 fn main() {
     let args = Options::parse(&[
         "state", "L", "lmin", "lmax", "gammas", "trajectories", "dt", "t-max", "t-zero", "stop", "seed", "unravel",
-        "traj-seed",
+        "traj-seed", "channel", "ent-dt", "stop-te",
     ]);
+    let channel = Channel::parse(args.str("channel").unwrap_or("z"), 1.0);
+    let jumps = channel.hermitian_jumps().expect("states_traj: --channel z, x, y or dep (Hermitian jump operators)");
+    let (ent_dt, stop_te) = (args.f64("ent-dt", 0.0), args.f64("stop-te", 0.0));
     let unravel = match args.str("unravel") {
         None | Some("diffusive") => Unravel::Diffusive,
         Some("jump") => Unravel::Jump,
@@ -116,9 +138,12 @@ fn main() {
     let (t_max, t_zero, stop) = (args.f64("t-max", 1000.0), args.f64("t-zero", 50.0), args.f64("stop", 1e-3));
     let seed = args.usize("seed", 1) as u64;
     let traj_seed = args.has("traj-seed").then(|| args.usize("traj-seed", 0) as u64);
+    assert!(unravel == Unravel::Diffusive || channel == Channel::Z, "the jump unravelling is written for σᶻ only");
     let suffix = format!(
-        "{}{}",
+        "{}{}{}{}",
         if unravel == Unravel::Jump { "_jump" } else { "" },
+        channel.suffix(),
+        seed_suffix(seed),
         traj_seed.map_or(String::new(), |s| format!("_s{s}"))
     );
 
@@ -134,7 +159,7 @@ fn main() {
         let start = Instant::now();
         let mut rng = Rng::new(1000 * seed + l as u64);
         let params = Params::random_c(l, &mut rng);
-        write_realization(&data, &params);
+        write_realization(&data, &params, seed);
         let ham = Hamiltonian::new(&params);
         println!("L = {l}: H built in {:.1?}, {} threads", start.elapsed(), rayon::current_num_threads());
 
@@ -149,13 +174,23 @@ fn main() {
         // one γ at a time: the parallelism is over the trajectories (and inside H ψ at large L)
         for &g in &gammas {
             let file = data.join(format!("states_traj_{name}_L{l}_g{g}{suffix}.csv"));
+            let ent_file = (ent_dt > 0.0).then(|| data.join(format!("states_traj_ent_{name}_L{l}_g{g}{suffix}.csv")));
             let n = if g == 0.0 { 1 } else { n_traj };
             let t_run = if g == 0.0 { t_zero } else { t_max };
             let noise_seed = traj_seed.unwrap_or(seed);
-            let t_end = run(&ham, &params, state, &bloch, unravel, g, n, dt, t_run, stop, noise_seed, &file);
+            let opts = Opts { jumps: jumps.clone(), ent_dt, stop_te, ent_file };
+            let t_end = run(&ham, &params, state, &bloch, unravel, g, n, dt, t_run, stop, noise_seed, &file, &opts);
             println!("L = {l}, gamma = {g}: stopped at t = {t_end:.3}, {:.1?} since the start of L = {l}", start.elapsed());
         }
     }
+}
+
+/// Noise channel, entanglement output and early stop.
+struct Opts {
+    jumps: Vec<(usize, f64)>,
+    ent_dt: f64,
+    stop_te: f64,
+    ent_file: Option<PathBuf>,
 }
 
 /// Evolves n trajectories together and writes one CSV row per step; returns the final time.
@@ -173,6 +208,7 @@ fn run(
     stop: f64,
     seed: u64,
     file: &Path,
+    opts: &Opts,
 ) -> f64 {
     let l = params.l;
     let dt = if gamma > 0.0 { dt.min(DT_GAMMA / gamma) } else { dt };
@@ -184,7 +220,9 @@ fn run(
     let base = seed.wrapping_mul(0x9e3779b97f4a7c15) ^ ((l as u64) << 48) ^ gamma.to_bits().rotate_left(20);
     let mut trajs: Vec<Traj> = (0..n)
         .map(|k| match unravel {
-            Unravel::Diffusive => Traj::Diffusive(Trajectory::product(ham, bloch, base ^ k as u64)),
+            Unravel::Diffusive => {
+                Traj::Diffusive(Trajectory::product(ham, bloch, base ^ k as u64).with_jumps(opts.jumps.clone()))
+            }
             Unravel::Jump => Traj::Jump(JumpTrajectory::new(
                 ham,
                 params.h,
@@ -197,6 +235,13 @@ fn run(
         .collect();
 
     let (mut below_since, mut t, mut check) = (None, 0.0, 0.0f64);
+    let mut t_cross: Option<f64> = None;
+    let ent_every = if opts.ent_dt > 0.0 { (opts.ent_dt / dt).round().max(1.0) as usize } else { 0 };
+    let mut ent_csv = opts.ent_file.as_ref().map(|f| {
+        let mut w = BufWriter::new(File::create(f).unwrap());
+        writeln!(w, "L,gamma,trajectories,t,S_A,S_A_err,S2,S2_err").unwrap();
+        w
+    });
     let start = Instant::now();
     for step in 0..=steps {
         t = step as f64 * dt;
@@ -245,12 +290,36 @@ fn run(
         writeln!(csv, "{l},{gamma},{n},{t:.6},{mx:.12e},{my:.12e},{mz:.12e},{sx:.12e},{sy:.12e},{sz:.12e},{e}").unwrap();
         csv.flush().unwrap();
 
+        // half-chain entanglement of every trajectory, averaged
+        if let Some(w) = ent_csv.as_mut() {
+            if step % ent_every == 0 {
+                let (s1, s1sq, s2, s2sq) = trajs
+                    .par_iter()
+                    .map(|traj| {
+                        let (a, b) = traj.state().map_or((0.0, 0.0), |psi| entropies(&block_spectrum(psi, l, l / 2)));
+                        (a, a * a, b, b * b)
+                    })
+                    .reduce(|| (0.0, 0.0, 0.0, 0.0), |x, y| (x.0 + y.0, x.1 + y.1, x.2 + y.2, x.3 + y.3));
+                let nf = n as f64;
+                let se = |sum: f64, sq: f64| ((sq / nf - (sum / nf).powi(2)).max(0.0) / (nf - 1.0).max(1.0)).sqrt();
+                writeln!(w, "{l},{gamma},{n},{t:.6},{:.10e},{:.4e},{:.10e},{:.4e}", s1 / nf, se(s1, s1sq), s2 / nf, se(s2, s2sq))
+                    .unwrap();
+                w.flush().unwrap();
+            }
+        }
+
         if gamma > 0.0 {
             let (signal, signal_err) = match state {
                 State::MinusX => (mx.hypot(my), err[0].hypot(err[1])),
                 State::Neel => (sz.abs(), err[5]),
                 State::NeelX => (sx.hypot(sy), err[3].hypot(err[4])),
             };
+            if t_cross.is_none() && signal < (-1.0f64).exp() {
+                t_cross = Some(t);
+            }
+            if opts.stop_te > 0.0 && t_cross.is_some_and(|tc| t >= opts.stop_te * tc) {
+                break;
+            }
             if signal >= stop.max(3.0 * signal_err) {
                 below_since = None;
             } else if t - *below_since.get_or_insert(t) >= STOP_WINDOW {

@@ -1,6 +1,9 @@
 //! Full exact diagonalization of the Lindbladian (LAPACK from Intel MKL, linked by build.rs).
 //!
-//!     cargo run --release --bin ed -- [--gamma 0.01] [--L 6 | --lmin 4 --lmax 6] [--seed 1]
+//!     cargo run --release --bin ed -- [--gamma 0.01] [--L 6 | --lmin 4 --lmax 6] [--seed 1] [--open 0|1]
+//!                                     [--channel z|x|y|dep|decay|thermal] [--nbar 1]
+//!
+//! --channel: the single-site noise (noise.rs; default σᶻ dephasing); the file name gets the channel suffix.
 //!
 //! Model coefficients: src/parameters.rs. No time evolution here, so no --t-max or --dt.
 //!
@@ -17,7 +20,10 @@
 //! (Frobenius norms, tower² + mixed² + bulk² = 1), and for the left eigenvector U
 //!   energy_overlap = |Tr(H U)| / (‖H‖ ‖U‖).
 //!
-//! Output: data/spectrum_L<L>.csv with columns  L, gamma, re, im, tower, mixed, bulk, energy_overlap
+//! --open 1: open chain (terms that leave 0 … L−1 dropped) instead of the periodic ring of parameters.rs.
+//!
+//! Output: data/spectrum_L<L>.csv (spectrum_open_L<L>.csv with --open 1) with columns
+//!   L, gamma, re, im, tower, mixed, bulk, energy_overlap
 //! (both γ = 0 and the chosen γ). Checks are printed.
 
 use std::fs::{self, File};
@@ -29,6 +35,7 @@ use rayon::prelude::*;
 
 use open_exact_scars::cli::Options;
 use open_exact_scars::liouville::Liouvillian;
+use open_exact_scars::noise::Channel;
 use open_exact_scars::model::{hamiltonian_terms, Params};
 use open_exact_scars::pauli::Pauli;
 use open_exact_scars::tower;
@@ -75,7 +82,9 @@ struct Mode {
 }
 
 fn main() {
-    let args = Options::parse(&["gamma", "L", "lmin", "lmax", "seed"]);
+    let args = Options::parse(&["gamma", "L", "lmin", "lmax", "seed", "open", "channel", "nbar"]);
+    let channel = Channel::parse(args.str("channel").unwrap_or("z"), args.f64("nbar", 1.0));
+    let open_chain = args.usize("open", 0) == 1;
     let gamma = args.f64("gamma", 0.01);
     let sizes = args.sizes(4, 6);
     let seed = args.usize("seed", 1) as u64;
@@ -87,11 +96,17 @@ fn main() {
 
     for l in sizes {
         let start = Instant::now();
-        let params = Params::random_c(l, &mut Rng::new(1000 * seed + l as u64));
+        let mut params = Params::random_c(l, &mut Rng::new(1000 * seed + l as u64));
+        if open_chain {
+            params.periodic = false;
+        }
         let phi = tower::states(l);
 
         let closed = closed_modes(&params, &phi);
-        let liou = Liouvillian::new(&params);
+        let mut liou = Liouvillian::new(&params);
+        if channel != Channel::Z {
+            liou.set_channel(channel);
+        }
         let open = open_modes(&params, &liou, &phi, gamma);
 
         // γ = 0 cross-check at small L: the dense 𝓛 at γ = 0 has the spectrum −i(E_m − E_n)
@@ -106,22 +121,24 @@ fn main() {
             println!("L = {l}: gamma = 0 cross-check, dense dgeev vs −i(E_m − E_n): largest |Δ Im λ| = {dev:.1e}, largest |Re λ| = {re:.1e}");
         }
 
-        // checks at γ > 0: one steady state, −2γL ≤ Re λ ≤ 0, Σ λ = Tr 𝓛 = −2γ Σ_P n_xy(P) = −γ L 4^L
+        // checks at γ > 0: steady states, −2γL ≤ Re λ ≤ 0, Σ λ = Tr 𝓛 = γ Σ_P diag(P) = γ L 4^(L−1) (d_x + d_y + d_z)
+        // (σᶻ dephasing: −γ L 4^L)
         let max_re = open.iter().map(|m| m.re).fold(f64::MIN, f64::max);
         let n_zero = open.iter().filter(|m| m.re.hypot(m.im) < 1e-10).count();
         let min_re = open.iter().map(|m| m.re).fold(f64::MAX, f64::min);
         let trace: f64 = open.iter().map(|m| m.re).sum();
-        let expected = -gamma * l as f64 * 4f64.powi(l as i32);
+        let expected = gamma * l as f64 * 4f64.powi(l as i32 - 1) * channel.site_diag().iter().sum::<f64>();
         println!(
             "L = {l}: gamma = {gamma}: max Re λ = {max_re:.1e}, {n_zero} eigenvalue(s) with |λ| < 1e-10, \
-             min Re λ / (2γL) = {:.4}, Σ Re λ / (−γ L 4^L) = {:.12}",
+             min Re λ / (2γL) = {:.4}, Σ Re λ / Tr 𝓛 = {:.12}",
             min_re / (2.0 * gamma * l as f64),
             trace / expected
         );
         let n_tower = open.iter().filter(|m| m.tower > 0.9).count();
         println!("L = {l}: {n_tower} modes with tower weight > 0.9 (the tower has (L + 1)² = {} coherences)", (l + 1) * (l + 1));
 
-        let mut csv = BufWriter::new(File::create(data.join(format!("spectrum_L{l}.csv"))).unwrap());
+        let name = format!("spectrum{}_L{l}{}.csv", if open_chain { "_open" } else { "" }, channel.suffix());
+        let mut csv = BufWriter::new(File::create(data.join(name)).unwrap());
         writeln!(csv, "L,gamma,re,im,tower,mixed,bulk,energy_overlap").unwrap();
         for (g, modes) in [(0.0, &closed), (gamma, &open)] {
             for m in modes.iter() {

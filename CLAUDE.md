@@ -186,9 +186,13 @@ coefficients) from product states over a γ grid, `states_traj` does the same wi
 decay rates are extrapolated to 1/L → 0. Latest results: "Results at small γ and the single-kick test" (small-γ
 batch, finished 2026-10-20; nothing running) and "Results up to L = 20" below; all current figures and CSVs are in
 `data/used_data/`. Open point: the growth of the single-kick damage D̄(τ) at L ≥ 24 and τ > 8 (ballistic or
-diffusive). Plan: `time-evolution-plan.md` (the earlier probe/ED plan `scar-vs-thermal-decay-plan.md` is in git
+diffusive). Next data: `lean-data-plan.md` (step A done; step B code and scripts ready 2026-10-25, not submitted). Plan: `time-evolution-plan.md` (the earlier probe/ED plan `scar-vs-thermal-decay-plan.md` is in git
 history). Notes: `latex/notes.tex` (build `cd latex && latexmk -pdf notes.tex`; figures copied from `data/used_data/`
-into `latex/figures/`).
+into `latex/figures/`). Since 2026-10-25 they open with a Theory section (forward/backward evolution and meeting in
+the middle, spectral decomposition, scars and ETH, Mori's order of limits, first-order cap γ(L − 1 + 2/L), damage
+scaling Γ_∞ ∝ γ^(1/(1+β)) and ν = β/(1+β), other channels, meaning of the observables), the methods include ρ as an
+MPS, the MPO, TDVP sweeps, the influence matrix and transverse contraction, and CLIK, and a results section collects
+the TDVP and CLIK results. The influence matrix is theory only: it is not implemented or computed anywhere.
 
 ## Working rules
 
@@ -209,6 +213,9 @@ rust/src/liouville.rs    Lindbladian in the Pauli basis (translation orbits, or 
 rust/src/tower.rs        Dicke states |Φ_n⟩ and Tr(Σ_n w_n |Φ_n⟩⟨Φ_n| P) for every Pauli string P
 rust/src/main.rs         exact evolution of ρ (default binary); --init minus-x | random (random Bloch vectors)
 rust/src/trajectory.rs   state-vector trajectories (diffusive and jump unravelling), single-flip helpers
+rust/src/noise.rs        single-site noise channels: σᶻ (default), σˣ, σʸ dephasing, depolarizing, decay, thermal
+rust/src/entanglement.rs eigenvalues without LAPACK (Householder + implicit QL), block entanglement of pure states,
+                         operator entanglement of ρ from Pauli coordinates, purity / operator size / support
 rust/src/bin/trajectories.rs
 rust/src/bin/disorder.rs random c, initial states on a cone around −x with random azimuths
 rust/src/bin/probes.rs   plan probes P1 (scar), P2 (energy H̃), P3 (thermal, k = π), free-spin check
@@ -217,12 +224,27 @@ rust/src/bin/states_traj.rs  the same runs with state-vector trajectories (all t
                          --unravel diffusive (default) | jump, --traj-seed (noise only, to split a run over jobs)
 rust/src/bin/single_flip.rs  one σᶻ_k kick on the scar state at phase φ_m, evolved with H only: damage D(τ)
 rust/src/bin/ed.rs       full ED of 𝓛 (dense, LAPACK from Intel MKL); linked by rust/build.rs
+rust/src/bin/entanglement.rs  γ = 0: all eigenstates of H (dense zheevd, MKL), half-chain entropy S against E
+rust/src/bin/lindblad_entanglement.rs  γ ≥ 0: right eigenmatrices X of 𝓛 (dense dgeev, MKL), operator entanglement
+                         of ρ_L = XX†/Tr, ρ_R = X†X/Tr against E_L,R = Tr(ρ_L,R H)
+rust/src/bin/hamiltonian.rs  H (random c) as a list of Pauli strings, hamiltonian[_open]_L<L>.csv, for julia/clik.jl
 rust/tests/checks.rs     exact references 1 and 2, random product states, full basis vs orbits, random c at γ = 0,
                          single-flip identities, jump unravelling (analytic start, free spins)
-julia/lindblad_tdvp.jl   ITensor: ρ as an MPS, two-site TDVP
+julia/lindblad_tdvp.jl   ITensor: ρ as an MPS, two-site TDVP (old coefficients; `lindbladian(L, γ; terms)` takes any H)
+julia/clik.jl            CLIK (Lindbladian eigenvalues from time-evolved states; guide data/docs/CLIK_MPS/IMPLEMENTATION.md):
+                         dense backend (exact propagator, L ≤ 6, plus full ED of 𝓛) and MPS backend (two-site TDVP)
+julia/forward_backward.jl  meet in the middle: ρ forward with G, observables backward with Gᵀ (H → −H, feed transposed),
+                         ⟨O⟩(t₁ + t₂) = o(t₂)·r(t₁)/Tr ρ(t₁); every channel; also forward-only and backward-only TDVP
+                         at the same χ and the spread over splits (includes clik.jl). Stepping: Taylor series of e^{Gτ}
+                         with exact MPO applications while χ < 16, two-site TDVP + global Krylov expansion above (TDVP
+                         from a product state is off by 1e-2 per step δt = 0.1 even at full χ). Validated at L = 6, full
+                         χ, t ≤ 5, against exact `states` runs: scar γ = 0 revivals ≤ 2.5e-6 (backward only 8e-9);
+                         γ = 0.1: scar z ≤ 3e-7, x 9e-6, decay 2e-6; x-Néel (z, decay), z-Néel (z, x, decay) ≤ 6e-8;
+                         150 – 1070 s per run (laptop, 8 threads). Not yet run at large L.
 plot_scripts/            plot_evolution.py, fit_decay.py, compare_methods.py, resource_tables.py,
                          compare_initial_states.py, plot_disorder.py, fit_probes.py, plot_spectrum.py,
-                         fit_states.py, fit_states_inverse_L.py, plot_states.py, fit_small_gamma.py, single_kick.py,
+                         fit_states.py, fit_states_inverse_L.py, plot_states.py, fit_small_gamma.py, single_kick.py, plot_entanglement.py,
+                         plot_operator_entanglement.py, plot_lindblad_entanglement.py, plot_clik.py,
                          states_data.py (reads `states` and `states_traj` CSV, diffusive and jump, pools the
                          traj-seeds, picks one run per (state, L, γ))
 ```
@@ -235,11 +257,23 @@ cargo run --release --bin trajectories -- [--lmin 4] [--lmax 8] [--gamma 0.01] [
 cargo run --release --bin disorder -- [--lmin 4] [--lmax 8] [--gamma 0.01] [--thetas 0,0.125,0.25,0.375,0.5] [--seed 1]   # thetas in units of π
 cargo run --release --bin probes -- [--lmin 4] [--lmax 8] [--gamma 0.01 | --gammas 0.002,0.01] [--dt 0.1] [--t-max T] [--tag name] [--seed 1]
 cargo run --release --bin states -- --state minus-x|neel|neel-x [--lmin 4] [--lmax 8] [--gammas 0,0.01,0.1] [--dt 0.1] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1]
+      [--stop-te F] [--channel z|x|y|dep|decay|thermal] [--nbar 1] [--obs-dt Δ] [--op-ent-dt Δ]
 cargo run --release --bin states_traj -- --state minus-x|neel|neel-x [--L 16] [--gammas 0,0.01,0.1] [--trajectories 112] [--dt 0.1] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1] [--unravel diffusive|jump] [--traj-seed N]
-cargo run --release --bin single_flip -- [--L 12 | --lmin/--lmax] [--phases 16] [--sites all|0,3,6] [--t-max 25] [--dt 0.1] [--seed 1]
+      [--channel z|x|y|dep] [--ent-dt Δ] [--stop-te F]
+cargo run --release --bin single_flip -- [--L 12 | --lmin/--lmax] [--phases 16] [--sites all|0,3,6] [--t-max 25] [--dt 0.1] [--seed 1] [--ent-dt Δ] [--ent-max L/2]
 cargo run --release --bin ed -- [--lmin 4] [--lmax 6] [--gamma 0.01] [--seed 1]    # needs MKL: $MKL_LIB_DIR or ~/anaconda3/lib
+cargo run --release --bin entanglement -- [--L 12 | --lmin 8 --lmax 12] [--seed 1]  # MKL as ed; L ≤ 14
+cargo run --release --bin lindblad_entanglement -- [--gamma 0.01 | --gamma 0] [--L 6 | --lmin 4 --lmax 6] [--seed 1]  # MKL; L = 6: 18 s, L = 7: 18 min, 4.4 GB (laptop)
 cargo test --release
+cargo run --release --bin hamiltonian -- [--L 6 | --lmin 4 --lmax 10] [--seed 1] [--open 0|1]   # input of julia/clik.jl
+cargo run --release --bin ed -- --L 6 --gamma 0.01 --open 1      # open chain: spectrum_open_L<L>.csv (CLIK reference)
 cd ../julia && julia --project=. lindblad_tdvp.jl L maxdims [gamma] [tmax] [dt] [cutoff]     # e.g. 8 16,32,64
+julia --project=. -t 16 clik.jl --L 6 --gamma 0.01 --backend dense|mps [--open 0|1] [--init random|scar] [--T 300] [--dt 0.5]
+      [--alpha 0.0005] [--seed 1] [--terms 4] [--eps 1e-12] [--n-T 10]
+      mps: [--chi 64] [--chi-apply 4χ] [--n-sub 10] [--expand-every 0] [--check-dense 0]   # use --expand-every 1
+julia --project=. -t 8 forward_backward.jl --L 8 --gamma 0.1 --state minus-x|neel-x|neel [--channel z|x|y|dep|decay|thermal]
+      [--nbar 1] [--chi 64] [--t-max 10] [--dt 0.1] [--n-sub 2] [--method hybrid|taylor|tdvp] [--chi-switch 16] [--cutoff 1e-14]
+      [--obs mx,my,mz,sx,sy,sz] [--full 1] [--check 0] [--ref states.csv]   # needs data/hamiltonian_L<L>.csv; output data/fb_<state>_L<L>_g<γ><ch>_chi<χ>.csv
 ```
 
 Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
@@ -262,19 +296,36 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
   with different traj-seeds are independent samples to be pooled). `states_data.py` reads them as method "jump" and
   pools all traj-seeds of one (state, L, γ) on their common time grid, weighted by trajectory count (standard error
   from the within- plus between-seed variance).
+- **New options and outputs (2026-10-25, lean-data-plan.md step B).** File-name suffixes: `_ch<x|y|dep|decay>` or
+  `_chthermal_n<n̄>` for a channel other than σᶻ, `_seed<N>` for a random-c realization N ≠ 1 (also
+  `states_realization_L<L>_seed<N>.csv`); seed 1 and σᶻ keep the old names.
+  - `states --obs-dt Δ`: `states_obs_<state>_L<L>_g<γ><sfx>.csv` (L, gamma, t, purity, mean_size, mean_nxy, S_op,
+    S2_op, size0 … sizeL, supp0 … suppL): purity Tr ρ² = 2^−L Σ r_P², distributions over strings with weights
+    r_P²/Σ r² (identity included) of the size, the X/Y count and the support (shortest arc of the ring containing all
+    non-identity sites); `--op-ent-dt Δ'` adds the operator entanglement of ρ across sites 0 … L/2 − 1 (NaN on the
+    other rows). Full Pauli basis only. L = 12: ≈ 10 s per operator-entanglement evaluation (laptop, 16 threads).
+  - `states_traj --ent-dt Δ`: `states_traj_ent_<state>_L<L>_g<γ><sfx>.csv` (L, gamma, trajectories, t, S_A, S_A_err,
+    S2, S2_err): half-chain entanglement of every trajectory, averaged (depends on the unravelling). Laptop L = 18:
+    ≈ 7 % of the run time at Δ = 0.5.
+  - `single_flip --ent-dt Δ [--ent-max ℓ]`: `single_flip_ent_L<L>…csv` (L, m, phi, k, tau, ell, S, S2), blocks [0, ℓ).
+  - `--stop-te F` (states, states_traj): also stop at F × the first time the signal drops below 1/e.
 - `single_flip_L<L>.csv` (all sites) or `single_flip_L<L>_sites<k1-k2-…>.csv` (from `single_flip`): L, m, phi, k,
   tau, D, then per site re_c0 … re_c{L−1}, im_c0 …, z0 …; one row per (m, k, τ). c_j = (⟨σˣ_j⟩ + i⟨σʸ_j⟩) /
   (reference-1 value at t′ + τ), t′ = φ_m/h, φ_m = 2πm/N; D = Σ_j [1 − Re c_j], D(0) = 2.
   **Data layout (since 2026-10-20).** `data/used_data/` holds every file the current analysis uses: all run CSVs and
   random-c realizations of the 2026-10-16 batch (exact L ≤ 14, x-Néel, trajectories L = 12 … 20; it contains all run
   files of the 2026-10-15 batch, identical) and of the small-γ batch (exact, jump, diffusive cross-check,
-  `single_flip`), plus the outputs of the scripts below. Every script defaults to it. Everything else is in
+  `single_flip`), the eigenstate entanglement (`entanglement`, L = 6 … 12; `lindblad_entanglement`, γ = 0 for L = 4 … 7 and 0.01 for L = 4 … 6), plus the outputs of the scripts below. Every script defaults to it. Everything else is in
   `data/non_used_data/`: `archives/` (the `.tar.gz` from Leonardo: `states`, `states2`, `small_gamma`, `bench_jump`,
   `bench_jump_logs`, `perf`, `bashes`), `logs/` (`perf_2026-10-16`, `bench_jump_2026-10-19`, `small_gamma_jobs` with
   `sacct_small_gamma.txt`), `states_batch_2026-10-15/` (the first cluster batch, superseded), `states2_leftovers/`
   (old analysis outputs and duplicate realizations), `previous_coefficients/` (all laptop outputs with the previous
   coefficients: evolution, trajectories, tdvp, disorder, probes, spectrum, γ scans, `first_pass/`; the scripts that
-  made them still default to `data/`). `data/bashes/` (job scripts) and `data/leonardo_benchmarks.md` stay at the top. The scripts
+  made them still default to `data/`), `bashes_old/` (finished-batch job generators and scripts), `forward_backward_checks/`
+  (two short first checks of `forward_backward.jl`, t ≤ 0.2). `data/used_data/forward_backward_L6/` holds the L = 6
+  validation of `forward_backward.jl` (fb_*.csv, the Rust `states` references, the drivers `drive2.jl`, `drive3.jl`
+  and their logs `validation_*.log`). At the top of `data/` stay only `bashes/` (job scripts), `docs/` (CLIK guide),
+  `hamiltonian[_open]_L<L>.csv` (inputs of the Julia scripts) and the `*_benchmarks.md`. The scripts
   read exact and trajectory files together and use one run per (state, L, γ) (`states_data.select`), in the order
   exact, jump, diffusive, complete runs before cut ones. A job cut at 24 h leaves an incomplete last line, which is
   dropped (exact L = 14, γ ≤ 0.02 were cut); a small-γ run that ends at its t-max before the signal reaches 1e-3
@@ -287,12 +338,22 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
     `states_thermodynamic_rate.png`;
     linear A + B/L on L ≥ 8 (Γ_∞ = A), quadratic check on L ≥ 6 for the scar;
     Néel at γ ≤ 0.02 drops L = 6, 8, x-Néel at γ ≤ 0.05 drops L = 6 (finite-size revivals). Writes `states_inverse_L.csv`, `states_inverse_L.png`,
-    `states_thermodynamic_rate.png` (Γ_∞ against γ, symlog axes down to γ = 2e-4; for the scar at γ < 0.01, where Γ_∞ is
+    `states_thermodynamic_rate.png` (Γ_∞ against γ, log-log, γ > 0 only, the collapse law and 2γ drawn down to
+    γ = 1e-10 (`G_EXTRAP_MIN`; data from γ = 5e-4); for the scar at γ < 0.01, where Γ_∞ is
     not extrapolated, Γ_e of the largest L as lower bounds (Γ_e grows with L there), and the band Γ_∞ ∝ γ^(1 − ν) through
-    Γ_∞(0.05) with ν and its range from `small_gamma_collapse.csv`, so run `fit_small_gamma.py` first; it also reads `states_inverse_L_large.csv`). γ = 0 is shown in both figures but not fitted:
-    Γ_e per L (diamonds; the scar panel plots Γ_e on a symlog axis, so its γ = 0 sits at 0) and its mean over the
-    fitted sizes, joined to γ = 0.01
-    (scar 0, x-Néel 4.76 ± 0.08, z-Néel 4.96).
+    Γ_∞(0.05) with ν and its range from `small_gamma_collapse.csv`, so run `fit_small_gamma.py` first; it also reads `states_inverse_L_large.csv`). γ = 0 is not fitted and appears only in
+    `states_inverse_L.png`: Γ_e per L (diamonds; the scar panel plots Γ_e on a symlog axis, so its γ = 0 sits at 0);
+    its mean over the fitted sizes is printed (scar 0, x-Néel 4.76 ± 0.08, z-Néel 4.96). Since 2026-10-24 the Γ_∞
+    figure has no γ = 0 points (earlier versions drew them at γ = 0 on symlog axes).
+  - `plot_scar_decay_L20.py [dir]`: the scar at the largest L with data (20), γ = 0, 0.0005, 0.002, 0.005, 0.01,
+    0.05, 0.2, 1: m_x, m_⊥, envelope and ±e^(−Γ_e t) (how the 1/e rate wraps the decay), `scar_decay_L20.png`.
+  - `plot_rates_vs_L.py [dir]`: decay against L at γ = 0.01 from the existing runs (appendix of the notes, in place of
+    the previous-coefficient `decay_fit.png`, `probe_timeseries.png`, `probe_scaling.png`): `rates_vs_L_scar.png`
+    (scar m_⊥ for L = 4 … 20, Γ_e/γ against L with power-law and exponential fits: L^0.68, rms 6.8 %, against
+    14.6 %), `rates_vs_L_series.png` (scar, x-Néel, z-Néel at γ = 0.01 and 0), `rates_vs_L_scaling.png`.
+  - `lean_plan_analysis.py [dir]`: step A of `lean-data-plan.md` (existing data only): A1 F(t) = −(1/γ) ln m⊥
+    against ∫D̄ (`lean_A1_damage.png`), A2 single_flip phase/site subsampling (`lean_A2_subsampling.csv`), A3
+    trajectory spread at t_e (`lean_A3_spread.csv`), A4 predicted t_e of the planned runs (`lean_A4_t_e.csv`).
   - `plot_states.py [dir]`: time series `states_scar.png`, `states_neel.png`, `states_neel-x.png`, `states_neel_n.png`
     (⟨n⟩/L for z-Néel).
   - `fit_small_gamma.py [dir]` (default `data/used_data`; reads the run files directly): scar Γ_e/γ against L for γ ≤ 0.05, statistical error of
@@ -308,7 +369,42 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
     (L ≤ 20; L = 22, 24 only to τ = 8); predicted Γ_e from γ ∫₀^{t_e} D̄ = 1 against the measured one, and Γ_∞
     against the prediction from D̄ of L = 24. Writes `single_kick_damage.csv`, `single_kick_rates.csv`,
     `single_kick_damage.png`, `single_kick_rates.png`, `single_kick_series.png`.
+- `entanglement_L<L>.csv` (from `entanglement`, random c): L, L_A, E, S, tower; one row per eigenstate of H, S the
+  entropy of sites 0 … L/2 − 1, tower = Σ_n |⟨Φ_n|E⟩|² (scars: > 1/2). `plot_scripts/plot_entanglement.py [dir]`
+  (default `data/used_data`) plots S against E per L, scars highlighted, Page value dotted: `entanglement.png`. The
+  binary writes to `data/`; the L = 6 … 12 files and the figure (2026-10-22) are in `data/used_data/`.
+  `plot_scripts/plot_operator_entanglement.py [dir]` (same input and default): operator entanglement of |n⟩⟨m| for
+  all eigenstate pairs against E_m − E_n, `operator_entanglement.png`. It is exactly S_n + S_m (the operator Schmidt
+  decomposition of |n⟩⟨m| is the product of the two state ones; checked by SVD for random states, 2e-15), so no
+  extra diagonalization; bulk–bulk pairs as a density, scar–bulk and scar–scar as points, 2 × Page value dotted.
+- `lindblad_entanglement_L<L>_g<γ>.csv` (from `lindblad_entanglement`, random c): L, L_A, gamma, re, im, E_L, S_L, E_R,
+  S_R, tower; one row per eigenvalue λ of 𝓛 with right eigenmatrix X = Σ_P r_P P: ρ_L = XX†/Tr, ρ_R = X†X/Tr,
+  E = Tr(ρ H), S = operator entanglement of ρ (normalized operator Schmidt weights of sites 0 … L/2 − 1 | rest; 2 S
+  for a pure state), tower = ‖PXP‖/‖X‖. Degenerate eigenspaces of 𝓛 (|Δλ| < 1e-8: the kernel 𝟙, |Φ_0⟩⟨Φ_0|,
+  |Φ_L⟩⟨Φ_L| and the edge pairs |Φ_0⟩⟨Φ_n|, |Φ_{L−n}⟩⟨Φ_L|, λ = −2nγ − ihn, plus adjoints: 2(L − 1) pairs and one
+  triple) have no unique eigenmatrix: the binary uses the basis that diagonalizes Tr(X_i† H X_j) against
+  Tr(X_i† X_j) (zhegv), which splits each edge pair exactly. Check printed: the edge modes give E and S of the
+  Dicke states to 1e-13. 𝓛 is real, so X(λ*) = X(λ)† and the (E_R, S_R) set equals the (E_L, S_L) set (1e-12).
+  γ = 0 (𝓛 = −i[H, ·]): the kernel (all 2^L |n⟩⟨n|) and the tower spacings (L + 1 − k modes |Φ_a⟩⟨Φ_{a+k}|) are
+  degenerate; the same rule returns single |n⟩⟨m| (H has no degenerate levels), so ρ_L = |n⟩⟨n|, S_L = 2 S_n, and
+  every level appears 2^L times. Check printed at γ = 0: ρ_L, ρ_R pure, λ = −i(E_L − E_R), E in the spectrum of H,
+  multiplicity 2^L; S_L = 2 S_n against `entanglement_L6.csv`, `entanglement_L7.csv` to 7e-12.
+  γ = 0 (L = 4 … 7) and 0.01 (L = 4, 5, 6) (2026-10-22) in `data/used_data/`; `plot_scripts/plot_lindblad_entanglement.py [dir]`:
+  `lindblad_entanglement_g<γ>.png` (one per γ; rows L, columns ρ_L and ρ_R, tower weight > 0.9 in orange,
+  2 L_A ln 2 dotted). The orange points also cover modes with the same ρ_L but tower weight ≈ 0 (|Φ_n⟩⟨bulk|; at
+  γ > 0 the half-dark modes |Φ_0⟩⟨ψ|, |Φ_L⟩⟨ψ|, 2^(L+1) of them, with S_L = 0).
 - `spectrum_L<L>.csv`: L, gamma, re, im, tower, mixed, bulk, energy_overlap; one row per Liouvillian mode, at γ = 0 and the chosen γ.
+- `hamiltonian_L<L>.csv`, `hamiltonian_open_L<L>.csv` (from `hamiltonian`, stay in `data/`, read by clik.jl): string
+  (one of I, X, Y, Z per site 0 … L−1), coef; H = Σ coef · string. `spectrum_open_L<L>.csv`: `ed --open 1`, as
+  `spectrum_L<L>.csv` (in `data/used_data/`, L = 4, 5, 6, γ = 0.01).
+- CLIK (`julia/clik.jl`, Julia writes to `data/` or `$SCARS_DATA_DIR`; results moved to `data/used_data/`):
+  `clik_<backend>_L<L>_g<γ>[_open][_scar][_chi<χ>]_eigs.csv` (T, n_states, rank, re, im: all Krylov eigenvalues of the
+  leading block |z| ≤ T, for n-T nested T), `..._states.csv` (n, label 0 physical / 1 traceless, z_re, z_im, trace_re,
+  trace_im, bond_dim, seconds), `clik_ed_L<L>_g<γ>[_open].csv` (re, im: full ED of 𝓛 from the dense backend; checked
+  against `lindblad_entanglement_L<L>_g<γ>.csv` or `spectrum_open_L<L>.csv`). `plot_scripts/plot_clik.py [dir]` (default
+  `data/used_data`): targets = the 8 slowest distinct Rust-ED modes with tower weight > 0.9 and Im λ ≥ 0;
+  `clik_errors.csv` (distance to the closest Krylov eigenvalue, per run and T), `clik_spectrum.png`,
+  `clik_convergence.png`. Logs in `data/non_used_data/logs/clik_logs/`.
 
 ## Cluster (Leonardo)
 
@@ -316,7 +412,14 @@ Repo on Leonardo: `/leonardo/home/userexternal/wccuirom/repos/open_exact_scars` 
 (112 cores per node, 24 h limit), account `sis26_collura`. Code goes through git (origin, branch master). The job
 scripts live in `data/bashes/`, which is untracked like all of `data/`, so they are copied by hand.
 
-Job generators in `data/bashes/` (each writes one Slurm script per job and a `submit_*.sh`):
+**`data/bashes/` now holds only what the next runs need** (since 2026-10-24): `jobs_common.sh`, `small_gamma_common.sh`,
+`make_lean_jobs.sh`, `summarize_jobs.py` and `obelix/`. The generators of the finished batches below, the bench
+scripts (`make_bench_jobs.sh`, `summarize_bench.py`, `bench_machine.sh`, `bench_summary.py`) are in
+`data/non_used_data/bashes_old/`, and the per-job Slurm scripts they generated (old `states_*`, `exact_*`, `traj_*`,
+`bench_L*`, `submit_*`) in `data/non_used_data/bashes_old/generated_jobs/`. To rerun one, copy it back next to
+`jobs_common.sh` and `small_gamma_common.sh` (they source them).
+
+Job generators (each writes one Slurm script per job and a `submit_*.sh`):
 - `make_states_jobs.sh`: scar and z-Néel, L = 4 … 12 (done; output in `data/non_used_data/archives/states.tar.gz`, run files also in `data/used_data/`).
 - `make_states_neel-x_jobs.sh`: x-Néel, even L = 4 … 14, one job per γ at L = 12 (16G) and L = 14 (64G).
 - `make_bench_jobs.sh`: short runs (γ = 0.1) at L = 10, 12, 13, 14 with 8 … 112 threads, numactl on/off;
@@ -340,16 +443,59 @@ Job generators in `data/bashes/` (each writes one Slurm script per job and a `su
 - `summarize_bench.py [bench_dir] [--logs dir]` (standard library only): table per bench run, growth per added
   site, and with `--logs` the elapsed time, peak memory and final t of the production jobs.
 
-Workstation benchmark (2026-10-20, for small jobs on another computer, no Slurm): `data/bashes/bench_machine.sh`
+Workstation benchmark (2026-10-20, for small jobs on another computer, no Slurm): `data/non_used_data/bashes_old/bench_machine.sh`
 (run from the repo on that machine; builds the binaries, detects cores and RAM, skips runs that need more than 80 % of
 the available memory; γ = 0.1, scar). Runs: exact `states` L = 8, 10, 12 (and 1, 2, 4, 8 threads at L = 12), diffusive
 trajectories L = 12 … 18 one per thread (and 1 thread at L = 16), jump L = 16, 18, `single_flip` L = 16 (256 runs);
 `BIG=1` adds exact L = 13, 14 and trajectories L = 20; `SCALE=x` multiplies every t-max (`SCALE=0.05` only checks the
-script: setup time dominates and the per-t numbers are meaningless). Output `data/bench_<host>/` (CSV, logs, binaries'
-output) and `data/bench_<host>.tar.gz` to send back. `data/bashes/bench_summary.py data/bench_<host>` (standard
+script: setup time dominates and the per-t numbers are meaningless). Output step min(0.1, t-max/3) and the t actually reached (from the log) in
+the CSV; the first version had no `--dt`, so with SCALE < 1 every run stopped at t = 0 (obelix quick check,
+2026-10-20: setup times only). Output `data/bench_<host>/` (CSV, logs, binaries'
+output) and `data/bench_<host>.tar.gz` to send back. `data/non_used_data/bashes_old/bench_summary.py data/bench_<host>` (standard
 library) prints exact wall s per unit of t and trajectory core-s per run per unit of t against the Leonardo table,
 the per-core ratio and the throughput in Leonardo nodes. Laptop test output (SCALE = 0.02) in
-`data/non_used_data/bench_tests/`.
+`data/non_used_data/bench_tests/`. obelix (SISSA workstation, i5-13500, 20 threads, 31 GB, no
+Slurm, shared): measured 2026-10-20 (`BIG=1`), `data/obelix_benchmarks.md`, raw data in
+`data/non_used_data/bench_tests/obelix_full/`. Trajectories (20 threads, core-s per trajectory per unit of t): 1.5,
+7.1, 31, 136, 1060 at L = 12 … 20, ≈ 1.5 – 2.7× a Leonardo core; the whole machine ≈ 0.1 Leonardo node (0.07 at
+L = 20); one thread alone 13.5 at L = 16 (faster than a Leonardo core). Jump ≈ 0.8 – 1.0 × diffusive, single_flip 0.9 ×.
+Exact: L = 12 at 8 threads 1676 wall s per unit of t (8.8× Leonardo), bandwidth-bound (speed-up 5.6 at 8 threads);
+L = 14 31 300 s (8.7 h per unit of t, 14 GB). Two copies of the bench overlapped at first: the 20-thread exact L = 12
+and L = 13 numbers are not usable. Laptop: `data/laptop_benchmarks.md` (all laptop timings collected, from runs with different
+code versions and γ; no dedicated bench run yet).
+
+Lean-plan runs (step B of `lean-data-plan.md`, scripts of 2026-10-25, nothing submitted yet). Output in
+`$REPO/data/lean` (Leonardo) and `<repo>/data/lean` (obelix), apart from all existing data.
+- `make_lean_jobs.sh` (Leonardo): 41 jobs, one submit file per block (`submit_lean_B1.sh` … `_B5.sh`): B1 diffusive
+  L = 22, γ = 0.005, 0.01, 0.02 (56 trajectories), 0.05 (112), with S_A every 1 or 0.5 (64 GB); B2 `single_flip`
+  L = 24, 4 phases × sites 0, 6, 12, 18, τ ≤ 16, block entanglement every 1; B3 seeds 2, 3, 4 at L = 20 (`single_flip`
+  4 × 4, τ ≤ 25; diffusive 112 trajectories, γ = 0.01, 0.05, 0.2). B4, B5 are the channel study: scar (minus-x),
+  x-Néel (neel-x) and z-Néel (neel) under every channel (z, x, y, dep, decay, thermal n̄ = 1), γ = 0.01, 0.02, 0.05,
+  0.1, 0.2, 0.5, 1, 2, 5, 10, 20. B4: exact L = 12, every channel, plus γ = 0 once per state, with purity, size,
+  support (`--obs-dt` = min(0.5, t_e/10)) and operator entanglement (`--op-ent-dt`, at most ≈ 40 per run: ≈ 10 s each);
+  one job per (state, channel), split where a job would exceed 20 h. B5: diffusive L = 20, 56 trajectories at
+  γ ≤ 0.02, 112 above, Hermitian channels (z, x, y, dep), γ ≤ 2 (`GAMMAS_TRAJ_MAX`, default 2: for γ ≥ 0.05 the σᶻ
+  rates are L-independent from L ≈ 10, exact L = 12 covers the large γ, and the trajectory cost per unit of t grows
+  ∝ γ; `GAMMAS_TRAJ_MAX=20` doubles B5); the σᶻ runs that exist (scar, x-Néel, 2026-10-16 batch) are left out.
+  Run length (`run_plan`): `--stop-te 1.5`, t-max = 4 t_e(σᶻ) × channel factor (x, y 2; decay 4; thermal 4/3; Néel
+  states 1 below γ = 1), at least 1. Zeno-protected runs (σˣ, σʸ on the scar and x-Néel, σᶻ on z-Néel, decay
+  ≈ h²/(2γ), t_e ≈ 2γ once 2γ exceeds the estimate) are cut at 15 (L = 12) or 8 (L = 20). Cost model: exact
+  220 (1 + 24 γ d/150) wall s per unit of t (d = largest site damping rate: 2, 1 decay, 3 thermal) + 10 s per
+  operator-entanglement evaluation; diffusive 322 (1 + 0.85 γ) core-s per trajectory per unit of t (× 1.3 for dep).
+  Prints ≈ 176 node-hours expected (19 700 core-h), 314 at the caps; longest job 18.4 h at the caps. Each run is
+  skipped if its CSV exists in `data/lean`. Run it on Leonardo after `git pull` and building `states`,
+  `states_traj`, `single_flip`.
+- `obelix/` (workstation, no Slurm; copy `data/bashes` there, `git pull`): `make_queue.py` (standard library; run on
+  the laptop, writes `queue.txt` and prints the cost) and `queue.txt` (530 runs, one per line,
+  `name|output|binary|arguments`): B4 exact L = 8, 10, the three states × six channels × γ = 0.005 … 20 and γ = 0,
+  with all operator observables; B3 seeds 2–4 at L = 16; B5 diffusive L = 16, the three states × z, x, y, dep,
+  γ = 0.01 … 2 (existing σᶻ scar and x-Néel runs left out). Same `run_plan` as Leonardo, Zeno cap 30 (L = 8, 10) and
+  15 (L = 16). The scar runs keep the names of the first queue (`B4_L8_g0.01`, `B5_L8_x_g0.01`, …), so a run with a
+  done-marker is not redone. `start.sh` (builds, then `nohup setsid run_queue.sh`: survives logging out, not a
+  reboot), `run_queue.sh` (one run after the other, `nice 10`, `THREADS` default 16, log per run in `obelix/logs/`,
+  done-marker `data/lean/done/<name>` only on exit 0, so a restart skips finished runs and redoes an interrupted
+  one), `status.sh`, `stop.sh` (after the current run; `stop.sh now` kills it), `pack.sh` (tar of `data/lean` and the
+  logs). Expected ≈ 52 h (B4 31, B3 5, B5 17). Checked with `bash -n` only.
 
 Small-γ scar runs (single-kick test; generators of 2026-10-19). Common parts in
 `small_gamma_common.sh`: the cost model (the measured table below; jump and `single_flip` cost = `JUMP_FACTOR` ×
@@ -495,6 +641,21 @@ cd $REPO/data && tar czf states_traj.tar.gz states/states_traj_* states/states_r
   1.5 · ‖H‖_est · τ ≤ 4. `states_traj` validated against the exact ρ at L = 8, γ = 0.1 (scar and x-Néel, 2000
   trajectories): rms deviation ≈ 1 standard error.
 - Trajectories: σᶻ_j is Hermitian, so the dephasing is unravelled as a real-noise diffusion that keeps the state normalized (a fluctuating z field on every spin). One step is e^{−iH dt/2} · Π_j e^{−i√γ ΔW_j σᶻ_j} · e^{−iH dt/2}, ΔW_j ~ N(0, dt); the error of the average is O(dt²). This is the default (`--unravel diffusive`).
+- Noise channels (`noise.rs`, `--channel`): jump operators √γ σᶻ (default), √γ σˣ, √γ σʸ, √(γ/2) σ^α (depolarizing,
+  every Pauli factor decays at 2γ), √γ σ⁻ (decay, σ⁻ = |↓⟩⟨↑|), √(γ(n̄+1)) σ⁻ and √(γ n̄) σ⁺ (thermal). In the Pauli
+  basis the adjoint dissipator is diagonal (per unit γ on σˣ, σʸ, σᶻ: z −2, −2, 0; x 0, −2, −2; y −2, 0, −2;
+  dep −2, −2, −2; decay −1/2, −1/2, −1; thermal −(2n̄+1)/2, −(2n̄+1)/2, −(2n̄+1)) plus, for decay and thermal, the
+  feed 𝓓†(σᶻ) ∋ −𝟙 (full basis only). Exact ρ: all channels (`Liouvillian::set_channel`); diffusive trajectories:
+  x, y, z, dep (random rotations e^{−iθσ^α}, θ ~ N(0, rate γ dt)); jump unravelling: σᶻ only. The σᶻ random-number
+  sequence is unchanged, so earlier runs reproduce.
+- Eigenvalues (`entanglement.rs`): Householder (column scaled by its largest entry: tiny columns once underflowed to
+  NaN) and implicit QL (relative and absolute deflation tests: rank-1 ρ_A once never converged); Hermitian via the real
+  2n embedding. Sequential inside parallel loops (nested rayon updates made it 20× slower), parallel for single large
+  problems (`sym_eigenvalues`, `block_spectrum_par`). ≈ 5 GFLOP/s single-thread (n = 2048 in 3.4 s).
+- Tests (`cargo test --release`, 17 + 1 unit test): also channels with free spins against single-spin Bloch
+  equations (1e-10), diffusive σˣ and depolarizing against exact ρ (5σ), purity identity d ln Tr ρ²/dt = −4γ⟨n_xy⟩,
+  eigenvalues against traces of powers (n ≤ 600), Dicke, GHZ and product-state block entropies (sequential and
+  parallel), S_op(ρ) = 2 S_A(ψ) for a pure entangled state evolved as ρ and as ψ.
 - Jump unravelling (`--unravel jump`, `JumpTrajectory`): the one under "Numerical methods". Waiting times exponential
   with total rate γL, kicked site uniform, σᶻ_k applied exactly; between kicks e^{−iHτ} with the Taylor substeps,
   split only at the kicks and the output grid (dt = min(--dt, 0.05/γ) as for diffusive). From the scar state the
@@ -508,6 +669,35 @@ cd $REPO/data && tar czf states_traj.tar.gz states/states_traj_* states/states_r
   trajectories kicked): jump / diffusive = 0.79 at output step 0.1, 0.59 at 0.25, 0.63 at 0.5 (the Taylor series over
   a longer step needs fewer H ψ per unit of t, up to the substep limit).
 - TDVP: site type `PauliVec` with states (1, σˣ, σʸ, σᶻ). Left multiplication by σ^a is A^a + iB^a on the coefficients, so −i[P, ·] = 2 Im ⊗_j (A^{a_j} + iB^{a_j}), a real MPO; the periodic boundary enters as long-range terms. Observables are divided by the trace coefficient.
+
+## CLIK: Lindbladian eigenvalues from time-evolved states (2026-10-23)
+
+`julia/clik.jl` (guide `data/docs/CLIK_MPS/IMPLEMENTATION.md`), γ = 0.01, random c (seed 1), δt = 0.5, α = 5e-4,
+K = 4 product terms per initial state. Data and figures in `data/used_data/` (`clik_*`), `plot_clik.py`.
+
+- **Checks.** The Julia 𝓛 (MPO, contracted) has the Rust ED spectrum to 5e-12 (L = 4, 5, 6, ring and open). MPS at full
+  χ = 4^(L/2) equals dense: Krylov matrices to 1e-12 (L = 4) and 1e-13 (L = 6), but only with the global Krylov basis
+  expansion (`--expand-every 1`); without it two-site TDVP misses the range-4 terms of H while the bonds are small
+  (1e-2 error from the first step, trace of the traceless state 5e-4). Ring, random init, χ = 64: same eigenvalues as
+  dense at every T, 76 min to T = 200 on the laptop.
+- **α is useless here.** α_max (from ED) = 0.0020, 0.0031, 0.0027 (ring L = 4, 5, 6), 0.0037 (open L = 6), set by bulk
+  modes with Im λ ≈ 15 – 23, not by the slow modes; the complex-time boost is negligible and CLIK works as real-time
+  Krylov. Convergence needs T ≈ 3 – 5/Δ (Δ ≈ 0.015 – 0.018) ≈ 200 – 300.
+- **Ring, random init, dense, T = 400** (error against ED): λ = 0 at 1e-15 – 1e-16; edge mode −0.02 + i 3e-14,
+  1e-10, 1e-9 (L = 4, 5, 6); slowest bulk mode 8e-11, 3e-8, 3e-7; some real bulk modes (−0.0281 at L = 5, −0.0286 at
+  L = 6) never converge (1e-3 – 1e-2). L = 4, 5 are not compression tests (number of states > 4^L).
+- **Open chain, L = 6** (ED: 42 of 49 tower coherences with tower weight > 0.9; slowest non-tower mode −0.0154 is slower
+  than the first edge mode). Scar init (mixtures of spin coherent states |n⟩⟨n|^⊗L, all in the tower) against random
+  init, dense, T = 200, error of the tower modes: λ = 0 8e-11 (2e-9); −0.02 + i 3e-9 (1e-5); −0.04 + 2i 3e-7 (5e-3);
+  −0.06 + 3i 8e-6 (7e-3); dressed mid-tower modes (−0.0466 + 1.0003i, −0.059 + 1.999i, …) 1e-4 – 8e-4 (4e-3 – 8e-3).
+  The scar init is better by 2 – 4 orders for the edge modes.
+- **Truncation (open, scar init).** χ = 16 and 32 (full 64): λ = 0 4e-8, 2e-7; −0.02 + i 9e-6, 2e-5; every other tower
+  mode stuck at ≈ 1e-3 for both χ; trace of the traceless state leaks to 3e-3 (χ = 16), 7e-3 (χ = 32) (ring, random
+  init, χ = 32: 0.47 by t = 100, run stopped). Not a time-step error: Krylov matrices against dense at t ≤ 10, χ = 32,
+  differ by 3e-3 for internal steps 0.25 and 0.05 alike. So ρ(t) from scar states needs nearly the full bond
+  dimension at L = 6 (as the earlier `lindblad_tdvp.jl` runs from |−⟩^⊗L): the dissipator moves weight out of the tower
+  at rate ≈ γ(L − 1), and that part thermalizes under H_I. Cost (laptop, 16 threads, open): ≈ 8 s (χ = 16), 14 s
+  (χ = 32) per unit of t with expansion at every internal step.
 
 ## Results at small γ and the single-kick test (2026-10-20)
 

@@ -8,16 +8,21 @@
 //! For weak dephasing, m_⊥(t) ≈ exp[−γ ∫₀ᵗ D(τ) dτ].
 //!
 //!     cargo run --release --bin single_flip -- [--L 12 | --lmin 4 --lmax 8] [--phases 16] [--sites all|0,3,6]
-//!                                              [--t-max 25] [--dt 0.1] [--seed 1]
+//!                                              [--t-max 25] [--dt 0.1] [--seed 1] [--ent-dt 0] [--ent-max L/2]
+//!
+//! --ent-dt Δ > 0: every Δ the entanglement entropy (von Neumann and Rényi-2) of the blocks A = sites 0 … ℓ − 1,
+//! ℓ = 1 … --ent-max, of every run (a 2^ℓ Hermitian eigenvalue problem per block). A seed N ≠ 1 (another random-c
+//! realization) adds _seed<N> to the file names.
 //!
 //! H: src/parameters.rs with random c (Params::random_c, generator seeded with 1000 · seed + L, the same
 //! realization as `states` and `states_traj`). All runs (phases × sites) advance together, one output step at
 //! a time (as the trajectories of `states_traj`); memory 3 · 16 B · 2^L per run.
 //!
 //! Output (data/ or $SCARS_DATA_DIR), written while the run goes on:
-//!   single_flip_L<L>.csv (all sites) or single_flip_L<L>_sites<k1-k2-…>.csv (a site list)
+//!   single_flip_L<L>[_sites<k1-k2-…>][_seed<N>].csv (all sites, or a site list)
 //!       L, m, phi, k, tau, D, then per site re_c0 … re_c{L−1}, im_c0 …, z0 … (z_j = ⟨σᶻ_j⟩)
-//!   states_realization_L<L>.csv   j, and the c coefficients of bond (j, j+1)
+//!   single_flip_ent_L<L>[…].csv (with --ent-dt)   L, m, phi, k, tau, ell, S, S2
+//!   states_realization_L<L>[_seed<N>].csv   j, and the c coefficients of bond (j, j+1)
 
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
@@ -27,11 +32,13 @@ use std::time::Instant;
 use rayon::prelude::*;
 
 use open_exact_scars::cli::Options;
-use open_exact_scars::model::{write_realization, Params};
+use open_exact_scars::entanglement::{block_spectrum, block_spectrum_par, entropies};
+use open_exact_scars::model::{seed_suffix, write_realization, Params};
 use open_exact_scars::trajectory::{coherences, reference_bloch, Hamiltonian, Rng, Trajectory};
 
 fn main() {
-    let args = Options::parse(&["L", "lmin", "lmax", "phases", "sites", "t-max", "dt", "seed"]);
+    let args = Options::parse(&["L", "lmin", "lmax", "phases", "sites", "t-max", "dt", "seed", "ent-dt", "ent-max"]);
+    let ent_dt = args.f64("ent-dt", 0.0);
     let sizes = args.sizes(4, 8);
     let n_phases = args.usize("phases", 16);
     let (t_max, dt) = (args.f64("t-max", 25.0), args.f64("dt", 0.1));
@@ -49,18 +56,27 @@ fn main() {
         let start = Instant::now();
         let mut rng = Rng::new(1000 * seed + l as u64);
         let params = Params::random_c(l, &mut rng);
-        write_realization(&data, &params);
+        write_realization(&data, &params, seed);
+        let ent_max = args.usize("ent-max", l / 2).min(l / 2);
         let ham = Hamiltonian::new(&params);
         let h = params.h;
         let sites = site_list.clone().unwrap_or_else(|| (0..l).collect());
         assert!(sites.iter().all(|&k| k < l), "--sites: every site must be < L = {l}");
-        let file = match &site_list {
-            None => data.join(format!("single_flip_L{l}.csv")),
-            Some(s) => data.join(format!(
-                "single_flip_L{l}_sites{}.csv",
-                s.iter().map(|k| k.to_string()).collect::<Vec<_>>().join("-")
-            )),
+        let tag = match &site_list {
+            None => format!("L{l}{}", seed_suffix(seed)),
+            Some(s) => format!(
+                "L{l}_sites{}{}",
+                s.iter().map(|k| k.to_string()).collect::<Vec<_>>().join("-"),
+                seed_suffix(seed)
+            ),
         };
+        let file = data.join(format!("single_flip_{tag}.csv"));
+        let mut ent_csv = (ent_dt > 0.0).then(|| {
+            let mut w = BufWriter::new(File::create(data.join(format!("single_flip_ent_{tag}.csv"))).unwrap());
+            writeln!(w, "L,m,phi,k,tau,ell,S,S2").unwrap();
+            w
+        });
+        let ent_every = if ent_dt > 0.0 { (ent_dt / dt).round().max(1.0) as usize } else { 0 };
 
         // one run per (phase m, site k): t′ = φ_m / h
         let runs: Vec<(usize, f64, usize)> = (0..n_phases)
@@ -107,6 +123,29 @@ fn main() {
                 writeln!(csv, "{row}").unwrap();
             }
             csv.flush().unwrap();
+            if let Some(w) = ent_csv.as_mut() {
+                if step % ent_every == 0 {
+                    // many runs: one per thread; few runs (fewer than the threads): parallel inside each
+                    let few = 2 * runs.len() <= rayon::current_num_threads();
+                    let ent: Vec<Vec<(f64, f64)>> = if few {
+                        trajs
+                            .iter()
+                            .map(|traj| (1..=ent_max).map(|ell| entropies(&block_spectrum_par(&traj.psi, l, ell))).collect())
+                            .collect()
+                    } else {
+                        trajs
+                            .par_iter()
+                            .map(|traj| (1..=ent_max).map(|ell| entropies(&block_spectrum(&traj.psi, l, ell))).collect())
+                            .collect()
+                    };
+                    for (e, &(m, phi, k)) in ent.iter().zip(&runs) {
+                        for (i, (s1, s2)) in e.iter().enumerate() {
+                            writeln!(w, "{l},{m},{phi:.10},{k},{tau:.6},{},{s1:.10e},{s2:.10e}", i + 1).unwrap();
+                        }
+                    }
+                    w.flush().unwrap();
+                }
+            }
             if step > 0 && step % (1.0 / dt).round().max(1.0) as usize == 0 {
                 println!("  L = {l}, single flip: tau = {tau:.2} of {t_max}, {:.1?}", start.elapsed());
             }

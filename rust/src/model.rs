@@ -115,16 +115,26 @@ pub fn hamiltonian_terms(p: &Params) -> Vec<(Pauli, f64)> {
     terms.into_iter().filter(|&(_, coef)| coef != 0.0).collect()
 }
 
-/// Writes `states_realization_L<L>.csv` in `data`: the c coefficients of bond (j, j+1), one row per bond
+/// `_seed<N>` for a realization seed other than 1, empty for seed 1 (the files of the first realization keep their
+/// names). Added to every output file name of `states`, `states_traj` and `single_flip`.
+pub fn seed_suffix(seed: u64) -> String {
+    if seed == 1 {
+        String::new()
+    } else {
+        format!("_seed{seed}")
+    }
+}
+
+/// Writes `states_realization_L<L>[_seed<N>].csv` in `data`: the c coefficients of bond (j, j+1), one row per bond
 /// (only the entries nonzero in parameters.rs).
-pub fn write_realization(data: &Path, params: &Params) {
+pub fn write_realization(data: &Path, params: &Params, seed: u64) {
     let c_bond = params.c_bond.as_ref().unwrap();
     let axes = ["x", "y", "z"];
     let entries: Vec<(usize, usize)> =
         (0..3).flat_map(|a| (0..3).map(move |b| (a, b))).filter(|&(a, b)| params.c[a][b] != 0.0).collect();
     // several jobs can write the same file at once: write a private copy and rename it (atomic)
-    let file = data.join(format!("states_realization_L{}.csv", params.l));
-    let tmp = data.join(format!("states_realization_L{}.csv.{}", params.l, std::process::id()));
+    let file = data.join(format!("states_realization_L{}{}.csv", params.l, seed_suffix(seed)));
+    let tmp = data.join(format!("states_realization_L{}{}.csv.{}", params.l, seed_suffix(seed), std::process::id()));
     let mut csv = BufWriter::new(File::create(&tmp).unwrap());
     let names: Vec<String> = entries.iter().map(|&(a, b)| format!("c_{}{}", axes[a], axes[b])).collect();
     writeln!(csv, "j,{}", names.join(",")).unwrap();

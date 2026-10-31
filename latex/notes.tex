@@ -34,13 +34,13 @@
 
 \title{Ferromagnetic scar tower under bulk dephasing:\\ notes on the results so far}
 \author{Weyner Ccuiro}
-\date{25 October 2026}
+\date{31 October 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-We study how the ferromagnetic quantum many-body scar tower of a spin-$1/2$ chain decays under uniform $\sigma^z$ dephasing of rate $\gamma$, comparing the scar state $\ket{-}^{\otimes L}$ with two non-scar product states, the $x$-N\'eel and $z$-N\'eel states. With exact density-matrix evolution up to $L = 14$ and quantum trajectories up to $L = 20$, the $1/e$ rate of the scar's transverse magnetization becomes $L$-independent for $\gamma \gtrsim 0.05$, and its thermodynamic value $\Ginf$ vanishes as $\gamma \to 0$, roughly as $\gamma^{1/2}$ for $0.02 \le \gamma \le 0.2$. The thermal $x$-N\'eel signal instead decays at the closed-system thermalization rate $\approx 4.8$ for every $\gamma \le 0.1$. At $\gamma \le 0.007$ and fixed $L \le 20$, the scar rate sits at the finite-size cap $\Ge \approx \gamma(L-1)$. A single-kick model, in which every $\sigma^z$ kick damages the coherence as one flip evolved with $H$ does, reproduces the measured rate at every $L$ and $\gamma \le 0.05$ to within $\approx 5\%$, without fit parameters. The thermodynamic lifetime at small $\gamma$ is therefore fixed by how the damage of a single kick grows in time; $L \le 24$ does not yet decide between ballistic ($\Ginf \propto \gamma^{1/2}$) and diffusive ($\propto \gamma^{2/3}$) growth.
+We study how the ferromagnetic quantum many-body scar tower of a spin-$1/2$ chain decays under uniform $\sigma^z$ dephasing of rate $\gamma$, comparing the scar state $\ket{-}^{\otimes L}$ with two non-scar product states, the $x$-N\'eel and $z$-N\'eel states. With exact density-matrix evolution up to $L = 14$ and quantum trajectories up to $L = 20$, the $1/e$ rate of the scar's transverse magnetization becomes $L$-independent for $\gamma \gtrsim 0.05$, and its thermodynamic value $\Ginf$ vanishes as $\gamma \to 0$, roughly as $\gamma^{1/2}$ for $0.02 \le \gamma \le 0.2$. The thermal $x$-N\'eel signal instead decays at the closed-system thermalization rate $\approx 4.8$ for every $\gamma \le 0.1$. At $\gamma \le 0.007$ and fixed $L \le 20$, the scar rate sits at the finite-size cap $\Ge \approx \gamma(L-1)$. A single-kick model, in which every $\sigma^z$ kick damages the coherence as one flip evolved with $H$ does, reproduces the measured rate at every $L$ and $\gamma \le 0.05$ to within $\approx 5\%$, without fit parameters. The thermodynamic lifetime at small $\gamma$ is therefore fixed by how the damage of a single kick grows in time. The damage profile at $L = 24$ spreads ballistically ($v \approx 1.6$) until it wraps around the ring at $\tau \approx 4$; continuing it linearly predicts $\Ginf \to (c\gamma/2)^{1/2}$ ($c \approx 2$), with an effective exponent $0.57$ over $0.0005 \le \gamma \le 0.05$, matching the extrapolated data ($0.58 \pm 0.01$). Under $\sigma^x$, $\sigma^y$, depolarizing and thermal noise the scar rate at small $\gamma$ has the same exponent, and collapses onto the $\sigma^z$ curve once $\gamma$ is scaled by the damage of one kick. The N\'eel signals are lost by closed-system scrambling (operator size $\to 3/4$ of $L$ while $\rho$ is still pure), the scar signal by mixing without scrambling: Mori's finite limit applies to the former, while the scar rate vanishes as $\gamma \to 0$, non-analytically.
 \end{abstract}
 
 \tableofcontents
@@ -149,7 +149,7 @@ This is the finite-size cap $\Ge/\gamma \to L - 1$ of Sec.~\ref{sec:small}. It i
 \begin{equation}
 \Ginf \propto \gamma^{1/(1+\beta)}: \qquad \beta = 1 \Rightarrow \Ginf \propto \gamma^{1/2}, \qquad \beta = \tfrac12 \Rightarrow \Ginf \propto \gamma^{2/3}.
 \end{equation}
-At finite $L$ the cap applies when $\gamma L\,\tau_{\mathrm{sat}} \ll 1$, i.e.\ for $L \ll L^*(\gamma) \sim \gamma^{-\beta/(1+\beta)}$. In the collapse $\Ge/\gamma = \xi f(L/\xi)$ with $\xi = \gamma^{-\nu}$ (Sec.~\ref{sec:small}) this means $\nu = \beta/(1+\beta)$ and $\Ginf \propto \gamma^{1-\nu}$: $\nu = 1/2$ for ballistic and $\nu = 1/3$ for diffusive damage. The measured $\nu = 0.33$ ($0.24$--$0.48$) and the local exponent $\approx 0.5$ of $\Ginf$ do not separate the two, which is why the growth of $\Db$ at long $\tau$ and large $L$ (step B2, option C2) is the deciding measurement.
+At finite $L$ the cap applies when $\gamma L\,\tau_{\mathrm{sat}} \ll 1$, i.e.\ for $L \ll L^*(\gamma) \sim \gamma^{-\beta/(1+\beta)}$. In the collapse $\Ge/\gamma = \xi f(L/\xi)$ with $\xi = \gamma^{-\nu}$ (Sec.~\ref{sec:small}) this means $\nu = \beta/(1+\beta)$ and $\Ginf \propto \gamma^{1-\nu}$: $\nu = 1/2$ for ballistic and $\nu = 1/3$ for diffusive damage. The measured $\nu = 0.33$ ($0.24$--$0.48$) and the local exponent $\approx 0.5$ of $\Ginf$ do not separate the two, which is why the growth of $\Db$ at long $\tau$ and large $L$ (step B2, option C2) is the deciding measurement. The B2 damage profile (Sec.~\ref{sec:leanres-spread}) shows ballistic spreading, $\beta = 1$, up to the size limit $\tau \approx 4$ at $L = 24$.
 
 \subsection{Other single-site noise channels}
 \label{sec:theory-channels}
@@ -852,7 +852,7 @@ independent of $L$ except through $\Db$. For free spins ($H_I = 0$) a kick rever
 \label{fig:kickrates}
 \end{figure}
 
-\paragraph{Consequence.} In the thermodynamic limit at small $\gamma$, Eq.~\eqref{eq:kick} makes the lifetime a property of $\Db_\infty(\tau)$ alone. Linear growth $\Db \simeq 2v\tau$ (ballistic spreading of the damage) gives $\gamma v t_e^2 = 1$, i.e.\ $\Ginf = (\gamma v)^{1/2}$. Diffusive growth $\Db \propto \tau^{1/2}$ gives $\Ginf \propto \gamma^{2/3}$. If the damage stays bounded, $\Ginf \propto \gamma$. The measured $\Ginf$ ($\Ginf^2/\gamma \approx 2.0$--$2.3$ for $0.02 \le \gamma \le 0.1$) and the roughly linear growth of $\Db$ at $L = 22, 24$ for $4 \le \tau \le 8$ favour the ballistic case, but the collapse admits both. Deciding needs $\Db$ at longer $\tau$ in larger systems.
+\paragraph{Consequence.} In the thermodynamic limit at small $\gamma$, Eq.~\eqref{eq:kick} makes the lifetime a property of $\Db_\infty(\tau)$ alone. Linear growth $\Db \simeq 2v\tau$ (ballistic spreading of the damage) gives $\gamma v t_e^2 = 1$, i.e.\ $\Ginf = (\gamma v)^{1/2}$. Diffusive growth $\Db \propto \tau^{1/2}$ gives $\Ginf \propto \gamma^{2/3}$. If the damage stays bounded, $\Ginf \propto \gamma$. The measured $\Ginf$ ($\Ginf^2/\gamma \approx 2.0$--$2.3$ for $0.02 \le \gamma \le 0.1$) and the roughly linear growth of $\Db$ at $L = 22, 24$ for $4 \le \tau \le 8$ favour the ballistic case, but the collapse admits both. Deciding needs $\Db$ at longer $\tau$ in larger systems. Update (B2, Sec.~\ref{sec:leanres-spread}): the damage profile at $L = 24$ moves ballistically and wraps around the ring at $\tau \approx 4$, so the $4 \le \tau \le 8$ growth quoted above is already finite-size filling; before it, $\Db$ grows at $\approx 2$ per unit of $\tau$.
 
 %======================================================================
 \section{Next calculations: the lean data plan}
@@ -948,7 +948,7 @@ B1$'$, $L = 24$ & 0.02 & 5.8 & 5.5 & 8.7 \\
 
 \subsection{Step B: the planned runs}
 
-Table~\ref{tab:leanB}, with the changes that follow from step A (56 trajectories at $\gamma \le 0.02$ in B1; $4\times4$ single-flip runs per realization in B3). The new disorder realizations are seeds $2$, $3$, $4$. The Leonardo parts run as Slurm jobs (generators in \texttt{data/bashes/}); the obelix parts as an unattended queue that keeps running after logout and skips finished runs. Both are being prepared; none of these runs has been done yet.
+Table~\ref{tab:leanB}, with the changes that follow from step A (56 trajectories at $\gamma \le 0.02$ in B1; $4\times4$ single-flip runs per realization in B3). The new disorder realizations are seeds $2$, $3$, $4$. The Leonardo parts run as Slurm jobs (generators in \texttt{data/bashes/}); the obelix parts as an unattended queue that keeps running after logout and skips finished runs. B1--B5 were run on 26--30 October 2026 (results: Sec.~\ref{sec:leanres}); B1$'$, B2 at $L = 26$, C1 and C2 were not.
 
 \begin{table}[H]
 \centering
@@ -972,6 +972,204 @@ C2 & single kick at $L \approx 100$ & MPO/MPS version of \texttt{single\_flip} (
 \end{table}
 
 Order: B4 and the obelix parts of B3 and B5 first (they need the new code of Secs.~\ref{sec:channels}--\ref{sec:opobs}), then B1 and B2 at $L = 24$, then B3 on Leonardo; B1$'$, B2 at $L = 26$ or C2 are decided from those results.
+
+%======================================================================
+\section{Results of the lean runs: noise channels, damage spreading, operator spreading}
+\label{sec:leanres}
+
+B1--B5 of Table~\ref{tab:leanB} were run from 26 to 30 October 2026; B1$'$, B2 at $L = 26$, C1 and C2 were not. Data in \texttt{data/used\_data/lean/}, kept apart from the older runs: several file names coincide, but the lean runs stop at $1.5\,t_e$ while the older ones ran until the signal fell below $10^{-3}$. Analysis scripts: \texttt{fit\_channels.py}, \texttt{spreading.py}, \texttt{plot\_operator\_spreading.py}.
+
+\subsection{Runs and checks}
+
+\begin{itemize}
+\item \textbf{Cost.} Leonardo: 37 jobs, all COMPLETED, 298 runs, all with exit status 0, $77$ node-hours (planned $\approx 176$), longest job $9.2$\,h. obelix: 530 runs, all with exit status 0, $22.8$\,h (planned $\approx 52$).
+\item \textbf{$\gamma = 0$.} The scar at $L = 8, 10, 12$ gives $m_x = -\cos t$, $m_y = -\sin t$ to $5\times10^{-14}$, with purity $1$ and $S_{\mathrm{op}} \le 8\times10^{-13}$ (it stays a product state).
+\item \textbf{Against the existing data.} Every $\sigma^z$ run that repeats an existing (state, $L$, $\gamma$) agrees with it to $\le 10^{-13}$ on the common times (exact, all three states, $L = 8, 10, 12$). Stopping at $1.5\,t_e$ leaves $\Ge$ unchanged, except for $z$-N\'eel at $L = 8$, $\gamma \le 0.05$ ($+18\%$, $+6\%$, $+1\%$ at $\gamma = 0.01, 0.02, 0.05$): there the older, longer runs see finite-size revivals above $1/e$ after $1.5\,t_e$. Those points are already left out of the fits. \texttt{single\_flip} at $L = 24$: the new run (4 phases, $\tau \le 16$) equals the old one (16 phases, $\tau \le 8$) on all 1296 common rows, and its 4-phase mean $\Db$ equals the 16-phase mean to $0.02$.
+\item \textbf{Disorder realizations} (seeds $2$, $3$, $4$). Scar $\Ge/\gamma$ at $\gamma = 0.01, 0.05, 0.2$ is within $\approx 3.5\%$ of seed $1$ at $L = 16$ and $20$ (most within $2\%$); $\Db(8)$ differs by $\approx 1\%$. Single-realization offsets that do show up: $x$-N\'eel at $L = 16$ ($\approx 3\%$ low, known) and $z$-N\'eel at $L = 20$ ($\approx 5\%$ high, at every $\gamma$ and channel, also at $\gamma = 0.01$). Both enter the Néel extrapolations: the $z$-N\'eel $\Ginf$ at small $\gamma$ is $\approx 5.3$ with $L = 20$ included, against $\approx 5.0$ from $L = 10, 12$.
+\item \textbf{Trajectories against exact $L = 12$.} Scar: within $2\sigma$ for $\gamma \ge 0.05$; relative error of a trajectory $\Ge$ $0.7\%$ (median), $4\%$ at most.
+\item \textbf{Operator observables.} In all 639 files the size and support distributions sum to $1$ and $\Tr\rho^2 \le 1$. The purity identity $d\ln\Tr\rho^2/dt = -4\gamma\langle n_{xy}\rangle$ ($\sigma^z$) or $-4\gamma\langle n\rangle$ (depolarizing) holds to $2\times10^{-3}$ (median of the finite differences; $6\%$ at worst, on the very short $z$-N\'eel runs).
+\item \textbf{Large-$\gamma$ limits.} Every channel gives the free-spin rate: scar $\gamma/2$ (decay), $3\gamma/2$ (thermal, $\bar n = 1$), $2\gamma$ ($\sigma^z$, $\sigma^y$, depolarizing); $z$-N\'eel $3\gamma$ (thermal); the Zeno-protected cases fall as $1/\gamma$.
+\item \textbf{Decay channel: not usable for the scar at $\gamma \le 0.2$.} Under decay the scar $m_\perp$ is not monotonic: it falls below $1/e$ and rises again (at $L = 8$, $\gamma = 0.1$: $0.30 \to 0.37$ around $t \approx 10$--$13$). The runs stop at $1.5$ times the \emph{first} crossing, so the envelope, and with it $t_e$, depends on where the run ended; $\Ge$ at $L = 8$ and $10$ differs by a factor $1.5$--$1.7$ at $\gamma = 0.1, 0.2$. Nine runs ($L = 8, 10, 12$) show the rise; eleven more reached $1/e$ but hit $t_{\max}$ before $1.5\,t_e$. The decay channel is left out of every figure below; the Néel states under decay, and the scar at $\gamma \ge 0.5$, are not affected. Redoing the scar runs with a later stop costs $\approx 10$\,h on obelix ($L = 8, 10$) and $\approx 20$ NH ($L = 12$, $\gamma = 0.01, 0.02$).
+\item \textbf{Forward/backward evolution} (Sec.~\ref{sec:tn-results}) has only the $L = 6$ validation; it contributes no data here.
+\end{itemize}
+
+\subsection{Thermodynamic rates under every noise channel}
+\label{sec:leanres-channels}
+
+Same procedure as for $\sigma^z$ (Sec.~\ref{sec:rates}): $\Ge$ of every run, $A + B/L$ on $L \ge 8$ with at least three sizes, $\gamma \ge 0.01$, the same revival exclusions for the N\'eel states. For $\sigma^z$ the older runs are used where they exist (scar $L = 8$--$20$, plus $L = 22$ from B1). Error of $\Ginf$: as before for $\sigma^z$; for the other channels (no $L = 6$) the larger of the fit error and the change of $A$ when $L = 8$ is dropped. Sizes: $\sigma^x$, $\sigma^y$, depolarizing $L = 8, 10, 12$ exact and $16, 20$ trajectories ($\gamma \le 2$), $8, 10, 12$ above; thermal $L = 8, 10, 12$. Figures~\ref{fig:chinf} and~\ref{fig:chinvL}; scar values in Table~\ref{tab:chscar}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{channels_thermodynamic_rate.png}
+\caption{$\Ginf$ against $\gamma$ for every channel except decay. Last panel: the scar under every channel. In the $\sigma^z$ and scar panels: open squares, the scar fit on $L = 14$--$20$ only (Table~\ref{tab:large}); band, the single-kick prediction with ballistic damage, Sec.~\ref{sec:leanres-spread} (\texttt{fit\_channels.py}, after \texttt{spreading.py}).}
+\label{fig:chinf}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{channels_inverse_L.png}
+\caption{$\Ge$ against $1/L$ with the fits $A + B/L$, rows: channels, columns: states. Circles: exact; squares: trajectories; open: not in the fit (\texttt{fit\_channels.py}).}
+\label{fig:chinvL}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{llllll}
+\toprule
+$\gamma$ & $\sigma^z$ & $\sigma^x$ & $\sigma^y$ & depolarizing & thermal, $\bar n = 1$ \\
+\midrule
+$0.01$ & $0.130 \pm 0.011$ & $0.082 \pm 0.005$ & $0.080 \pm 0.004$ & $0.129 \pm 0.003$ & $0.100 \pm 0.003$ \\
+$0.02$ & $0.209 \pm 0.004$ & $0.134 \pm 0.005$ & $0.130 \pm 0.004$ & $0.214 \pm 0.006$ & $0.148 \pm 0.002$ \\
+$0.05$ & $0.330 \pm 0.018$ & $0.219 \pm 0.004$ & $0.215 \pm 0.003$ & $0.336 \pm 0.009$ & $0.299 \pm 0.012$ \\
+$0.1$ & $0.453 \pm 0.010$ & $0.351 \pm 0.021$ & $0.322 \pm 0.005$ & $0.457 \pm 0.007$ & $0.409 \pm 0.004$ \\
+$0.2$ & $0.647 \pm 0.022$ & $0.447 \pm 0.001$ & $0.434 \pm 0.008$ & $0.653 \pm 0.009$ & $0.536 \pm 0.006$ \\
+$0.5$ & $1.24$ & $0.545$ & $0.761$ & $1.25$ & $0.925$ \\
+$1$ & $2.26$ & $0.557$ & $1.47$ & $2.21 \pm 0.11$ & $1.58$ \\
+$2$ & $4.22 \pm 0.08$ & $0.431$ & $3.76 \pm 0.03$ & $4.0 \pm 0.2$ & $2.96$ \\
+$10$ & $19.7 \pm 0.3$ & $0.116$ & $20.0$ & $20.0$ & $14.8$ \\
+\midrule
+exponent, $0.01$--$0.05$ & $0.54 \pm 0.07$ & $0.58 \pm 0.04$ & $0.59 \pm 0.04$ & $0.60 \pm 0.06$ & $0.67 \pm 0.09$ \\
+\bottomrule
+\end{tabular}
+\caption{Scar $\Ginf$ per channel (errors below $1\%$ not shown). Last row: weighted power-law fit $\Ginf \propto \gamma^{p}$ on $\gamma = 0.01, 0.02, 0.05$.}
+\label{tab:chscar}
+\end{table}
+
+\begin{itemize}
+\item \textbf{N\'eel states.} At $\gamma \le 0.1$ their $\Ginf$ stays at the closed-system rate under every channel: $x$-N\'eel $4.5$--$4.8$, $z$-N\'eel $5.1$--$5.4$ (the latter raised by the $L = 20$ realization). At large $\gamma$: $x$-N\'eel is Zeno-protected under $\sigma^x$ ($0.58$ at $\gamma = 20$), $z$-N\'eel under $\sigma^z$ ($0.52$); otherwise $\to 2\gamma$, or $3\gamma$ ($z$-N\'eel) and $3\gamma/2$ ($x$-N\'eel) under thermal noise.
+\item \textbf{Scar at large $\gamma$.} Under $\sigma^x$ the scar (which points along $x$) is Zeno-protected: $\Ginf$ peaks at $\approx 0.56$ near $\gamma = 1$ and then falls as $1/\gamma$. Under $\sigma^y$ and depolarizing noise it goes to $2\gamma$, under thermal noise to $3\gamma/2$.
+\item \textbf{Scar at small $\gamma$: same exponent, different prefactor.} The exponents of Table~\ref{tab:chscar} agree within their errors, and with the $\sigma^z$ value $0.57$--$0.58$ over $0.0005 \le \gamma \le 0.05$ (Sec.~\ref{sec:leanres-spread}). The prefactor follows the damage a single kick does to the precessing spin (Sec.~\ref{sec:theory-channels}): $D(0) = 2$ for a $\sigma^z$ kick, $1$ on average for $\sigma^x$ or $\sigma^y$; depolarizing noise combines a $\sigma^z$ kick at rate $\gamma/2$ with $\sigma^x$, $\sigma^y$ kicks at $\gamma/2$ each, which adds up to the $\sigma^z$ value; the thermal pair damps the in-plane spin at $3\gamma/2$ instead of $2\gamma$. With this kick strength $\kappa = 1$ ($\sigma^z$, depolarizing), $1/2$ ($\sigma^x$, $\sigma^y$), $3/4$ (thermal), the channels collapse onto the $\sigma^z$ curve at the effective rate $\kappa\gamma$ (Table~\ref{tab:kappa}).
+\end{itemize}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lllllll}
+\toprule
+channel & $\kappa$ & $\gamma = 0.01$ & $0.02$ & $0.05$ & $0.1$ & $0.2$ \\
+\midrule
+depolarizing & $1$ & $0.99$ & $1.02$ & $1.02$ & $1.01$ & $1.01$ \\
+$\sigma^x$ & $1/2$ & $0.89$ \;($0.63$) & $1.03$ \;($0.64$) & $0.94$ \;($0.67$) & $1.07$ \;($0.77$) & $0.98$ \;($0.69$) \\
+$\sigma^y$ & $1/2$ & $0.87$ \;($0.62$) & $1.00$ \;($0.62$) & $0.92$ \;($0.65$) & $0.98$ \;($0.71$) & $0.96$ \;($0.67$) \\
+thermal & $3/4$ & $0.74$ \;($0.77$) & $0.86$ \;($0.71$) & $1.05$ \;($0.91$) & $1.03$ \;($0.90$) & $0.96$ \;($0.83$) \\
+\bottomrule
+\end{tabular}
+\caption{Scar: $\Ginf^{\mathrm{ch}}(\gamma)/\Ginf^{\sigma^z}(\kappa\gamma)$, with $\Ginf^{\sigma^z}$ interpolated in $\ln\gamma$ (the $L \ge 14$ fit below $\gamma = 0.01$). In brackets: the plain ratio $\Ginf^{\mathrm{ch}}(\gamma)/\Ginf^{\sigma^z}(\gamma)$.}
+\label{tab:kappa}
+\end{table}
+
+So at small $\gamma$ the rate is set by how the damage of a kick spreads; the channel only sets how much damage a kick does at first. Limits: only $\sigma^z$ has data below $\gamma = 0.01$ (the other channels only $\gamma = 0.005$ at $L = 8, 10$, both at the cap $\Ge \approx \kappa\gamma(L-1)$, exact; in \texttt{channels\_rates.csv} but not in the fits); for the other channels the range is a factor $5$ in $\gamma$ and $L \le 20$ ($12$ for thermal). \texttt{single\_flip} exists only for $\sigma^z$ kicks, so that $\sigma^x$ kicks spread like $\sigma^z$ kicks is inferred from the collapse, not measured.
+
+\subsection{Spreading of the damage and the scar rate as $\gamma \to 0$}
+\label{sec:leanres-spread}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{spreading.png}
+\caption{(a) Damage per site $d_r = 1 - \operatorname{Re}c$ at distance $r$ from the kicked site, $L = 24$ (mean over 4 phases and 4 kicked sites); dotted: the level $0.35$ used for the front. (b) $\Db(\tau)$ for $L = 12$--$24$ and the $L \to \infty$ estimate: $\Db_{24}$ up to $\tau = 3$, then linear with slope $2$ or $2.7$. (c) Scar $\Ginf$ ($\sigma^z$, fits on $L \ge 8$ and $L \ge 14$) against the single-kick prediction~\eqref{eq:kick} from that estimate. (d) Entanglement at $t_e$ under $\sigma^z$: $S_{\mathrm{op}}(\rho)$ at $L = 12$ for the three states, and the trajectory half-chain $S_A$ of the scar at $L = 22$ (\texttt{spreading.py}).}
+\label{fig:spread}
+\end{figure}
+
+\paragraph{The damage spreads ballistically, and $L \le 24$ is too small beyond $\tau \approx 4$.} The per-site columns of \texttt{single\_flip} give the damage profile $d_r(\tau)$ (Fig.~\ref{fig:spread}a). It is not a sharp front: its body (the region with $d_r \gtrsim 0.35$) moves out at a constant $v \approx 1.6$ sites per unit time ($r = 3.6, 5.0, 6.5$ at $\tau = 1, 2, 3$), with a faster leading tail ($d_r = 0.1$ moves at $\approx 3.6$). Behind the front $d_r \approx 0.7$. At $L = 24$ the body reaches the antipode $r = 12$ at $\tau \approx 4$; after that $\Db$ only fills up towards saturation ($d_r$ rises from $0.7$ to $0.84$ by $\tau = 16$). Before the wrap-around, $\Db_{24}$ grows linearly at $2.0$ per unit of $\tau$ ($\tau = 1.5$--$3$), consistent with $2 v d_r \approx 2.2$. With the extended run, $\Db_{24} = 16.3, 17.8, 18.1, 18.9, 19.6$ at $\tau = 8, 10, 12, 14, 16$: the growth slows, and $\Db_{22}$ and $\Db_{24}$ already differ by $0.8$ at $\tau = 8$. So the growth of $1.0$--$1.2$ per unit of $\tau$ at $L = 22, 24$ between $\tau = 4$ and $8$ (Sec.~\ref{sec:kick}) is already finite-size filling, not the growth law of $\Db_\infty$.
+
+\paragraph{Prediction.} Take $\Db_\infty(\tau) = \Db_{24}(\tau)$ for $\tau \le 3$ and $\Db_{24}(3) + c\,(\tau - 3)$ after, with $c = 2$ (the measured slope) or $c = 2.7$ (if the height behind the front grows from $0.7$ to its finite-size saturation $0.85$). Eq.~\eqref{eq:kick} then gives, without further parameters (Fig.~\ref{fig:spread}c, Table~\ref{tab:ballistic}), $\Ginf \to (c\gamma/2)^{1/2}$ as $\gamma \to 0$.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{llllll}
+\toprule
+$\gamma$ & prediction, $c = 2$ & $c = 2.7$ & $\Ginf$, $L \ge 14$ & $\Ginf$, $L \ge 8$ & $\Ge(L = 22)$ \\
+\midrule
+$0.0005$ & $0.023$ & $0.027$ & $0.014 \pm 0.002$ & -- & -- \\
+$0.001$ & $0.034$ & $0.038$ & $0.034 \pm 0.006$ & -- & -- \\
+$0.002$ & $0.049$ & $0.054$ & $0.044 \pm 0.004$ & -- & -- \\
+$0.005$ & $0.081$ & $0.087$ & $0.092 \pm 0.005$ & -- & $0.065$ \\
+$0.01$ & $0.121$ & $0.127$ & $0.148 \pm 0.009$ & $0.130 \pm 0.011$ & $0.108$ \\
+$0.02$ & $0.184$ & $0.189$ & $0.196 \pm 0.003$ & $0.209 \pm 0.004$ & $0.171$ \\
+$0.05$ & $0.332$ & $0.332$ & $0.323 \pm 0.003$ & $0.330 \pm 0.018$ & $0.309$ \\
+$0.1$ & $0.528$ & $0.528$ & -- & $0.453 \pm 0.010$ & -- \\
+\bottomrule
+\end{tabular}
+\caption{Scar, $\sigma^z$: single-kick prediction with ballistic $\Db_\infty$ against the extrapolated $\Ginf$, and the new diffusive runs at $L = 22$ (B1; $\Ge/\gamma = 13.1$, $10.8$, $8.6$, $6.2$, close to $L = 20$). At $\gamma \ge 0.1$ kicks overlap within the damage time and the prediction is too fast, as before.}
+\label{tab:ballistic}
+\end{table}
+
+\paragraph{Exponent: $2/3$ or $1/2$?} The earlier value $2/3$ was not a result: it is $1 - \nu$ for the collapse minimum $\nu = 0.33$, whose band $0.24$--$0.48$ (exponent $0.52$--$0.76$) included the ballistic $1/2$, and Sec.~\ref{sec:theory-weak} already said the two were not separated. The data are unchanged; the new information is the profile, which shows ballistic spreading. The value $1/2$ is only the $\gamma \to 0$ limit: $\Db$ starts at $\approx 6$--$10$ before the linear growth dominates, so over the data range the prediction has a larger effective exponent:
+\begin{center}
+\small
+\begin{tabular}{ll}
+\toprule
+power law fitted over $0.0005 \le \gamma \le 0.05$ & exponent \\
+\midrule
+ballistic prediction, $c = 2$ / $c = 2.7$ & $0.57$ / $0.54$ \\
+data ($L \ge 14$ fit), weighted / unweighted & $0.58 \pm 0.01$ / $0.66 \pm 0.04$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+The weighted fit agrees with the ballistic prediction; $2/3$ is at the edge of the unweighted one. Point by point the prediction misses several values by $3$--$4$ of their errors (above it at $\gamma = 0.005$--$0.01$, below at $0.0005$ and $0.05$), but those are fit errors only, and the $L \ge 14$ values move by up to $25\%$ with the size range. What favours $1/2$ over $2/3$ is the ballistic profile, which rests on $\tau \le 3$--$4$ at $L = 24$; it also implies $\nu = 1/2$ in the collapse, where $\nu = 0.33$ had the smallest spread (Sec.~\ref{sec:small}), a mild tension. The deciding measurement remains $\Db(\tau)$ at $L \approx 40$--$60$ beyond $\tau \approx 4$ (C2). Its cost is set by the bond dimension of one kicked pure state, which is much larger than $e^{S}$ suggests (next paragraph but one).
+
+\paragraph{Entanglement of one kick.} \texttt{single\_flip} at $L = 24$ with block entanglement: the entropy across a cut at distance $d$ from the kicked site appears at $\tau \approx d/3$ ($d = 6$: $0.12$, $0.83$, $1.59$ at $\tau = 1, 2, 3$), and a cut through the damaged region reaches $S \approx 4.2$--$4.9$ by $\tau = 16$. In the diffusive trajectories at $L = 22$ the half-chain $S_A$ at $t_e$ is $5.1, 5.0, 5.0, 3.2$ for $\gamma = 0.005, 0.01, 0.02, 0.05$, with only $\gamma L t_e = 1.7, 2.0, 2.6, 3.6$ kicks in the chain by $t_e$: one or two kicks, each producing the entanglement of a single kick, i.e.\ still the finite-size regime.
+
+\paragraph{Bond dimension of one kicked state ($L = 20$, test).} Exact state vector at $L = 20$ (same $H$, seed $1$), evolved with $H$ only (Lanczos steps $\delta t = 0.5$, norm conserved to $4\times10^{-15}$); at every step, the MPS bond dimension $\chi(\epsilon)$ that keeps the discarded Schmidt weight $\le \epsilon$ at each of the 19 cuts of the open-chain MPS. Without a kick, $\ket{-}^{\otimes 20}$ stays a product state: $\chi = 1$ at every cut and $S = 0$ up to $t = 10$ (reference 1). With one $\sigma^z$ kick on site $10$ at $t = 0$:
+\begin{center}
+\small
+\begin{tabular}{llllllllll}
+\toprule
+$t$ & $0.5$ & $1$ & $2$ & $3$ & $5$ & $10$ & $15$ & $20$ \\
+\midrule
+$\chi(10^{-6})$ & $15$ & $66$ & $657$ & $958$ & $1002$ & $1011$ & $1012$ & $1012$ \\
+$\chi(10^{-10})$ & $90$ & $536$ & $998$ & $1021$ & $1023$ & $1023$ & $1024$ & $1024$ \\
+$S$ (middle cut) & $0.86$ & $1.29$ & $1.86$ & $2.75$ & $4.21$ & $5.32$ & $5.59$ & $5.73$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+The largest $\chi$ over the cuts is the middle one throughout. $\chi$ reaches the $L = 20$ maximum $2^{10} = 1024$ by $t \approx 2.5$ ($10^{-10}$) or $4$ ($10^{-6}$), while $S$ grows at $\approx 0.5$ per unit of time to $t \approx 5$ and then levels off near $5.7$, below the Page-like value $10\ln 2 - 1/2 = 6.43$ (the undamaged part keeps the scar's product structure). So $\chi$ is set by a long tail of small Schmidt values, from the fast leading edge of the damage ($d_r = 0.1$ moves at $\approx 3.6$), not by $e^{S} \approx 10$--$300$. For C2 this means $\chi > 2000$ within $\tau \approx 2$--$3$ at $L \ge 22$ for $\epsilon \le 10^{-6}$; whether a loose truncation ($\epsilon \approx 10^{-3}$--$10^{-4}$, enough for $\Db$ to $\approx 1\%$) keeps $\chi$ small was not measured.
+
+\paragraph{No-jump (non-Hermitian) evolution.} For every channel of Sec.~\ref{sec:theory-channels}, $L_j^\dagger L_j$ is a combination of $\mathds 1$ and $\sigma^z_j$ ($\sigma^{x,y,z}$ dephasing and depolarizing: $\mathds 1$; decay: $(\mathds 1 + \sigma^z_j)/2$; thermal: the same with other weights). So $H_{\mathrm{eff}} = H - \tfrac i2\sum_j L_j^\dagger L_j$ is $H$ plus a constant, plus at most a term $\propto -iS^z_{\mathrm{tot}}$, which only tilts every spin of the scar state towards $\downarrow$ and keeps it a symmetric product state in the tower, where $H = hS^z_{\mathrm{tot}}$ commutes with it. The normalized no-jump state is therefore a product state ($\chi = 1$, $S = 0$) for any $\gamma$: entanglement, and with it bond dimension, is created only at the jumps. In a jump trajectory at $\gamma = 10^{-3}$, $L = 20$ the kicks arrive at rate $\gamma L = 0.02$ (the first at $t \approx 50$ on average, about $t_e$), and after each kick the table above applies.
+
+\subsection{Operator spreading of the evolving state}
+\label{sec:leanres-op}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{operator_spreading.png}
+\caption{Mean size$/L$, mean support$/L$ and $S_{\mathrm{op}}$ of $\rho(t)$ (weights $r_P^2/\sum r^2$, identity included), $L = 12$, against $t$ (log axis); open circles: $t_e$ of each run. Top: the three states under $\sigma^z$, $\gamma = 0, 0.01, 0.1, 1$ (the N\'eel runs at $\gamma > 0$ stop at $1.5\,t_e \approx 0.3$). Bottom: scar, $\gamma = 0.05$, every channel except decay (\texttt{plot\_operator\_spreading.py}).}
+\label{fig:opspread}
+\end{figure}
+
+Mori's argument rests on the size $S[A] = \Tr[A\,\mathcal S(A)]/\Tr A^2$ of a Heisenberg operator, which grows as $vt$ in a chaotic chain; his paper has no figure of it. The lean runs measure the state-side counterpart: the Pauli-weight distribution of $\rho(t)$ and its operator entanglement (Sec.~\ref{sec:opobs}). Values at $t_e$, $L = 12$, $\sigma^z$:
+\begin{center}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lllll}
+\toprule
+purity / size$/L$ / $S_{\mathrm{op}}$ & $\gamma = 0.01$ & $0.05$ & $0.2$ & $1$ \\
+\midrule
+scar & $0.062$ / $0.48$ / $0.27$ & $0.026$ / $0.45$ / $0.70$ & $0.003$ / $0.30$ / $1.07$ & $0.001$ / $0.16$ / $0.30$ \\
+$x$-N\'eel & $0.95$ / $0.71$ / $3.30$ & $0.79$ / $0.71$ / $3.30$ & $0.40$ / $0.69$ / $3.29$ & $0.05$ / $0.55$ / $2.31$ \\
+$z$-N\'eel & $0.98$ / $0.71$ / $3.53$ & $0.91$ / $0.71$ / $3.48$ & $0.69$ / $0.69$ / $3.31$ & $0.27$ / $0.61$ / $2.34$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{itemize}
+\item \textbf{N\'eel states: lost by scrambling.} The size goes from $1/2$ (product state) to $3/4$ (random pure state) and $S_{\mathrm{op}}$ to $\approx 6.7$ by $t \approx 0.5$, the same at $\gamma = 0$ and $\gamma \le 0.1$. Their $t_e \approx 0.2$ falls in the middle of this growth, while $\rho$ is still nearly pure. The signal is lost to the closed system's own spreading, before dissipation acts.
+\item \textbf{Scar: lost by mixing.} At $\gamma = 0$ the scar stays a product state (size $1/2$, $S_{\mathrm{op}} = 0$). With noise its size and support only decrease (dissipation removes weight from long strings), and $S_{\mathrm{op}}(t_e)$ is small: $0.27$ at $\gamma = 0.01$ ($\sigma^z$; the same at $L = 8, 10, 12$), $0.13$ under $\sigma^x$, decreasing towards small $\gamma$, largest ($\approx 1$) at $\gamma \approx 0.1$. At $t_e$, $\rho$ is strongly mixed. The signal is lost because $\rho$ becomes a mixture over kicked states; the state as a whole never scrambles.
+\item \textbf{Channels} (scar, $\gamma = 0.05$): $\sigma^z$ and depolarizing build up $S_{\mathrm{op}}$ fastest, $\sigma^x$, $\sigma^y$ and thermal more slowly, in the order of their $\Ginf$ ($0.33$ against $0.22$--$0.30$).
+\item \textbf{Caveat.} For a mixed $\rho$ the mean size combines spreading (up) and dissipation (down), so it is not a clean measure of how far a kick spreads; that measure is $\Db(\tau)$ and $d_r(\tau)$ above.
+\end{itemize}
+
+\subsection{The order of limits (Mori) for the scar}
+\label{sec:leanres-mori}
+
+Mori's limit $\bar g = \lim_{\gamma\to0^+}\lim_{L\to\infty} g$ is the Ruelle--Pollicott rate of the closed system: the rate at which the observable already relaxes at $\gamma = 0$. Three cases appear here:
+\begin{enumerate}
+\item \textbf{Finite $L$, $\gamma \to 0$:} $\Ge \approx \gamma(L - 1)$ for the scar (Eq.~\eqref{eq:cap}): analytic, first-order perturbation theory works.
+\item \textbf{N\'eel states, $L \to \infty$ first:} $\Ginf \to 4.8$--$5$, their closed-system rate, under every channel; their signal is lost by scrambling (Sec.~\ref{sec:leanres-op}). This is Mori's behaviour. (With the $1/e$ rate, finite $L \ge 8$ also gives $\approx 4.8$ as $\gamma \to 0$, so this measure cannot show the non-commuting limits for them; the late-time tail would.)
+\item \textbf{Scar, $L \to \infty$ first:} the closed-system decay rate of $m_\perp$ from $\ket{-}^{\otimes L}$ is $0$ at every $L$ (it stays a product state), so Mori's recipe gives $\bar g = 0$. The limits still do not commute, but differently: the first-order coefficient $L - 1$ diverges with $L$, and $\Ginf \propto \gamma^{\approx 0.55}$, so $\Ginf/\gamma \to \infty$ (13 at $\gamma = 0.01$, $\approx 27$ at $0.0005$) while $\Ginf \to 0$. In the single-kick picture, which reproduces the data to $5$--$15\%$, a finite limit would need $\Db_\infty(\tau)$ to diverge at finite $\tau$, which the finite spreading speed forbids: $\Db_\infty \le 2 + c\tau$ gives $\Ginf \lesssim (c\gamma/2)^{1/2} \to 0$. This is an argument, not a proof: it assumes that isolated kicks keep describing the decay as $\gamma \to 0$; the extrapolated data reach down to $\gamma = 0.0005$ without a floor, but a floor below $\Ginf \approx 0.01$ cannot be excluded with $L \le 22$.
+\end{enumerate}
+Two features of this model are outside Mori's assumptions: the steady state is not unique (dark states $\ket{\uparrow\cdots\uparrow}$, $\ket{\downarrow\cdots\downarrow}$), and the edge modes $\dyad{\Phi_0}{\Phi_n}$ have $\lambda = -2n\gamma$ exactly at every $L$, so the full Liouvillian gap is $\le 2\gamma \to 0$ even for $L \to \infty$ first; a finite $\bar g$ can only show up in particular observables, such as the N\'eel signals.
 
 %======================================================================
 \section{Entanglement of eigenstates and Liouvillian modes}
@@ -1042,7 +1240,11 @@ At $\gamma = 0$ the $(L+1)^2 = 25, 36, 49, 64$ tower coherences have tower weigh
 \item Next (Sec.~\ref{sec:lean}): the existing data confirm the single-kick formula for the whole $m_\perp(t)$ and show that the growth of $\Db$ must come from single-kick runs at $L \ge 24$; the planned runs ($\approx 40$ NH, 57 with $L = 26$) add $L = 22$ rates, longer $\Db(\tau)$, three more disorder realizations, operator observables of $\rho$ and five other noise channels.
 \item Theory (Sec.~\ref{sec:theory}): at fixed $L$ and $\gamma \to 0$ first-order perturbation theory gives the cap $\Gamma = \gamma(L - 1 + 2/L)$; in the thermodynamic limit the single-kick damage growth $\Db_\infty \propto \tau^\beta$ gives $\Ginf \propto \gamma^{1/(1+\beta)}$ and the collapse exponent $\nu = \beta/(1+\beta)$ (ballistic: $\gamma^{1/2}$, $\nu = 1/2$; diffusive: $\gamma^{2/3}$, $\nu = 1/3$).
 \item Tensor networks (Sec.~\ref{sec:tn-results}): TDVP and truncated CLIK need nearly the full bond dimension for $\rho(t)$ from the scar state, because the weight that leaves the tower thermalizes and carries operator entanglement.
-\item Open: the growth law of $\Db_\infty(\tau)$ (ballistic or diffusive) at $\tau > 8$, which fixes the exponent of $\Ginf$ as $\gamma \to 0$; one disorder realization per $L$; the $\gamma = 0.01$--$0.02$ extrapolation, which is the least converged.
+\item Lean runs (Sec.~\ref{sec:leanres}): every check passes (revivals $5\times10^{-14}$, reruns identical, seeds $2$--$4$ within $\approx 3\%$ of seed $1$). The damage of one kick spreads ballistically ($v \approx 1.6$, $\Db$ growing at $\approx 2$ per unit of $\tau$ before it wraps around $L = 24$ at $\tau \approx 4$); the single-kick prediction with that growth, $\Ginf \to (c\gamma/2)^{1/2}$, matches the extrapolated scar rates from $\gamma = 0.001$ to $0.05$ and their effective exponent ($0.57$ against $0.58 \pm 0.01$).
+\item Noise channels: under $\sigma^x$, $\sigma^y$, depolarizing and thermal noise the scar rate at small $\gamma$ has the same exponent as under $\sigma^z$ and collapses onto it at the effective rate $\kappa\gamma$ ($\kappa$ = damage of one kick: $1$, $1/2$, $1/2$, $1$, $3/4$ relative to $\sigma^z$) to $5$--$15\%$. At large $\gamma$ the channels differ (Zeno protection of the scar under $\sigma^x$). The N\'eel states stay at their closed-system rate $\approx 4.5$--$5.3$ under every channel. The decay channel is not usable for the scar at $\gamma \le 0.2$ (signal not monotonic, runs stopped too early).
+\item Operator spreading: the N\'eel signals are lost by scrambling (size $\to 3L/4$, $S_{\mathrm{op}} \approx 6.7$ while $\rho$ is nearly pure), the scar signal by mixing ($S_{\mathrm{op}}(t_e) \approx 0.3$, size $\le L/2$). Mori's finite $\gamma \to 0$ limit applies to the former; for the scar the limits do not commute ($\Ginf/\gamma \to \infty$) but $\Ginf \to 0$.
+\item Bond dimension (test at $L = 20$): the scar state stays at $\chi = 1$ with $H$ alone and in the no-jump evolution of every channel; one $\sigma^z$ kick drives $\chi$ to the $L = 20$ maximum $1024$ by $t \approx 2.5$--$4$ ($\epsilon = 10^{-10}$--$10^{-6}$), while $S$ saturates near $5.7$.
+\item Open: $\Db_\infty(\tau)$ beyond $\tau \approx 4$ (C2: one pure state with an MPS at $L \approx 40$--$60$; needs a loose truncation, see the $L = 20$ test), which tests the linear continuation; the channel rescaling $\Gamma^{\mathrm{ch}}(\gamma) = \Gamma^{\sigma^z}(\kappa\gamma)$ below $\gamma = 0.01$ (only $\gamma = 0.005$ at $L = 8, 10$ exists; missing: \texttt{single\_flip} with a $\sigma^x$ kick, which needs a kick option in the code, and $\sigma^x$, $\sigma^y$, depolarizing trajectories at $\gamma = 0.005$, $L = 16, 20$, $\approx 5$ NH plus $\approx 4$\,h on obelix; thermal noise has no trajectory unravelling, so it stays at $L \le 12$); the scar under decay (runs with a later stop); single-kick runs with $\sigma^x$ kicks; the forward/backward method has not been run beyond $L = 6$.
 \end{itemize}
 
 %======================================================================
@@ -1127,7 +1329,20 @@ From \texttt{plot\_scripts/lean\_plan\_analysis.py} (Sec.~\ref{sec:lean}), in \t
 \item \texttt{lean\_A3\_spread.csv}: spread of one trajectory at $t_e$ and the trajectory counts for $2\%$;
 \item \texttt{lean\_A4\_t\_e.csv}: predicted $t_e$ and $t_{\max}$ of the planned runs.
 \end{itemize}
-The step-B runs of Table~\ref{tab:leanB} have not been done yet.
+The step-B runs of Table~\ref{tab:leanB} are listed in Sec.~\ref{sec:data-lean}.
+
+\subsection{Lean runs (step B, 26--30 October 2026)}
+\label{sec:data-lean}
+
+In \texttt{data/used\_data/lean/} (1485 files); job logs in \texttt{data/non\_used\_data/logs/lean\_jobs/} (Leonardo \texttt{.out}/\texttt{.err} and \texttt{sacct\_lean.txt}; obelix queue log and per-run logs), archives in \texttt{data/non\_used\_data/archives/}.
+\begin{itemize}
+\item \textbf{Exact $\rho$, every channel} (B4): \texttt{states\_<state>\_L<L>\_g<$\gamma$><suffix>.csv}, suffix \texttt{\_chx}, \texttt{\_chy}, \texttt{\_chdep}, \texttt{\_chdecay}, \texttt{\_chthermal\_n1} or none ($\sigma^z$), and \texttt{states\_obs\_...csv} (purity, size, $n_{xy}$, support distributions, $S_{\mathrm{op}}$), scar, $x$-N\'eel, $z$-N\'eel, $L = 8, 10$ ($\gamma = 0, 0.005$--$20$, obelix) and $12$ ($\gamma = 0, 0.01$--$20$, Leonardo); 639 run files.
+\item \textbf{Diffusive trajectories, Hermitian channels} (B5): $L = 16$ (obelix), $20$ (Leonardo), $\gamma = 0.01$--$2$.
+\item \textbf{Scar, $L = 22$} (B1): $\gamma = 0.005, 0.01, 0.02, 0.05$, with half-chain entanglement (files \texttt{states\_traj\_ent\_...}).
+\item \textbf{\texttt{single\_flip}} (B2, B3): $L = 24$, 4 phases $\times$ sites $0, 6, 12, 18$, $\tau \le 16$, with block entanglement (\texttt{single\_flip\_ent\_L24\_...}); seeds $2, 3, 4$ at $L = 16$, $20$ (4 phases $\times$ 4 sites, $\tau \le 25$).
+\item \textbf{Other realizations} (B3): diffusive scar runs, seeds $2, 3, 4$, $L = 16, 20$, $\gamma = 0.01, 0.05, 0.2$ (suffix \texttt{\_seed<N>}).
+\item \textbf{Derived:} from \texttt{fit\_channels.py}: \texttt{channels\_rates.csv} and \texttt{channels\_inverse\_L.csv}; from \texttt{spreading.py}: \texttt{spreading\_prediction.csv}.
+\end{itemize}
 
 \subsection{Older data (\texttt{data/non\_used\_data/})}
 

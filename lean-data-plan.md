@@ -94,6 +94,13 @@ For comparison, the last batch (small γ, 2026-10-19) used ≈ 24 100 core-h.
 - Forward/backward (meet-in-the-middle) evolution: `julia/forward_backward.jl`, every channel and the three states,
   validated against exact runs at L = 6 (γ = 0 revivals ≤ 2.5e-6; γ = 0.1 ≤ 9e-6). Not yet run at large L. The
   influence-matrix (transverse) contraction is not implemented (theory only, in the notes).
+- 2026-10-30: step B done (B1–B5; B1′, B2 at L = 26, C1, C2 not run). Leonardo 37 jobs, 77 NH, all COMPLETED;
+  obelix 530 runs, 22.8 h, all exit 0. Data in `data/used_data/lean/`; results in CLAUDE.md ("Results of the lean
+  runs") and the notes (section "Results of the lean runs"). Main points: the single-kick damage spreads
+  ballistically (v ≈ 1.6) and wraps around L = 24 at τ ≈ 4; ballistic prediction Γ_∞ → (cγ/2)^(1/2), c ≈ 2, matches
+  the extrapolated scar rates; the other channels give the σᶻ rate at κγ; the scar under decay at γ ≤ 0.2 needs runs
+  with a later stop. C2 test (2026-10-31, L = 20 exact state vector): one kick needs χ = 1024 (the maximum) by
+  t ≈ 2.5–4 at discarded weight 1e-10–1e-6, so an MPS version needs a loose truncation.
 
 ## Results of A (2026-10-25)
 

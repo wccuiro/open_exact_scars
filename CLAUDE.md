@@ -179,14 +179,15 @@ Later knobs:
 
 ---
 
-# Code and results (state of 2026-10-20)
+# Code and results (state of 2026-10-31)
 
 Current focus: time evolution only. The `states` binary evolves ρ exactly (full Pauli basis, random c, current
 coefficients) from product states over a γ grid, `states_traj` does the same with trajectories for L > 14, and the
-decay rates are extrapolated to 1/L → 0. Latest results: "Results at small γ and the single-kick test" (small-γ
-batch, finished 2026-10-20; nothing running) and "Results up to L = 20" below; all current figures and CSVs are in
-`data/used_data/`. Open point: the growth of the single-kick damage D̄(τ) at L ≥ 24 and τ > 8 (ballistic or
-diffusive). Next data: `lean-data-plan.md` (step A done; step B code and scripts ready 2026-10-25, not submitted). Plan: `time-evolution-plan.md` (the earlier probe/ED plan `scar-vs-thermal-decay-plan.md` is in git
+decay rates are extrapolated to 1/L → 0. Latest results: "Results of the lean runs" (step B of `lean-data-plan.md`,
+finished 2026-10-30; nothing running), then "Results at small γ and the single-kick test" and "Results up to L = 20";
+all current figures and CSVs are in `data/used_data/` (lean runs in `data/used_data/lean/`). Open points: D̄_∞(τ)
+beyond τ ≈ 4 (the damage spreads ballistically but wraps around L = 24 at τ ≈ 4); the channel rescaling below
+γ = 0.01; the scar under decay (runs stopped too early). Plan: `time-evolution-plan.md` (the earlier probe/ED plan `scar-vs-thermal-decay-plan.md` is in git
 history). Notes: `latex/notes.tex` (build `cd latex && latexmk -pdf notes.tex`; figures copied from `data/used_data/`
 into `latex/figures/`). Since 2026-10-25 they open with a Theory section (forward/backward evolution and meeting in
 the middle, spectral decomposition, scars and ETH, Mori's order of limits, first-order cap γ(L − 1 + 2/L), damage
@@ -244,7 +245,8 @@ julia/forward_backward.jl  meet in the middle: ρ forward with G, observables ba
 plot_scripts/            plot_evolution.py, fit_decay.py, compare_methods.py, resource_tables.py,
                          compare_initial_states.py, plot_disorder.py, fit_probes.py, plot_spectrum.py,
                          fit_states.py, fit_states_inverse_L.py, plot_states.py, fit_small_gamma.py, single_kick.py, plot_entanglement.py,
-                         plot_operator_entanglement.py, plot_lindblad_entanglement.py, plot_clik.py,
+                         plot_operator_entanglement.py, plot_lindblad_entanglement.py, plot_clik.py, fit_channels.py, spreading.py, plot_operator_spreading.py,
+                         damage_fourier.py,
                          states_data.py (reads `states` and `states_traj` CSV, diffusive and jump, pools the
                          traj-seeds, picks one run per (state, L, γ))
 ```
@@ -364,6 +366,19 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
     `small_gamma_rates.png` as dashed curves with their L → ∞ value at an "∞" tick. Run order: `fit_states.py`,
     `fit_small_gamma.py`, `fit_states_inverse_L.py`, `single_kick.py`. Writes `small_gamma_rates.csv`,
     `small_gamma_checks.csv`, `small_gamma_collapse.csv` (ν, ν_min, ν_max), `small_gamma_rates.png`, `small_gamma_crosscheck.png`.
+  - `fit_channels.py [dir]`: Γ_e and Γ_∞ = A + B/L (L ≥ 8, ≥ 3 sizes, γ ≥ 0.01) for every channel except decay,
+    from `used_data/lean/` (σᶻ also from the older `used_data` runs, preferred where both exist). Writes
+    `channels_rates.csv`, `channels_inverse_L.csv`, `channels_inverse_L.png` (rows channels, columns states),
+    `channels_thermodynamic_rate.png` (Γ_∞ against γ per channel, plus the scar under every channel).
+  - `spreading.py [dir]` (after `fit_channels.py`): damage profile of one kick (L = 24, lean τ ≤ 16), D̄(τ) for
+    L = 12 … 24 with a ballistic L → ∞ continuation, the single-kick Γ_∞ from it against the extrapolated Γ_∞, and
+    the entanglement at t_e (S_op of ρ, L = 12; trajectory S_A, L = 22): `spreading.png`, `spreading_prediction.csv`.
+  - `plot_operator_spreading.py [dir]` (after `fit_channels.py`): size, support and operator entanglement of ρ(t)
+    from the lean `states_obs` files (L = 12): scar and Néel under σᶻ for γ = 0, 0.01, 0.1, 1, and the scar at
+    γ = 0.05 under every channel except decay, with t_e marked: `operator_spreading.png`.
+  - `damage_fourier.py [dir]`: Fourier transform d(k, τ) of the single-kick damage profile (L = 12 … 24, L = 24 from
+    the lean run), rms width σ(τ) and half width k_½(τ) of the front: `damage_fourier.csv`,
+    `damage_fourier_front.csv`, `damage_fourier.png` (outputs exist in `data/used_data/`; not yet in the notes).
   - `single_kick.py [dir]` (default `data/used_data`; reads `states_inverse_L.csv`): D̄(τ) from the `single_flip` CSVs (mean over the 16 phases and
     kicked sites), prediction m_⊥(t) ≈ exp[−γ ∫₀ᵗ D̄], D̄ continued past τ = 25 by its mean over the last 5 units
     (L ≤ 20; L = 22, 24 only to τ = 8); predicted Γ_e from γ ∫₀^{t_e} D̄ = 1 against the measured one, and Γ_∞
@@ -464,7 +479,15 @@ L = 14 31 300 s (8.7 h per unit of t, 14 GB). Two copies of the bench overlapped
 and L = 13 numbers are not usable. Laptop: `data/laptop_benchmarks.md` (all laptop timings collected, from runs with different
 code versions and γ; no dedicated bench run yet).
 
-Lean-plan runs (step B of `lean-data-plan.md`, scripts of 2026-10-25, nothing submitted yet). Output in
+Lean-plan runs (step B of `lean-data-plan.md`, scripts of 2026-10-25). **Done 2026-10-30**: Leonardo 37 jobs
+(77 node-hours, all COMPLETED, 298 runs exit 0), obelix 530 runs (22.8 h, all exit 0). Data in
+`data/used_data/lean/` (kept apart: several names equal `used_data` files, but the lean runs stop at 1.5 t_e), logs in
+`data/non_used_data/logs/lean_jobs/`, archives in `non_used_data/archives/`. Checks: γ = 0 scar revivals 5e-14;
+reruns of existing σᶻ cases identical to round-off (Γ_e equal except z-Néel L = 8, γ ≤ 0.05: revivals after 1.5 t_e);
+single_flip L = 24 equal to the old τ ≤ 8 file; seeds 2 – 4 within ≈ 3 % of seed 1; z-Néel L = 20 (trajectories,
+seed 1) ≈ 5 % above L ≤ 16 at every γ and channel (realization, like x-Néel L = 16 ≈ 3 % below). Decay channel, scar,
+γ ≤ 0.2: m_⊥ rises again after its first 1/e crossing and the runs stopped at 1.5 × that crossing, so Γ_e is not
+reliable (left out of `fit_channels.py`). Output in
 `$REPO/data/lean` (Leonardo) and `<repo>/data/lean` (obelix), apart from all existing data.
 - `make_lean_jobs.sh` (Leonardo): 41 jobs, one submit file per block (`submit_lean_B1.sh` … `_B5.sh`): B1 diffusive
   L = 22, γ = 0.005, 0.01, 0.02 (56 trajectories), 0.05 (112), with S_A every 1 or 0.5 (64 GB); B2 `single_flip`
@@ -699,6 +722,58 @@ K = 4 product terms per initial state. Data and figures in `data/used_data/` (`c
   at rate ≈ γ(L − 1), and that part thermalizes under H_I. Cost (laptop, 16 threads, open): ≈ 8 s (χ = 16), 14 s
   (χ = 32) per unit of t with expansion at every internal step.
 
+## Results of the lean runs (2026-10-30)
+
+Step B of `lean-data-plan.md` (runs and checks: "Cluster" below; notes Sec. "Results of the lean runs"). Data in
+`data/used_data/lean/`, scripts `fit_channels.py`, `spreading.py`, `plot_operator_spreading.py`. Decay channel left
+out everywhere for the scar (m_⊥ rises again after the first 1/e crossing; runs stopped too early).
+
+- **Scar Γ_∞ per channel** (A + B/L, L ≥ 8, ≥ 3 sizes; σᶻ with the older runs and L = 22; σˣ, σʸ, dep: exact
+  L = 8, 10, 12 + diffusive 16, 20 for γ ≤ 2; thermal L = 8, 10, 12):
+
+  | γ | σᶻ | σˣ | σʸ | dep | thermal |
+  |---|---|---|---|---|---|
+  | 0.01 | 0.130 | 0.082 | 0.080 | 0.129 | 0.100 |
+  | 0.02 | 0.209 | 0.134 | 0.130 | 0.214 | 0.148 |
+  | 0.05 | 0.330 | 0.219 | 0.215 | 0.336 | 0.299 |
+  | 0.1 | 0.453 | 0.351 | 0.322 | 0.457 | 0.409 |
+  | 0.2 | 0.647 | 0.447 | 0.434 | 0.653 | 0.536 |
+
+  Exponent over γ = 0.01 – 0.05: 0.54 ± 0.07, 0.58 ± 0.04, 0.59 ± 0.04, 0.60 ± 0.06, 0.67 ± 0.09: the same within
+  errors. Collapse Γ^ch(γ) = Γ^σᶻ(κγ) to 5 – 15 % with κ = damage of one kick relative to σᶻ: 1 (dep), 1/2 (σˣ, σʸ:
+  D(0) = 1 − cos 2φ, 1 on average), 3/4 (thermal: in-plane damping 3γ/2). Large γ: scar Zeno-protected under σˣ
+  (Γ_∞ peaks ≈ 0.56 at γ ≈ 1, then ∝ 1/γ), → 2γ (σᶻ, σʸ, dep), 3γ/2 (thermal). Néel states stay at their
+  closed-system rate (x-Néel 4.5 – 4.8, z-Néel 5.1 – 5.4, raised by the L = 20 realization) for γ ≤ 0.1 under every
+  channel. Below γ = 0.01 the other channels have only γ = 0.005 at L = 8, 10 (exact, at the cap; in
+  `channels_rates.csv`, not fitted); `single_flip` has no option for a σˣ kick; `states_traj` has no thermal unravelling.
+- **Damage spreading** (`single_flip` L = 24 to τ = 16, per-site profile d_r(τ)): the body of the profile (d_r ≈ 0.35)
+  moves ballistically at v ≈ 1.6 sites per unit time, the leading tail (d_r = 0.1) at ≈ 3.6, height behind the front
+  ≈ 0.7; it wraps around L = 24 at τ ≈ 4, so the 1.0 – 1.2 per unit τ growth of D̄ at L = 22, 24 for τ = 4 … 8 was
+  already finite-size filling. Before the wrap D̄ grows at 2.0 per unit τ (τ = 1.5 – 3). D̄_24 = 16.3, 17.8, 18.1,
+  18.9, 19.6 at τ = 8, 10, 12, 14, 16.
+- **Ballistic single-kick prediction:** D̄_∞ = D̄_24 to τ = 3, then linear with slope c = 2 (2.7 if the height grows to
+  0.85); Γ_∞ → (cγ/2)^(1/2). Prediction (c = 2) against Γ_∞ on L ≥ 14: 0.034 / 0.034 (γ = 0.001), 0.049 / 0.044
+  (0.002), 0.081 / 0.092 (0.005), 0.121 / 0.148 (0.01), 0.184 / 0.196 (0.02), 0.332 / 0.323 (0.05); 0.023 / 0.014 at
+  0.0005 (least converged). Effective exponent over γ = 0.0005 – 0.05: prediction 0.57 (c = 2), 0.54 (c = 2.7), data
+  0.58 ± 0.01 weighted, 0.66 ± 0.04 unweighted. The earlier "2/3" was only the collapse minimum ν = 0.33 (band
+  0.24 – 0.48 included 1/2); 1/2 is the γ → 0 limit. Point-wise misses of 3 – 4 fit errors; tension with ν = 0.33.
+- **Operator spreading of ρ** (L = 12, σᶻ, at t_e): Néel states lose the signal by scrambling (size → 3L/4, S_op ≈ 6.7
+  by t ≈ 0.5, t_e ≈ 0.2 while ρ is nearly pure: purity 0.95 at γ = 0.01); the scar by mixing (size ≤ L/2, purity
+  0.06, S_op(t_e) = 0.27 at γ = 0.01, the same at L = 8 … 12; 0.13 under σˣ). Trajectory half-chain S_A at t_e
+  (L = 22) ≈ 5 for γ ≤ 0.02 with ≈ 2 kicks in the chain: still finite-size.
+- **Mori:** Néel → finite closed-system rate as γ → 0 (Mori's case); scar: closed-system rate 0, limits do not commute
+  (Γ_∞/γ → ∞) but Γ_∞ → 0 non-analytically (single-kick picture with finite spreading speed gives Γ_∞ ≲ (cγ/2)^(1/2);
+  an argument, not a proof). Edge modes −2nγ make the full gap ≤ 2γ for any L, and the dark states make the
+  steady state non-unique: both outside Mori's assumptions.
+- **Bond dimension test** (laptop, 2026-10-31, exact state vector L = 20, H only, scratchpad script, not in `data/`):
+  |−⟩^⊗20 stays χ = 1, S = 0 to t = 10. One σᶻ kick on site 10: χ(discarded weight ≤ 1e-10) = 90, 536, 998, 1021 at
+  t = 0.5, 1, 2, 3 and 1024 (the L = 20 maximum) from t ≈ 5; χ(1e-6) = 15, 66, 657, 958, ≈ 1010 from t ≈ 5; middle
+  S = 0.86, 1.29, 1.86, 2.75, 4.21 (t = 5), 5.32 (10), 5.73 (20), below 10 ln 2 − 1/2 = 6.43. χ is set by the tail of
+  small Schmidt values (the fast leading edge), not by e^S, so an MPS single-kick run at L ≥ 22 needs a loose
+  truncation (1e-3 – 1e-4, not measured). No-jump evolution: for every channel L†L ∈ span(𝟙, σᶻ), so H_eff is H plus a
+  constant (plus −i·const·Sᶻ_tot for decay/thermal, which keeps the scar a product state): the no-jump scar state
+  stays a product state for any γ; bond dimension grows only at jumps.
+
 ## Results at small γ and the single-kick test (2026-10-20)
 
 Small-γ batch (Cluster, "Small-γ scar runs"), data in `data/used_data/`, scripts `fit_small_gamma.py`,
@@ -789,7 +864,8 @@ Small-γ batch (Cluster, "Small-γ scar runs"), data in `data/used_data/`, scrip
   this fit (15 % below the L ≥ 8 one).
 - **Main question.** In the thermodynamic limit the lifetime is set by the growth of D̄_∞(τ): linear (ballistic)
   gives Γ_∞ ∝ γ^(1/2), D̄ ∝ τ^(1/2) gives γ^(2/3). D̄ of L = 22, 24 to τ = 8 and the collapse (ν = 0.24 – 0.48) do
-  not yet decide; longer τ at L ≥ 24 (`single_flip` with more sites, or MPS) would.
+  not yet decide; longer τ at L ≥ 24 (`single_flip` with more sites, or MPS) would. Update 2026-10-30: the L = 24
+  damage profile spreads ballistically until it wraps at τ ≈ 4 ("Results of the lean runs").
 
 ## Results up to L = 20: scar and x-Néel (exact L ≤ 14, trajectories L = 12 … 20)
 

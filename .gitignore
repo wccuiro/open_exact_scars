@@ -9,3 +9,6 @@ __pycache__/
 
 # Windows download markers (WSL)
 *:Zone.Identifier
+
+# editor settings
+.vscode/

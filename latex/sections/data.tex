@@ -1,0 +1,56 @@
+\section{Data computed}
+\label{sec:data}
+
+What has been computed with the current coefficients (Sec.~\ref{sec:model}; random $c$, seed $1$ unless stated). All data are in \texttt{data/used\_data/} (not tracked by git), the channel study and the newer runs in its subfolder \texttt{lean/}. The decay rates of every run are in \texttt{states\_rates.csv} and \texttt{channels\_rates.csv}, the extrapolations in \texttt{states\_\allowbreak inverse\_\allowbreak L.csv}, \texttt{states\_\allowbreak inverse\_\allowbreak L\_\allowbreak large.csv} and \texttt{channels\_\allowbreak inverse\_\allowbreak L.csv}.
+
+\paragraph{Time evolution} (\texttt{states}: exact $\rho$; \texttt{states\_traj}: trajectories, $224$ per run at $L \le 18$, $112$ at $L = 20$, $56$--$112$ at $L = 22$ and for the channel study and the seeds). Every run starts from the state of Table~\ref{tab:states} and stops once its signal has decayed (below $10^{-3}$, or at $1.5\,t_e$ for the channel study and $L = 22$). The exact runs at $L = 8, 10, 12$ of every channel also record the purity, the operator size and support distributions and the operator entanglement of $\rho$.
+\begin{center}
+\small
+\begin{longtable}{lllcp{2.6cm}p{6.2cm}}
+\toprule state & noise & method & seed & $L$ & $\gamma$ \\ \midrule \endhead
+scar & $\sigma^z$ & exact & 1 & 4--7, 9, 11, 14 & 0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10 \\
+scar & $\sigma^z$ & exact & 1 & 8, 10, 12 & 0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+scar & $\sigma^z$ & diffusive & 1 & 12, 14, 16, 18, 20 & 0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10 \\
+scar & $\sigma^z$ & diffusive & 1 & 22 & 0.01, 0.02, 0.05 \\
+scar & $\sigma^z$ & diffusive & 2 & 16, 20 & 0.01, 0.05, 0.2 \\
+scar & $\sigma^z$ & diffusive & 3 & 16, 20 & 0.01, 0.05, 0.2 \\
+scar & $\sigma^z$ & diffusive & 4 & 16, 20 & 0.01, 0.05, 0.2 \\
+scar & $\sigma^x$ & exact & 1 & 8, 10, 12 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+scar & $\sigma^x$ & diffusive & 1 & 16, 20 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2 \\
+scar & $\sigma^y$ & exact & 1 & 8, 10, 12 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+scar & $\sigma^y$ & diffusive & 1 & 16, 20 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2 \\
+scar & depol. & exact & 1 & 8, 10, 12 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+scar & depol. & diffusive & 1 & 16, 20 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2 \\
+scar & decay & exact & 1 & 8, 10, 12 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+scar & thermal & exact & 1 & 8, 10, 12 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+$x$-N\'eel & $\sigma^z$ & exact & 1 & 4, 6, 14 & 0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10 \\
+$x$-N\'eel & $\sigma^z$ & exact & 1 & 8, 10, 12 & 0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+$x$-N\'eel & $\sigma^z$ & diffusive & 1 & 12, 14, 16, 18, 20 & 0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10 \\
+$x$-N\'eel & $\sigma^x$ & exact & 1 & 8, 10, 12 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+$x$-N\'eel & $\sigma^x$ & diffusive & 1 & 16, 20 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2 \\
+$x$-N\'eel & $\sigma^y$ & exact & 1 & 8, 10, 12 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+$x$-N\'eel & $\sigma^y$ & diffusive & 1 & 16, 20 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2 \\
+$x$-N\'eel & depol. & exact & 1 & 8, 10, 12 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+$x$-N\'eel & depol. & diffusive & 1 & 16, 20 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2 \\
+$x$-N\'eel & decay & exact & 1 & 8, 10, 12 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+$x$-N\'eel & thermal & exact & 1 & 8, 10, 12 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+$z$-N\'eel & $\sigma^z$ & exact & 1 & 4, 6 & 0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10 \\
+$z$-N\'eel & $\sigma^z$ & exact & 1 & 8, 10, 12 & 0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+$z$-N\'eel & $\sigma^z$ & diffusive & 1 & 16, 20 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2 \\
+$z$-N\'eel & $\sigma^x$ & exact & 1 & 8, 10, 12 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+$z$-N\'eel & $\sigma^x$ & diffusive & 1 & 16, 20 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2 \\
+$z$-N\'eel & $\sigma^y$ & exact & 1 & 8, 10, 12 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+$z$-N\'eel & $\sigma^y$ & diffusive & 1 & 16, 20 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2 \\
+$z$-N\'eel & depol. & exact & 1 & 8, 10, 12 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+$z$-N\'eel & depol. & diffusive & 1 & 16, 20 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2 \\
+$z$-N\'eel & decay & exact & 1 & 8, 10, 12 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+$z$-N\'eel & thermal & exact & 1 & 8, 10, 12 & 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20 \\
+\bottomrule
+\end{longtable}
+\end{center}
+
+\paragraph{Single kicks} (\texttt{single\_flip}, scar state, $H$ only; phases $\times$ kicked sites, up to $\tau_{\max}$): $L = 12, 14, 16, 18, 20$, $16$ phases $\times$ all sites, $\tau \le 25$; $L = 22$, $16 \times 4$ sites, $\tau \le 8$; $L = 24$, $16 \times 4$, $\tau \le 8$, and $4 \times 4$, $\tau \le 16$ with block entanglement; seeds $2$, $3$, $4$ at $L = 16$ and $20$, $4 \times 4$, $\tau \le 25$.
+
+\paragraph{Spectra and eigenstates.} All eigenstates of $H$ with their half-chain entropy (\texttt{entanglement}), $L = 6$--$12$. Every eigenmatrix of $\Lv$ with $E_{L,R}$ and $S_{L,R}$ (\texttt{lindblad\_entanglement}), $\gamma = 0$ for $L = 4$--$7$ and $\gamma = 0.01$ for $L = 4$--$6$. The Liouvillian spectrum of the open chain (\texttt{ed --open 1}), $L = 4, 5, 6$, $\gamma = 0.01$, used as the reference of CLIK.
+
+\paragraph{Tensor networks} (Appendix~\ref{app:other}). CLIK, $\gamma = 0.01$: dense backend $L = 4, 5, 6$ (ring, random initial states, $T \le 400$) and $L = 6$ (open chain, random and scar initial states, $T \le 200$); MPS backend $L = 6$ open chain, $\chi = 16, 32$ and the full $64$. Forward/backward evolution: $L = 6$, full $\chi$, $t \le 5$, the three states, $\gamma = 0$ and $0.1$, $\sigma^z$, $\sigma^x$ dephasing and decay, against the exact \texttt{states} runs.

@@ -1,0 +1,199 @@
+\section{Theory}
+\label{sec:theory}
+
+This chapter collects the theory behind what is computed: how a Lindbladian evolves states and observables, its spectral decomposition, why the tower is special, the exact results that hold for any coefficients, what is known about the weak-dissipation limit, what each channel does without interactions, and what the operator observables measure. The numerical methods are in Appendix~\ref{sec:methods}.
+
+\subsection{The Lindblad generator and its adjoint}
+\label{sec:forward-backward}
+
+\paragraph{The generator.} With jump operators $L_l$ (all sites and all operators of a channel), Eq.~\eqref{eq:lindblad} reads
+\begin{equation}
+\dot\rho = \Lv(\rho) = -i[H,\rho] + \sum_l\Big(L_l\rho L_l^\dagger - \tfrac12\{L_l^\dagger L_l, \rho\}\Big),
+\label{eq:lindblad-general}
+\end{equation}
+whose solution $\rho(t) = e^{\Lv t}(\rho_0)$ is a completely positive, trace-preserving semigroup. For the channels of Table~\ref{tab:channels} the anticommutator term is simple, because $L^\dagger L$ is a combination of $\mathds 1$ and $\sigma^z$ on one site:
+\begin{center}
+\small
+\begin{tabular}{ll}
+\toprule
+channel & $\sum_k L_{j,k}^\dagger L_{j,k}$ \\
+\midrule
+$\sigma^z$, $\sigma^x$, $\sigma^y$ dephasing & $\gamma\,\mathds 1$ \\
+depolarizing & $3\cdot\tfrac\gamma2\,\mathds 1$ \\
+decay & $\gamma\,\dyad\uparrow\uparrow = \tfrac\gamma2(\mathds 1 + \sigma^z_j)$ \\
+thermal & $\gamma(\bar n+1)\dyad\uparrow\uparrow + \gamma\bar n\,\dyad\downarrow\downarrow = \tfrac\gamma2\big[(2\bar n+1)\mathds 1 + \sigma^z_j\big]$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+For the Hermitian channels it is a constant and Eq.~\eqref{eq:lindblad-general} reduces to $\dot\rho = -i[H,\rho] + \sum_l(L_l\rho L_l - \gamma_l\rho)$; for $\sigma^z$ dephasing, $\dot\rho = -i[H,\rho] + \gamma\sum_j(\sigma^z_j\rho\sigma^z_j - \rho)$.
+
+\paragraph{The adjoint generator and backward (Heisenberg) evolution.} With the Hilbert--Schmidt inner product $\langle A, B\rangle = \Tr(A^\dagger B)$, the adjoint of $\Lv$ is
+\begin{equation}
+\Lv^\dagger(A) = i[H, A] + \sum_l\Big(L_l^\dagger A L_l - \tfrac12\{L_l^\dagger L_l, A\}\Big),
+\end{equation}
+for any jump operators, Hermitian or not: by the cyclic property of the trace, term by term, $\Tr(A\,[H,\rho]) = \Tr([A,H]\,\rho)$, $\Tr(A\,L\rho L^\dagger) = \Tr(L^\dagger AL\,\rho)$ and $\Tr(A\{L^\dagger L, \rho\}) = \Tr(\{L^\dagger L, A\}\rho)$. Every expectation value can therefore be computed in two equivalent ways,
+\begin{equation}
+\langle A\rangle_t = \Tr\big[A\;e^{\Lv t}(\rho_0)\big] = \Tr\big[e^{\Lv^\dagger t}(A)\;\rho_0\big],
+\label{eq:duality}
+\end{equation}
+by evolving the state forward (Schr\"odinger picture) or the observable backward (Heisenberg picture). Trace preservation is $\Lv^\dagger(\mathds 1) = 0$ for every channel. Unitality, $\Lv(\mathds 1) = 0$, holds if $\sum_l[L_l, L_l^\dagger] = 0$: for the dephasings and the depolarizing channel, not for decay and thermal noise.
+
+\paragraph{In Pauli coordinates.} In the coordinates $r_P = \Tr(\rho P)$ of Appendix~\ref{sec:methods} the forward generator is a real matrix $G$, $\dot r = Gr$ (Eq.~\eqref{eq:generator}), and the backward generator is its transpose $G^{\mathsf T}$, because the Pauli strings form an orthogonal real basis of the Hermitian operators. Nothing else is needed: an observable is evolved backward by $e^{G^{\mathsf T}t}$, for every channel. Two properties make $G^{\mathsf T}$ easy to build. The Hamiltonian part of $G$ is antisymmetric, so its transpose is the Hamiltonian part for $-H$. The dissipator is diagonal for the Hermitian channels (each string is damped at its own rate), hence symmetric; for decay and thermal noise it also has an off-diagonal \emph{feed} ($\mathds 1 \to \sigma^z$ on one site, Appendix~\ref{sec:channels}), which the transpose turns around ($\sigma^z \to \mathds 1$). For the Hermitian channels this gives the shortcut $e^{\Lv^\dagger t} = e^{\Lv t}|_{H\to-H}$: the forward code with the unitary part reversed. It is only a shortcut to reuse code; the backward evolution itself needs only $G^{\mathsf T}$, and the tensor-network code builds it for every channel, the feed included (Appendix~\ref{app:other}).
+
+\subsection{Spectral decomposition}
+\label{sec:spectral}
+
+$\Lv$ is a linear map on the $4^L$-dimensional space of operators, in general not normal and not necessarily diagonalizable. Its Jordan decomposition is
+\begin{equation}
+\Lv = \sum_k\big(\lambda_k\,\mathcal P_k + \mathcal N_k\big), \qquad
+e^{\Lv t} = \sum_k e^{\lambda_k t}\,\mathcal P_k\sum_{m=0}^{d_k - 1}\frac{(\mathcal N_k t)^m}{m!},
+\label{eq:jordan}
+\end{equation}
+with $\mathcal P_k$ the spectral projector on the generalized eigenspace of $\lambda_k$ (dimension $d_k$, $\sum_k\mathcal P_k = 1$, $\mathcal P_k\mathcal P_l = \delta_{kl}\mathcal P_k$) and $\mathcal N_k = \mathcal P_k(\Lv - \lambda_k)\mathcal P_k$ nilpotent, $\mathcal N_k^{d_k} = 0$. A non-trivial Jordan block (an exceptional point of $\Lv$) therefore adds powers of $t$ to the exponential: $t^m e^{\lambda_k t}$. Exceptional points are non-generic (they need special values of the parameters); for generic coefficients every $\mathcal N_k = 0$, $\Lv$ is diagonalizable, and Eq.~\eqref{eq:jordan} reduces to a sum over right eigenmatrices $\Lv(R_k) = \lambda_kR_k$ and left eigenmatrices $\Lv^\dagger(\tilde L_k) = \lambda_k^*\tilde L_k$, normalized as $\Tr(\tilde L_j^\dagger R_k) = \delta_{jk}$ ($\mathcal P_k X = \Tr(\tilde L_k^\dagger X)\,R_k$):
+\begin{equation}
+\rho(t) = \sum_k e^{\lambda_k t}\,\Tr(\tilde L_k^\dagger\rho_0)\,R_k, \qquad
+\langle A\rangle_t = \sum_k e^{\lambda_k t}\;\Tr(\tilde L_k^\dagger\rho_0)\;\Tr(AR_k).
+\label{eq:spectral}
+\end{equation}
+Degenerate eigenvalues (as in the tower, Sec.~\ref{sec:exact}) are allowed in this form as long as the eigenspace is complete. Every eigenvalue has $\operatorname{Re}\lambda_k \le 0$; $\lambda = 0$ belongs to the steady states; since $\Lv$ maps Hermitian to Hermitian operators, eigenvalues come in pairs $\lambda, \lambda^*$ with $R \leftrightarrow R^\dagger$. A signal therefore decays as a sum of exponentials (times polynomials at an exceptional point), and its late-time rate is $-\operatorname{Re}\lambda$ of the slowest mode that overlaps both the initial state and the observable. For $\sigma^z$ dephasing, $G = G_H + G_D$ with $G_H$ antisymmetric and $G_D$ diagonal with entries $-2\gamma n_{xy}(P) \in [-2\gamma L, 0]$, so $-2\gamma L \le \operatorname{Re}\lambda \le 0$ (for any eigenvector $v$, $\operatorname{Re}(v^\dagger Gv)/v^\dagger v = v^\dagger G_Dv/v^\dagger v$).
+
+\subsection{Forward and backward evolution: meeting in the middle}
+\label{sec:meet}
+
+The semigroup property $e^{\Lv t} = e^{\Lv t_2}e^{\Lv t_1}$ ($t = t_1 + t_2$) and Eq.~\eqref{eq:duality} applied to the second factor give, for Hermitian $A$,
+\begin{equation}
+\langle A\rangle_{t_1 + t_2} = \Tr\big[e^{\Lv^\dagger t_2}(A)\;e^{\Lv t_1}(\rho_0)\big] = \big\langle e^{\Lv^\dagger t_2}(A),\, e^{\Lv t_1}(\rho_0)\big\rangle :
+\label{eq:meet}
+\end{equation}
+the state is evolved forward to $t_1$, the observable backward to $t_2$, and the two meet in an overlap. This applies to the deterministic evolution of the density matrix (exactly, or as a matrix product state), not to the quantum trajectories: a trajectory is a pure state sampled along one noise history, and its average over histories is only $\rho(t)$ at the end; there is no trajectory version of the backward half that could be overlapped with it.
+
+Its use is for compressed representations of $\rho$, whose cost is set by the operator entanglement of the evolved object (Sec.~\ref{sec:theory-observables}), which grows with time. If an MPS of bond dimension $\chi(t)$ is needed to represent $\rho(t)$ (or $e^{\Lv^\dagger t}(A)$) to a given accuracy, the split $t_1 = t_2 = t/2$ needs two objects of bond dimension $\chi(t/2)$ each instead of one of $\chi(t)$: at a fixed maximal bond dimension the reachable time doubles, or a somewhat larger system can be reached at the same time. The two halves also behave differently here. The forward state starts in the tower and, without noise, stays a product state; the noise moves weight out of the tower, which then thermalizes. The backward-evolved local observable $A = \sigma^x_j$ grows inside a light cone, but its long strings are damped by the dephasing at $2\gamma n_{xy}$, so the dissipation itself truncates the operator growth. Both are contractions of the same space--time tensor network cut at an intermediate time; the influence-matrix method (Appendix~\ref{app:other}) contracts it along space instead.
+
+\paragraph{Where each picture is used.} Forward: the exact evolution of $\rho$, the trajectories, the single-kick runs. Backward: the left eigenvectors of the Lindbladian diagonalization and the adjoint runs of CLIK. Meeting in the middle: \texttt{julia/forward\_backward.jl}, validated at $L = 6$ (Appendix~\ref{app:other}).
+
+\subsection{Scars, thermalization and entanglement}
+\label{sec:theory-scars}
+
+\paragraph{Eigenstate thermalization.} In a chaotic (non-integrable) system, expectation values of local operators in eigenstates are smooth functions of energy equal to their thermal values (ETH), and eigenstates in the middle of the spectrum have volume-law entanglement close to that of random states, the Page value. Local observables of a generic initial state then relax to their thermal values on an $L$-independent time scale; for the $x$- and $z$-N\'eel states this is the rate $\Ge \approx 4.8$--$5$ of Sec.~\ref{sec:states}.
+
+\paragraph{The tower.} Quantum many-body scars are eigenstates that violate ETH. Here they form a tower with a restricted spectrum-generating structure: $\ket{\Phi_{n+1}} \propto S^-_{\mathrm{tot}}\ket{\Phi_n}$ and $E_{n+1} - E_n = -h$, because every term of $H_I$ annihilates the ferromagnetic multiplet (each contains a singlet projector $R_{j,j+1}$, and the multiplet is symmetric under every exchange). Any state in their span evolves as $e^{-iHt}\sum_nc_n\ket{\Phi_n} = \sum_n c_n e^{-ih(L/2-n)t}\ket{\Phi_n}$, which returns to itself up to a phase after $2\pi/h$: perfect revivals, and for the spin coherent state $\ket{-}^{\otimes L}$ a rigid precession of all spins, $\langle\sigma^x_j\rangle = -\cos ht$, $\langle\sigma^y_j\rangle = -\sin ht$. Revivals of this kind require scars (Alhambra--Wilming). In the commutant-algebra language (Moudgalya--Motrunich) the tower spans the common kernel of the local annihilators $R_{j,j+1}$, which is why the dressings $a$, $b$, $c$ can be chosen freely.
+
+\paragraph{Scar entanglement.} The scars are the Dicke states $\ket{\Phi_n} = \binom Ln^{-1/2}\sum_{\lvert\bs\rvert = n}\ket{\bs}$. For the cut into $L_A$ and $L - L_A$ sites, the $n$ down spins split into $\ell$ in $A$ and $n - \ell$ in $B$, so $\ket{\Phi_n} = \sum_\ell\sqrt{p_\ell}\,\ket{\Phi^{(A)}_\ell}\ket{\Phi^{(B)}_{n-\ell}}$ with Dicke states of the two halves and hypergeometric Schmidt weights
+\begin{equation}
+p_\ell = \binom{L_A}{\ell}\binom{L-L_A}{n-\ell}\Big/\binom{L}{n}, \qquad S(\Phi_n) = -\sum_\ell p_\ell\ln p_\ell .
+\end{equation}
+For $n = L/2$, $L_A = L/2$ this distribution has variance $\sigma^2 = \frac{n L_A (L - L_A)(L-n)}{L^2(L-1)} \approx L/16$, and the entropy of a discretized Gaussian, $\tfrac12\ln(2\pi e\sigma^2)$, gives
+\begin{equation}
+S(\Phi_{L/2}) \approx \tfrac12\ln\frac{\pi e L}{8},
+\label{eq:scar-entropy}
+\end{equation}
+logarithmic in $L$, far below the volume law of the bulk. Figure~\ref{fig:scarS} checks both against the diagonalization of $H$: the entropies of the $L + 1$ tower eigenstates equal the hypergeometric formula to $5\times10^{-13}$ for every $n$ and $L = 6$--$12$, and Eq.~\eqref{eq:scar-entropy} approaches the exact middle-scar entropy as $L$ grows ($1.275$ against $1.318$ at $L = 12$, $2.682$ against $2.684$ at $L = 200$).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{scar_entropy.png}
+\caption{(a) Half-chain entropy of the scars $\ket{\Phi_n}$ from the diagonalization of $H$ (dots) and the hypergeometric formula (lines), $L = 6$--$12$. (b) The middle scar against $L$: diagonalization, exact formula up to $L = 200$, the Gaussian estimate~\eqref{eq:scar-entropy}, and the Page value of a random state (\texttt{plot\_scar\_entropy.py}).}
+\label{fig:scarS}
+\end{figure}
+
+\paragraph{What dephasing does to the tower.} By permutation symmetry, the projection of $\sigma^z_j$ onto the tower is the same for every site, so $\Ptow\sigma^z_j\Ptow = \frac1L\sum_k\Ptow\sigma^z_k\Ptow = \frac2L S^z_{\mathrm{tot}}\Ptow$, i.e.\ $\langle\Phi_a\vert\sigma^z_j\vert\Phi_b\rangle = m_a\delta_{ab}$ with $m_a = 1 - 2a/L$. A kick $\sigma^z_j$ on $\ket{\Phi_a}$ keeps the weight $m_a^2$ in the tower and sends $1 - m_a^2$ to $k \ne 0$ spin waves, which are not eigenstates of $H$ and spread and thermalize under $H_I$. For $\ket{-}^{\otimes L}$, the weight kept is $\langle(2S^z_{\mathrm{tot}}/L)^2\rangle = 1/L$.
+
+\paragraph{Entanglement of operators and of Liouvillian modes.} An operator $X$ can be Schmidt-decomposed across the same cut as a state, as a vector in operator space; its operator entanglement $S_{\mathrm{op}}(X)$ is the entropy of the normalized operator Schmidt weights (at most $2L_A\ln 2$; Appendix~\ref{sec:methods}). For a pure state $S_{\mathrm{op}}(\dyad\psi\psi) = 2S_A(\psi)$, and for two eigenstates the decomposition of $\dyad nm$ is the product of those of $\ket n$ and $\ket m$, so $S_{\mathrm{op}}(\dyad nm) = S_n + S_m$ exactly (Fig.~\ref{fig:opent}): bulk--bulk pairs reach twice the Page value, scar--scar pairs (the tower coherences) stay below $2.6$ at $L = 12$.
+
+A right eigenmatrix $X$ of $\Lv$ is not Hermitian, and its normalization and phase are arbitrary. The two positive, unit-trace operators
+\begin{equation}
+\rho_L = \frac{XX^\dagger}{\Tr(XX^\dagger)}, \qquad \rho_R = \frac{X^\dagger X}{\Tr(X^\dagger X)}
+\end{equation}
+are density matrices, with energies $E_{L,R} = \Tr(\rho_{L,R}H)$ and operator entanglement $S_{L,R} = S_{\mathrm{op}}(\rho_{L,R})$. For $X = \dyad nm$, $\rho_L = \dyad nn$ and $\rho_R = \dyad mm$, so $(E_L, S_L) = (E_n, 2S_n)$ and $(E_R, S_R) = (E_m, 2S_m)$: at $\gamma = 0$ the modes reproduce the eigenstates exactly ($7\times10^{-12}$). Since $\Lv$ is real in the Pauli basis, $X(\lambda^*) = X(\lambda)^\dagger$ and $\rho_L(\lambda^*) = \rho_R(\lambda)$, so the $(E_L, S_L)$ and $(E_R, S_R)$ sets coincide. Degenerate eigenspaces (the kernel, the edge pairs $\dyad{\Phi_0}{\Phi_n}$, $\dyad{\Phi_{L-n}}{\Phi_L}$, and at $\gamma = 0$ every $\dyad nn$ and every tower spacing) have no unique eigenmatrix; the basis that diagonalizes $\Tr(X_i^\dagger HX_j)$ against $\Tr(X_i^\dagger X_j)$ splits each edge pair exactly. Figure~\ref{fig:lindent} shows every mode at $\gamma = 0.01$ for $L = 5, 6$. The modes with tower weight $\lVert\Ptow X\Ptow\rVert/\lVert X\rVert > 0.9$ ($32$ at $L = 5$, $44$ at $L = 6$, out of $(L+1)^2$ tower coherences: the dephasing mixes a few mid-tower coherences with the bulk) stay low-entanglement outliers on both sides, $S_{L,R} \le 1.81$ and $2.05$ against the median $1.82$, $2.60$ of all modes and the maximum $2.77$, $4.16$; from $\gamma = 0$ to $0.01$ their largest $S$ changes by less than $0.02$. The points at $S = 0$ are modes with $\rho_L$ or $\rho_R = \dyad{\Phi_0}{\Phi_0}$ or $\dyad{\Phi_L}{\Phi_L}$, among them the $2^{L+1}$ half-dark modes $\dyad{\Phi_0}{\psi}$, $\dyad{\Phi_L}{\psi}$ (tower weight $\approx 0$, same $\rho_L$).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{operator_entanglement.png}
+\caption{Operator entanglement $S_n + S_m$ of $\dyad{n}{m}$ for every pair of eigenstates of $H$ against $E_m - E_n$, $L = 6, 8, 10, 12$: bulk--bulk as a density, scar--bulk and scar--scar as points; twice the Page value dotted (\texttt{plot\_operator\_entanglement.py}).}
+\label{fig:opent}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{lindblad_entanglement_g0.01.png}
+\caption{Every Liouvillian mode at $\gamma = 0.01$, $L = 5, 6$: operator entanglement against energy of $\rho_L = XX^\dagger/\Tr$ (left) and $\rho_R = X^\dagger X/\Tr$ (right); tower weight $> 0.9$ in orange, $2L_A\ln 2$ dotted (\texttt{lindblad\_entanglement}, \texttt{plot\_lindblad\_entanglement.py}).}
+\label{fig:lindent}
+\end{figure}
+
+\subsection{Exact results}
+\label{sec:exact}
+
+These hold for any coefficients ($\sigma^z$ dephasing).
+
+\paragraph{Dark states and steady states.} $\ket{\Phi_0} = \ket{\uparrow\cdots\uparrow}$ and $\ket{\Phi_L} = \ket{\downarrow\cdots\downarrow}$ are eigenstates of $H$ and of every $\sigma^z_j$, hence dark states of the dissipator. The kernel of $\Lv$ is spanned by
+\begin{equation}
+\mathds{1}, \qquad \dyad{\Phi_0}{\Phi_0}, \qquad \dyad{\Phi_L}{\Phi_L},
+\end{equation}
+three zero eigenvalues in every diagonalization. The infinite-temperature state is therefore \emph{not} the unique steady state. The coherence $\dyad{\Phi_0}{\Phi_L}$ is an eigenmode with $\lambda = -2\gamma L - ihL$, which saturates the bound $-2\gamma L \le \operatorname{Re}\lambda$.
+
+\paragraph{Edge coherences of the tower.} Since $\sigma^z_j\ket{\Phi_0} = \ket{\Phi_0}$ and $\sum_j\sigma^z_j = 2S^z_{\mathrm{tot}}$,
+\begin{equation}
+\D\big(\dyad{\Phi_0}{\Phi_n}\big) = \gamma\,\dyad{\Phi_0}{\Phi_n}\Big(\sum_j\sigma^z_j - L\Big) = -2n\gamma\,\dyad{\Phi_0}{\Phi_n},
+\end{equation}
+and both states are eigenstates of $H$, so $\dyad{\Phi_0}{\Phi_n}$ (and likewise $\dyad{\Phi_L}{\Phi_{L-n}}$) is an exact Liouvillian eigenmode with
+\begin{equation}
+\lambda = -2n\gamma - i h n \qquad \text{for every } L.
+\end{equation}
+The slowest tower modes decay at exactly $2\gamma$, independent of $L$: the full Liouvillian gap is at most $2\gamma$ for every $L$.
+
+\paragraph{Initial loss of tower weight.} For $\rho = \dyad{\psi}{\psi}$ with $\ket\psi = \ket{-}^{\otimes L}$, $w = \Tr(\Ptow\rho)$ and $[\Ptow,H] = 0$,
+\begin{equation}
+\dot w(0) = \gamma\sum_j\big(\lVert\Ptow\sigma^z_j\ket\psi\rVert^2 - 1\big), \qquad
+\Ptow\sigma^z_j\ket\psi = \tfrac{2}{L}S^z_{\mathrm{tot}}\ket\psi
+\;\Rightarrow\; \dot w(0) = -\gamma(L-1),
+\label{eq:wdot}
+\end{equation}
+using the permutation symmetry of the tower and $\langle (S^z_{\mathrm{tot}})^2\rangle = L/4$. A kick keeps a fraction $1/L$ of the state in the tower; the rest is $k \ne 0$ spin waves. At late times $w \to (L+1)/2^L$.
+
+\paragraph{Overlaps.} $\Ptow\sigma^\alpha_j\Ptow = \tfrac2L S^\alpha_{\mathrm{tot}}\Ptow$ for every $j$, so the staggered operators $O^\alpha_\pi = \sum_j (-1)^j\sigma^\alpha_j$ have zero tower part. The $x$-N\'eel signal (Sec.~\ref{sec:states}) is therefore blind to the tower.
+
+\subsection{Weak dissipation: the order of limits and the finite-size cap}
+\label{sec:theory-weak}
+
+\paragraph{The question.} At fixed $L$ and $\gamma \to 0$, every decay rate is proportional to $\gamma$ (perturbation theory, below). Mori showed that the limits do not commute: for generic local observables of a chaotic system, taking $L \to \infty$ first, the slowest relevant Liouvillian eigenvalue stays at a finite distance from $0$ as $\gamma \to 0^+$; it converges to a Ruelle--Pollicott resonance, the intrinsic relaxation rate of the closed system. The thermal references behave this way: $\Ginf \approx 4.8$ for every $\gamma \le 0.1$ ($x$-N\'eel). The question is whether the scar revivals are instead \emph{regular}, $\Ginf \to 0$ as $\gamma \to 0$, and with which power of $\gamma$.
+
+\paragraph{First-order perturbation theory at fixed $L$.} For $\gamma \to 0$, the eigenvalues of $\Lv = \Lv_0 + \D$ with $\Lv_0 = -i[H,\cdot]$ are, to first order, the eigenvalues of $\D$ restricted to each degenerate eigenspace of $\Lv_0$. The tower coherences $\dyad{\Phi_a}{\Phi_b}$ share the frequency $-ih(b - a)$; restricted to them, with $\langle\Phi_a\vert\sigma^z_j\vert\Phi_b\rangle = m_a\delta_{ab}$,
+\[ \Ptow\,\D\big(\dyad{\Phi_a}{\Phi_b}\big)\Ptow = \gamma\sum_j\big(m_am_b - 1\big)\dyad{\Phi_a}{\Phi_b} = -\gamma L\,(1 - m_am_b)\,\dyad{\Phi_a}{\Phi_b}. \]
+The transverse magnetization involves the coherences $(a, b) = (n, n+1)$ with weights $\propto |c_nc_{n+1}|\,\langle\Phi_n\vert S^+_{\mathrm{tot}}\vert\Phi_{n+1}\rangle = L\binom{L-1}{n}/2^L$, i.e.\ $n$ binomial with $L - 1$ trials. With $u = m_n = 1 - 2n/L$: $\mathbb E[u] = 1/L$, $\operatorname{Var}u = (L-1)/L^2$, and $m_{n+1} = u - 2/L$, so $\mathbb E[m_nm_{n+1}] = (L-2)/L^2$ and the mean first-order rate is
+\begin{equation}
+\Gamma_{\mathrm{PT}} = \gamma L\big(1 - \mathbb E[m_nm_{n+1}]\big) = \gamma\Big(L - 1 + \frac2L\Big),
+\label{eq:cap}
+\end{equation}
+the initial loss rate of the tower weight, Eq.~\eqref{eq:wdot}, up to $2/L$. It is a finite-size cap: at fixed $L$ and $\gamma \to 0$ the local signal decays like the global tower weight. It is also the saturated single-kick damage (Sec.~\ref{sec:kick}): $D_{\mathrm{sat}}(L = 12) = 11.0$ against $L - 1 + 2/L = 11.17$. The first-order result holds as long as the damage of a kick has filled the ring before the signal decays: the decay time $1/\Gamma_{\mathrm{PT}} \approx 1/(\gamma L)$ must exceed the saturation time $\tau_{\mathrm{sat}}$ of the damage. A size $L$ shows the thermodynamic rate only if $L - 1 \gg \Ginf/\gamma$.
+
+\paragraph{Damage spreading and the thermodynamic rate (heuristic).} Suppose the damage of one kick grows as $\Db_\infty(\tau) \simeq A\tau^\beta$ in an infinite system ($\beta = 1$: ballistic spreading of the defect, $\beta = 1/2$: diffusive) and saturates at $D_{\mathrm{sat}} \approx L$ in a ring of $L$ sites, after $\tau_{\mathrm{sat}} \sim L^{1/\beta}$. The single-kick formula $\gamma\int_0^{t_e}\Db = 1$ (Sec.~\ref{sec:kick}) then gives
+\begin{equation}
+\Ginf \propto \gamma^{1/(1+\beta)}: \qquad \beta = 1 \Rightarrow \Ginf \propto \gamma^{1/2}, \qquad \beta = \tfrac12 \Rightarrow \Ginf \propto \gamma^{2/3}.
+\end{equation}
+At finite $L$ the cap applies when $\gamma L\,\tau_{\mathrm{sat}} \ll 1$, i.e.\ for $L \ll L^*(\gamma) \sim \gamma^{-\beta/(1+\beta)}$. The measured damage profile spreads ballistically, $\beta = 1$, up to the size limit $\tau \approx 4$ at $L = 24$ (Sec.~\ref{sec:spread}).
+
+\subsection{The channels without interactions ($H_I = 0$)}
+\label{sec:theory-channels}
+
+With $H_I = 0$ the spins are independent, $H = \tfrac h2\sum_j\sigma^z_j$, and each Bloch vector $\mathbf r = (\langle\sigma^x\rangle, \langle\sigma^y\rangle, \langle\sigma^z\rangle)$ obeys $\dot{\mathbf r} = h\,\hat z\times\mathbf r + \mathbf D(\mathbf r)$, with the dissipative part $\mathbf D$ read off from $\Lv^\dagger(\sigma^\alpha)$ of the jump operators (Appendix~\ref{sec:channels}):
+\begin{itemize}
+\item \textbf{$\sigma^z$ dephasing}, $L_j = \sqrt\gamma\,\sigma^z_j$: $\Lv^\dagger(\sigma^{x,y}) = -2\gamma\sigma^{x,y}$, $\Lv^\dagger(\sigma^z) = 0$. The in-plane vector precesses and shrinks, $m_\perp = e^{-2\gamma t}$ exactly, for every $\gamma$; $\langle\sigma^z\rangle$ is conserved. A kick reverses the in-plane spin: damage $D(0) = 2$.
+\item \textbf{$\sigma^x$ dephasing}, $L_j = \sqrt\gamma\,\sigma^x_j$ ($\sigma^y$ likewise): $\sigma^y$ and $\sigma^z$ decay at $2\gamma$, $\sigma^x$ is conserved. In the plane, $\dot r_x = -hr_y$, $\dot r_y = hr_x - 2\gamma r_y$, with eigenvalues $-\gamma \pm \sqrt{\gamma^2 - h^2}$. For $\gamma < h$ the precessing spin decays at the average rate $\gamma$; for $\gamma \gg h$ the slow mode decays at $\approx h^2/(2\gamma)$: the spin is pinned along $x$ (Zeno effect), so the scar state $\ket-^{\otimes L}$, which points along $-x$, is protected at large $\gamma$. A $\sigma^x$ kick at precession phase $\varphi$ reflects the spin about $x$, $c = e^{-2i\varphi}$, so $D(0) = 1 - \cos2\varphi$, $1$ on average instead of $2$.
+\item \textbf{Depolarizing}, $L_{j,\alpha} = \sqrt{\gamma/2}\,\sigma^\alpha_j$: every component decays at $2\gamma$, $m_\perp = e^{-2\gamma t}$ and $\langle\sigma^z\rangle \to 0$; a $\sigma^z$ kick at rate $\gamma/2$ ($D = 2$) plus $\sigma^x$, $\sigma^y$ kicks at $\gamma/2$ each ($D = 1$ on average) give the same mean damage per unit time as $\sigma^z$ dephasing.
+\item \textbf{Decay}, $L_j = \sqrt\gamma\,\sigma^-_j$: $\Lv^\dagger(\sigma^{x,y}) = -\tfrac\gamma2\sigma^{x,y}$ and $\Lv^\dagger(\sigma^z) = -\gamma(\sigma^z + \mathds 1)$, so $m_\perp = e^{-\gamma t/2}$ and $\langle\sigma^z\rangle \to -1$ at rate $\gamma$. $\ket{\Phi_L} = \ket{\downarrow\cdots\downarrow}$ is annihilated by every $\sigma^-_j$ and is an eigenstate of $H$ for any $H_I$: a pure steady state, the bottom of the scar tower.
+\item \textbf{Thermal}, $\sqrt{\gamma(\bar n+1)}\,\sigma^-_j$ and $\sqrt{\gamma\bar n}\,\sigma^+_j$: the in-plane components decay at $\gamma(2\bar n+1)/2$ ($m_\perp = e^{-3\gamma t/2}$ for $\bar n = 1$) and $\langle\sigma^z\rangle \to -1/(2\bar n+1)$ at rate $\gamma(2\bar n+1)$; with $H_I$ (which breaks the U(1) symmetry about $z$) the steady state is not known in closed form. In-plane damping $3\gamma/2$ instead of $2\gamma$: relative kick strength $3/4$.
+\end{itemize}
+So without interactions the scar signal decays at $2\gamma$ ($\sigma^z$, depolarizing), $\approx\gamma$ ($\sigma^x$, $\sigma^y$), $\gamma/2$ (decay) or $3\gamma/2$ (thermal); these are also the rates every channel approaches at large $\gamma$ when $H_I$ becomes negligible (Sec.~\ref{sec:channels-res}), except for the Zeno-protected cases.
+
+\subsection{What the operator observables measure}
+\label{sec:theory-observables}
+
+\paragraph{Purity and operator size.} The purity $\Tr\rho^2 = 2^{-L}\sum_Pr_P^2$ is a global quantity. The Hamiltonian part of $G$ is antisymmetric and conserves $\sum_Pr_P^2$, while $\sigma^z$ dephasing damps each $r_P$ at $2\gamma n_{xy}(P)$, so
+\begin{equation}
+\frac{d}{dt}\ln\Tr\rho^2 = \frac{\sum_P 2r_P\dot r_P}{\sum_P r_P^2} = -4\gamma\,\langle n_{xy}\rangle, \qquad \langle n_{xy}\rangle = \frac{\sum_P n_{xy}(P)\,r_P^2}{\sum_Pr_P^2}.
+\end{equation}
+The \emph{size} of $\rho$ is the mean number of non-identity sites of its strings with the weights $r_P^2/\sum_Q r_Q^2$. For $\ket{-}^{\otimes L}$ (and $\ket{+-+-\cdots}$) the weights are uniform on the $2^L$ strings made of $\mathds 1$ and $\sigma^x$, so the size is $L/2$; for a random pure state every non-identity factor is equally likely and the size is $\approx 3L/4$; the infinite-temperature state $\mathds 1/2^L$ has size $0$. The Hamiltonian spreads weight to longer strings (scrambling pushes a pure $\rho$ towards $3L/4$), while the dissipation removes weight from long strings, in proportion to $n_{xy}$ for $\sigma^z$ dephasing. The size of $\rho$ at the time the signal is lost (Sec.~\ref{sec:opsize}) tells the two mechanisms apart.
+
+\paragraph{Operator entanglement of $\rho$.} The operator Schmidt weights of $\rho$ across a cut set the cost of a matrix-product representation of $\rho$: an MPS with bond dimension $\chi$ at that cut misses exactly the weight beyond the $\chi$ largest ones (Appendix~\ref{app:other}), so $S_{\mathrm{op}}$ measures how hard $\rho(t)$ is for tensor networks. A product $\rho$ has $S_{\mathrm{op}} = 0$, and the noiseless scar state stays a product. Dephasing makes $\rho$ a mixture of product states, which already has $S_{\mathrm{op}} > 0$ through classical correlations; $H_I$ then spreads and entangles the kicked components.
+
+\paragraph{Entanglement after a single flip.} $\sigma^z_k$ applied to the precessing product state gives again a product state; the entanglement of the blocks $[0, \ell)$ then grows from site $k$ outward. Its light cone measures the spreading velocity of the defect independently of the damage $D$.

@@ -1,0 +1,88 @@
+% Shared preamble of notes.tex and of the parts in parts/*.tex (input after \documentclass).
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{float}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{dsfont}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+
+\graphicspath{{figures/}}
+\setlength{\emergencystretch}{3em}  % long file names: allow looser lines instead of overfull ones
+
+\newcommand{\ket}[1]{\lvert #1 \rangle}
+\newcommand{\bra}[1]{\langle #1 \rvert}
+\newcommand{\dyad}[2]{\lvert #1 \rangle\!\langle #2 \rvert}
+\newcommand{\Tr}{\operatorname{Tr}}
+\newcommand{\Ptow}{P_{\mathrm{tower}}}
+\newcommand{\Lv}{\mathcal{L}}
+\newcommand{\D}{\mathcal{D}}
+\newcommand{\Ge}{\Gamma_{e}}
+\newcommand{\Ginf}{\Gamma_{\infty}}
+\newcommand{\Db}{\bar D}
+\newcommand{\bs}{\boldsymbol{s}}
+\newcommand{\bmu}{\boldsymbol{\mu}}
+\newcommand{\bnu}{\boldsymbol{\nu}}
+\newcommand{\be}{\boldsymbol{e}}
+
+\author{Weyner Ccuiro}
+\date{3 November 2026}
+
+%----------------------------------------------------------------------
+% Modular notes. The body is one file per chapter, sections/<name>.tex, each read with
+% \notesinput{<name>}.
+% - Full notes (notes.tex): \notesinput writes the counters at the start of every file to
+%   notes.sec (section, subsection, figure, table, equation, footnote, and whether the file is
+%   in the appendix).
+% - Parts (parts/<case>.tex, which \def\notespart before \documentclass): \notesinput restores
+%   those counters, so a part keeps the numbering of the full notes, and \ref to a label outside
+%   the part takes its number from notes.aux. Build notes.tex first (build_parts.sh does).
+\makeatletter
+\newcommand{\notes@counters}{section,subsection,subsubsection,figure,table,equation,footnote}
+\ifdefined\notespart
+  \newcommand{\notesrecord}[2]{\expandafter\gdef\csname notes@start@#1\endcsname{#2}}
+  \newcommand{\notes@appendix}{\ifdefined\notes@inappendix\else\appendix\global\let\notes@inappendix\relax\fi}
+  \newcommand{\notes@set}[2]{\setcounter{#1}{#2}}
+  \newcommand{\notesinput}[1]{%
+    \@ifundefined{notes@start@#1}%
+      {\PackageWarning{notes}{No counters for #1 in notes.sec: build notes.tex first}}%
+      {\csname notes@start@#1\endcsname}%
+    \input{sections/#1}}
+  \InputIfFileExists{notes.sec}{}{\PackageWarning{notes}{notes.sec not found: build notes.tex first}}
+  % Labels of the full notes, for references outside the part. Read after the part's own .aux
+  % (\AtBeginDocument), keeping only labels the part does not define; the hyperlink target is
+  % dropped (it is not in this PDF), so these references print as plain numbers.
+  \newcommand{\notes@extlabel}[2]{\@ifundefined{r@#1}{\notes@extlabel@i{#1}#2{}{}{}{}{}\@nil}{}}
+  \def\notes@extlabel@i#1#2#3#4#5#6\@nil{\global\@namedef{r@#1}{{#2}{#3}{#4}{}{}}}
+  \newread\notes@aux
+  \def\notes@try#1#2\@nil{\ifx#1\newlabel\notes@extlabel#2\fi}
+  \AtBeginDocument{%
+    \IfFileExists{notes.aux}{%
+      \begingroup
+        \endlinechar=-1 \catcode`\@=11
+        \openin\notes@aux=notes.aux
+        \loop\unless\ifeof\notes@aux
+          \read\notes@aux to\notes@line
+          \ifx\notes@line\@empty\else\expandafter\notes@try\notes@line\relax\@nil\fi
+        \repeat
+        \closein\notes@aux
+      \endgroup}%
+      {\PackageWarning{notes}{notes.aux not found: build notes.tex first}}}
+\else
+  \newwrite\notes@sec
+  \immediate\openout\notes@sec=\jobname.sec
+  \g@addto@macro\appendix{\global\let\notes@inappendix\relax}
+  \newcommand{\notesinput}[1]{%
+    \begingroup
+      \def\notes@list{}%
+      \@for\notes@c:=\notes@counters\do{%
+        \edef\notes@list{\notes@list\string\notes@set{\notes@c}{\the\value{\notes@c}}}}%
+      \immediate\write\notes@sec{\string\notesrecord{#1}{%
+        \ifdefined\notes@inappendix\string\notes@appendix\fi\notes@list}}%
+    \endgroup
+    \input{sections/#1}}
+\fi
+\makeatother

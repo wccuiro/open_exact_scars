@@ -1,0 +1,269 @@
+\section{How the simulations are done}
+\label{sec:methods}
+
+All codes are in \texttt{rust/} (one binary per kind of run). The model coefficients come from \texttt{rust/\allowbreak src/\allowbreak parameters.rs}; the random $c$ comes from a generator seeded with $1000\cdot\mathrm{seed} + L$ (seed $1$), so every run at a given $L$ uses the same Hamiltonian. No symmetry is used: the random $c$ removes translation, and every calculation works in the full space, $2^L$ amplitudes for a pure state or $4^L$ coefficients for a density matrix.
+
+\subsection{Notation}
+
+\begin{itemize}
+\item \textbf{Sites} $j = 0, \dots, L-1$, periodic. Pauli matrices $\sigma^x, \sigma^y, \sigma^z$ and $\sigma^0 = \mathds 1$; $\sigma^\alpha_j$ acts on site $j$.
+\item \textbf{Basis states.} $\ket{\bs} = \ket{s_0 s_1\dots s_{L-1}}$ with $\bs = (s_0, \dots, s_{L-1}) \in \{0,1\}^L$, and $s_j = 0$ for $\ket{\uparrow}$ ($\sigma^z_j = +1$), $s_j = 1$ for $\ket{\downarrow}$. In the code $\bs$ is the integer $\sum_j s_j 2^j$.
+\item \textbf{Operations on bit strings.} For $\bmu, \bs \in \{0,1\}^L$: $\bmu\oplus\bs$ is the sum modulo 2 site by site; $\bmu\cdot\bs = \sum_j \mu_j s_j$ is the number of sites where both are $1$; $\lvert\bmu\rvert = \sum_j\mu_j$; $\be_j$ is the string with a single $1$ on site $j$.
+\item \textbf{Pure states} $\ket\psi = \sum_{\bs}\psi(\bs)\ket{\bs}$, stored as the $2^L$ complex amplitudes $\psi(\bs)$ (the \emph{computational basis}).
+\end{itemize}
+
+\subsection{Pauli strings}
+
+On one site, $\sigma^x\ket{s} = \ket{1-s}$, $\sigma^z\ket{s} = (-1)^s\ket{s}$ and $\sigma^y = i\sigma^x\sigma^z$ (check: $i\sigma^x\sigma^z = i\begin{pmatrix}0&-1\\1&0\end{pmatrix} = \sigma^y$). A Pauli string, a product of one of $\sigma^0, \sigma^x, \sigma^y, \sigma^z$ on every site, is therefore fixed by two bit strings, the flip pattern $\bmu$ and the phase pattern $\bnu$:
+\begin{equation}
+P_{\bmu\bnu} = i^{\,\bmu\cdot\bnu}\prod_{j}\big(\sigma^x_j\big)^{\mu_j}\big(\sigma^z_j\big)^{\nu_j},
+\label{eq:pauli}
+\end{equation}
+with site $j$ carrying $\sigma^0$ for $(\mu_j, \nu_j) = (0,0)$, $\sigma^x$ for $(1,0)$, $\sigma^z$ for $(0,1)$ and $\sigma^y$ for $(1,1)$; the factor $i^{\bmu\cdot\bnu}$ supplies one $i$ for every $\sigma^y$. Acting on a basis state, the $\sigma^z$ factors act first and give $(-1)^{\bnu\cdot\bs}$, then the $\sigma^x$ factors flip the bits where $\mu_j = 1$:
+\begin{equation}
+P_{\bmu\bnu}\ket{\bs} = i^{\,\bmu\cdot\bnu}\,(-1)^{\bnu\cdot\bs}\,\ket{\bs\oplus\bmu}.
+\label{eq:pauli-action}
+\end{equation}
+\textbf{Products.} Since $(\sigma^x_j)^2 = (\sigma^z_j)^2 = \mathds 1$ and $\sigma^z_j\sigma^x_j = -\sigma^x_j\sigma^z_j$, moving the $\sigma^z$ factors of the first string past the $\sigma^x$ factors of the second gives
+\begin{equation}
+P_{\bmu\bnu}P_{\bmu'\bnu'} = \omega\, P_{\bmu\oplus\bmu',\,\bnu\oplus\bnu'}, \qquad
+\omega = i^{\,\bmu\cdot\bnu + \bmu'\cdot\bnu' - (\bmu\oplus\bmu')\cdot(\bnu\oplus\bnu')}\,(-1)^{\bnu\cdot\bmu'} \in \{\pm1, \pm i\}.
+\end{equation}
+Exchanging the two strings changes the sign $(-1)^{\bnu\cdot\bmu'}$ into $(-1)^{\bnu'\cdot\bmu}$, so two strings commute if $\bnu\cdot\bmu' + \bnu'\cdot\bmu$ is even and anticommute if it is odd. Every string except $\mathds 1$ is traceless, so
+\begin{equation}
+\Tr\big(P\,Q\big) = 2^L\,\delta_{PQ}
+\end{equation}
+for any two strings $P$, $Q$ (they are Hermitian and square to $\mathds 1$).
+
+\paragraph{The Hamiltonian as a sum of strings.} With $\mathbf S_j\cdot\mathbf S_{j+1} = \tfrac14\sum_\alpha\sigma^\alpha_j\sigma^\alpha_{j+1}$, $R_{j,j+1} = \tfrac14\big(\mathds 1 - \sum_{\alpha}\sigma^\alpha_j\sigma^\alpha_{j+1}\big)$. A term $c\,R_{j,j+1}\,O$ of $H_I$, with $O$ its dressing ($\sigma^\alpha_{j+2}$, $\sigma^\beta_{j-1}$ or $\sigma^\beta_{j-1}\sigma^\alpha_{j+2}$, on sites disjoint from $j, j+1$), becomes $\tfrac c4\big(O - \sum_\alpha\sigma^\alpha_j\sigma^\alpha_{j+1}O\big)$: four strings with real coefficients. The field gives $hS^z_{\mathrm{tot}} = \tfrac h2\sum_j\sigma^z_j$. Collecting equal strings,
+\begin{equation}
+H = \sum_{P} h_P\, P, \qquad h_P \in \mathbb R,
+\end{equation}
+about $600$ strings at $L = 20$, with $101$ distinct flip patterns $\bmu$ (the identity is dropped).
+
+\subsection{Pure states: trajectories and single flips}
+
+\paragraph{Applying $H$.} From Eq.~\eqref{eq:pauli-action}, $\langle\bs'\vert P_{\bmu\bnu}\vert\bs\rangle$ is nonzero only for $\bs = \bs'\oplus\bmu$, so
+\begin{equation}
+(H\psi)(\bs') = \sum_{\bmu}\psi(\bs'\oplus\bmu)\sum_{\bnu:\,h_{\bmu\bnu}\ne0} h_{\bmu\bnu}\, i^{\,\bmu\cdot\bnu}\,(-1)^{\bnu\cdot(\bs'\oplus\bmu)} .
+\end{equation}
+The strings are grouped by flip pattern, so every amplitude $\psi(\bs'\oplus\bmu)$ is read once per group; for $2^L \ge 2^{15}$ the output amplitudes are split over threads.
+
+\paragraph{Time evolution} is the Taylor series $e^{-iH\tau}\psi = \sum_{k\ge0}\frac{(-i\tau)^k}{k!}H^k\psi$, summed until the norm of the last term is below $10^{-17}$, in substeps short enough that $1.5\,\lVert H\rVert\,\tau_{\mathrm{sub}} \le 4$ (the norm $\lVert H\rVert$ from 40 power iterations).
+
+\paragraph{Initial states.} A spin with Bloch vector $\mathbf n = (\sin\theta\cos\phi, \sin\theta\sin\phi, \cos\theta)$ is $\cos\tfrac\theta2\ket\uparrow + e^{i\phi}\sin\tfrac\theta2\ket\downarrow$, so a product state has $\psi(\bs) = \prod_j u_j(s_j)$ with $u_j(0) = \cos\tfrac{\theta_j}2$, $u_j(1) = e^{i\phi_j}\sin\tfrac{\theta_j}2$. For the scar state $\ket{-}^{\otimes L}$ ($\theta = \pi/2$, $\phi = \pi$), $\psi(\bs) = 2^{-L/2}(-1)^{\lvert\bs\rvert}$.
+
+\paragraph{Local magnetization.} $\sigma^z_j$ is diagonal: $\langle\sigma^z_j\rangle = \sum_{\bs}(-1)^{s_j}\lvert\psi(\bs)\rvert^2$. For the transverse components use $\sigma^+_j = \tfrac12(\sigma^x_j + i\sigma^y_j) = \dyad{\uparrow}{\downarrow}_j$, which maps $\ket{\bs\oplus\be_j}$ to $\ket{\bs}$ when $s_j = 0$:
+\begin{equation}
+\langle\sigma^x_j\rangle + i\langle\sigma^y_j\rangle = 2\langle\psi\vert\sigma^+_j\vert\psi\rangle = 2\sum_{\bs:\,s_j = 0}\psi(\bs)^*\,\psi(\bs\oplus\be_j).
+\end{equation}
+(Check: for $\ket{+}$ both amplitudes are $1/\sqrt2$ and the sum gives $\langle\sigma^x\rangle = 1$.) Then $m_\alpha = L^{-1}\sum_j\langle\sigma^\alpha_j\rangle$ and $s_\alpha = L^{-1}\sum_j(-1)^j\langle\sigma^\alpha_j\rangle$.
+
+\paragraph{Lindblad equation and its unravellings.} With jump operators $L_j = \sqrt\gamma\,\sigma^z_j$ the Lindblad equation
+\begin{equation}
+\dot\rho = -i[H, \rho] + \sum_j\Big(L_j\rho L_j^\dagger - \tfrac12\{L_j^\dagger L_j, \rho\}\Big)
+\end{equation}
+is the dephasing equation of Sec.~\ref{sec:forward-backward}, because $L_j^\dagger L_j = \gamma\mathds 1$. A trajectory is a random pure state $\ket{\psi(t)}$ whose average $\overline{\dyad{\psi(t)}{\psi(t)}}$ equals $\rho(t)$.
+\begin{itemize}
+\item \textbf{Jump unravelling.} Between jumps a trajectory evolves with $H_{\mathrm{eff}} = H - \tfrac i2\sum_j L_j^\dagger L_j = H - \tfrac{i}{2}\gamma L$. The anti-Hermitian part is a multiple of $\mathds 1$, so $e^{-iH_{\mathrm{eff}}\tau}\ket\psi = e^{-\gamma L\tau/2}e^{-iH\tau}\ket\psi$: the norm squared, the probability of no jump in $[0, \tau]$, is $e^{-\gamma L\tau}$ for every state. The waiting time is therefore exponential with rate $\gamma L$, sampled as $\tau_w = -\ln\xi/(\gamma L)$ with $\xi$ uniform in $(0, 1]$. The jump goes to channel $j$ with probability $\lVert L_j\psi\rVert^2/\sum_k\lVert L_k\psi\rVert^2 = 1/L$, a uniform site, and replaces $\psi(\bs) \to (-1)^{s_j}\psi(\bs)$ (a $\pi$ rotation of spin $j$ about $z$; the norm is unchanged). Since none of these probabilities depends on the state, the sampling is exact, and the only numerical error is that of $e^{-iH\tau}$. From the scar state, $e^{-iHt}\ket{-}^{\otimes L}$ is the product state of reference 1 (spins along $(-\cos ht, -\sin ht, 0)$, up to a global phase), so it is written down at the time of the first jump instead of being evolved.
+\item \textbf{Diffusive unravelling.} One step of length $dt$ is
+\[ \psi \;\to\; e^{-iH\,dt/2}\,\prod_j e^{-i\theta_j\sigma^z_j}\,e^{-iH\,dt/2}\,\psi, \qquad \theta_j = \sqrt\gamma\,\Delta W_j,\ \Delta W_j \sim \mathcal N(0, dt) \text{ independent}. \]
+For one site, $e^{-i\theta\sigma^z}\rho\,e^{i\theta\sigma^z}$ multiplies the coherence $\langle\uparrow\vert\rho\vert\downarrow\rangle$ by $e^{-2i\theta}$ and leaves the diagonal alone. The Gaussian average is $\overline{e^{-2i\theta}} = e^{-2\langle\theta^2\rangle} = e^{-2\gamma\,dt}$, exactly the factor by which $\gamma(\sigma^z\rho\sigma^z - \rho)$ damps that coherence in a time $dt$. So the noise step reproduces the dephasing exactly, and the only error is the symmetric splitting of $H$ and the noise, $O(dt^2)$ on the average. $dt = \min(0.1, 0.05/\gamma)$.
+\end{itemize}
+Trajectory averages: $\bar m_x$, $\bar m_y$ are averaged over the $n$ trajectories first, and $m_\perp = (\bar m_x^2 + \bar m_y^2)^{1/2}$ is formed from the averages (the mean of the per-trajectory $m_\perp$ would not decay to zero). The standard error of $\bar m_\alpha$ is the spread of one trajectory over $\sqrt n$; runs of one $(L, \gamma)$ with different noise seeds are pooled on their common time grid, weighted by their trajectory counts. Validation: both unravellings agree with the exact $\rho$ at $L = 8$, $\gamma = 0.1$ and $0.01$ (2000 trajectories, rms deviation $\approx 1$ standard error), and the diffusive one with the exact $\rho$ at $L = 12, 14$ (Sec.~\ref{sec:states}). The results use diffusive trajectories: at equal error the jump unravelling needs $\approx 60$--$100$ times more trajectories (its per-trajectory spread at $t_e$ is $0.25$--$0.43$, against $0.035$--$0.085$ for diffusive trajectories at $\gamma \le 0.2$).
+
+\paragraph{Single flip.} The noiseless scar state at time $t' = \varphi_m/h$, $\varphi_m = 2\pi m/16$, gets one $\sigma^z_k$ and is evolved with $H$ alone. On site $j$ the reference-1 value of $\langle\sigma^x_j\rangle + i\langle\sigma^y_j\rangle$ at time $t$ is $-e^{iht}$, so
+\begin{equation}
+c_j(\tau) = \frac{\langle\sigma^x_j\rangle + i\langle\sigma^y_j\rangle}{-e^{ih(t'+\tau)}}, \qquad D(\tau) = \sum_j\big[1 - \operatorname{Re}c_j(\tau)\big].
+\end{equation}
+Without the kick every $c_j = 1$ and $D = 0$; right after it $c_k = -1$, so $D(0) = 2$. All runs of one $L$ advance together.
+
+\subsection{Density matrices: exact evolution in the Pauli basis}
+
+\paragraph{Coordinates.} By the orthogonality of the strings, every operator can be expanded as
+\begin{equation}
+\rho = 2^{-L}\sum_P r_P\,P, \qquad r_P = \Tr(\rho P),
+\end{equation}
+and $r_P$ is real for Hermitian $\rho$. There are $4^L$ coordinates; $r_{\mathds 1} = \Tr\rho = 1$.
+
+\paragraph{Equation of motion.} $\dot r_P = \Tr(P\dot\rho)$. For the Hamiltonian part, by the cyclic property,
+\[ \Tr\big(P\,(-i)[H,\rho]\big) = -i\Tr\big(\rho\,[P, H]\big) = \sum_Q h_Q\,\Tr\big(\rho\; i[Q, P]\big). \]
+If $Q$ and $P$ commute the term vanishes. If they anticommute, $i[Q,P] = 2i\,QP$, and $QP = \omega P'$ with $P'$ the string of the product rule and $\omega \in \{\pm1, \pm i\}$; the product of two anticommuting Hermitian matrices is anti-Hermitian, so $\omega = \pm i$ and $i[Q,P] = \kappa_{QP}\,P'$ with $\kappa_{QP} = 2i\omega = \mp2$, real. For the dephasing, $\sigma^z_j$ anticommutes with $\sigma^x_j$ and $\sigma^y_j$ and commutes with $\sigma^0_j$, $\sigma^z_j$, so $\sigma^z_jP\sigma^z_j = -P$ if $\mu_j = 1$ and $+P$ otherwise, and
+\[ \D(P) = \gamma\sum_j\big(\sigma^z_jP\sigma^z_j - P\big) = -2\gamma\,\lvert\bmu\rvert\,P, \]
+with $\lvert\bmu\rvert = n_{xy}(P)$ the number of sites carrying $\sigma^x$ or $\sigma^y$. $\D$ is self-adjoint for $\Tr(A^\dagger B)$, so $\Tr(P\,\D(\rho)) = \Tr(\D(P)\,\rho) = -2\gamma\, n_{xy}(P)\, r_P$. Together,
+\begin{equation}
+\dot r_P = \sum_{Q\ \text{anticommuting with}\ P} h_Q\,\kappa_{QP}\; r_{P'(Q,P)} \;-\; 2\gamma\, n_{xy}(P)\, r_P \;\equiv\; \sum_{P''} G_{PP''}\,r_{P''} .
+\label{eq:generator}
+\end{equation}
+$G$ is a real $4^L\times4^L$ matrix. Its Hamiltonian part is antisymmetric: the same $Q$ couples $P'$ back to $P$, with $i[Q, P'] = \kappa_{QP'}P$, and inserting $P' = \kappa_{QP}^{-1}\, i[Q,P] = 2i\kappa_{QP}^{-1}QP$ gives $i[Q,P'] = 2iQP' = -4\kappa_{QP}^{-1}P$, i.e.\ $\kappa_{QP'} = -\kappa_{QP}$ (as $\kappa^2 = 4$). Its dephasing part is diagonal and $\le 0$. So every eigenvalue has $-2\gamma L \le \operatorname{Re}\lambda \le 0$.
+
+\paragraph{Initial state.} For $\rho = \bigotimes_j\tfrac12(\mathds 1 + \mathbf n_j\cdot\boldsymbol\sigma_j)$, $\Tr\big[\tfrac12(\mathds 1 + \mathbf n\cdot\boldsymbol\sigma)\,\sigma^\alpha\big] = n^\alpha$ for $\alpha = x, y, z$ and $1$ for $\sigma^0$, so $r_P = \prod_j n_j^{\alpha_j}$ with $\alpha_j$ the Pauli matrix of $P$ on site $j$ and $n^0 \equiv 1$. The scar state ($\mathbf n_j = (-1, 0, 0)$) has $r_P = (-1)^{\lvert\bmu\rvert}$ for the strings made of $\sigma^0$ and $\sigma^x$ only ($\bnu = \mathbf 0$), and $0$ for all others.
+
+\paragraph{Time stepping.} $r(t + dt) = e^{G\,dt}r(t)$, summed as a Taylor series to round-off in substeps with $\lVert G\,dt_{\mathrm{sub}}\rVert_\infty \le 4$ (largest absolute row sum). $G$ is stored as a sparse matrix up to $L = 10$; from $L = 11$ the row of $P$ is generated on the fly from the strings $Q$ of $H$ that anticommute with $P$ (matrix-free). At $L = 14$, $r$ has $4^{14} = 2.7\times10^8$ entries ($14.7$ GB in all).
+
+\paragraph{Observables} are coordinates: $\langle\sigma^\alpha_j\rangle = \Tr(\rho\,\sigma^\alpha_j) = r_{\sigma^\alpha_j}$. The tower weight is $W = \Tr(\Ptow\rho) = 2^{-L}\sum_P r_P\Tr(\Ptow P)$ with $\Tr(\Ptow P) = \sum_n\langle\Phi_n\vert P\vert\Phi_n\rangle$ evaluated with Eq.~\eqref{eq:pauli-action}.
+
+\subsection{Spectra and eigenstates}
+
+\paragraph{Eigenstates of $H$} (\texttt{entanglement}). By Eq.~\eqref{eq:pauli-action}, $\langle\bs'\vert H\vert\bs\rangle = \sum_{\bmu\bnu}h_{\bmu\bnu}\,i^{\bmu\cdot\bnu}(-1)^{\bnu\cdot\bs}\,\delta_{\bs',\,\bs\oplus\bmu}$. This dense complex $2^L\times2^L$ matrix is diagonalized with \texttt{zheevd} (LAPACK from Intel MKL), $L \le 12$. The scars are the Dicke states
+\begin{equation}
+\ket{\Phi_n} = \binom{L}{n}^{-1/2}\sum_{\bs:\,\lvert\bs\rvert = n}\ket{\bs}, \qquad n = 0, \dots, L,
+\end{equation}
+($n$ down spins), and the tower weight of an eigenstate $\ket{E}$ is $\sum_n\lvert\langle\Phi_n\vert E\rangle\rvert^2$; $\Ptow = \sum_n\dyad{\Phi_n}{\Phi_n}$.
+
+\paragraph{Liouvillian modes} (\texttt{ed}, \texttt{lindblad\_entanglement}). The matrix $G$ of Eq.~\eqref{eq:generator} is assembled densely and diagonalized with \texttt{dgeev}: $Gr = \lambda r$. Since $\Lv$ acts on coordinates as $G$, the operator $X = \sum_P r_P\,P$ (a $2^L\times2^L$ matrix, built with Eq.~\eqref{eq:pauli-action}) is a right eigenmatrix, $\Lv(X) = \lambda X$. Its tower weight is $\lVert\Ptow X\Ptow\rVert/\lVert X\rVert$ (Frobenius norms). Because $G$ is real, $r^*$ is an eigenvector with eigenvalue $\lambda^*$, and since every $P$ is Hermitian, $X(\lambda^*) = X(\lambda)^\dagger$. Degenerate eigenvalues ($\lvert\Delta\lambda\rvert < 10^{-8}$) have no unique eigenmatrix; there the basis is the one that diagonalizes $\Tr(X_i^\dagger HX_l)$ against $\Tr(X_i^\dagger X_l)$ within the eigenspace (generalized eigenproblem, \texttt{zhegv}). This splits the edge pairs $\dyad{\Phi_0}{\Phi_n}$, $\dyad{\Phi_{L-n}}{\Phi_L}$ exactly and, at $\gamma = 0$, returns single $\dyad{n}{m}$ of eigenstates of $H$. The dense $G$ limits this to $L \le 7$ ($2.1$ GB at $L = 7$).
+
+\subsection{Entanglement entropy}
+
+The cut is $A$ = sites $0, \dots, L_A - 1$, $L_A = \lfloor L/2\rfloor$, and $B$ the rest; on the ring $A$ has two boundaries. Split $\bs = (\bs_A, \bs_B)$ and write the amplitudes as a $2^{L_A}\times2^{L-L_A}$ matrix $\Psi_{\bs_A\bs_B} = \psi(\bs)$, so that $\ket\psi = \sum_{\bs_A,\bs_B}\Psi_{\bs_A\bs_B}\ket{\bs_A}\otimes\ket{\bs_B}$. Tracing out $B$,
+\begin{equation}
+\rho_A = \Tr_B\dyad{\psi}{\psi} = \sum_{\bs_A,\bs_A'}\Big(\sum_{\bs_B}\Psi_{\bs_A\bs_B}\Psi^*_{\bs_A'\bs_B}\Big)\dyad{\bs_A}{\bs_A'} = \Psi\Psi^\dagger .
+\end{equation}
+Its eigenvalues $p_\ell$ (\texttt{zheevd}) are the squared singular values of $\Psi$, i.e.\ the squared Schmidt coefficients in $\ket\psi = \sum_\ell\sqrt{p_\ell}\,\ket{\varphi_\ell}_A\ket{\chi_\ell}_B$ (orthonormal $\ket{\varphi_\ell}_A$, $\ket{\chi_\ell}_B$), and
+\begin{equation}
+S_A = -\sum_\ell p_\ell\ln p_\ell .
+\end{equation}
+\textbf{Reference values.} A random state gives on average the Page value $S_{\mathrm{Page}} = L_A\ln2 - 2^{2L_A - L - 1}$ (for $L_A \le L - L_A$). For a Dicke state, the strings with $n$ down spins split into $\ell$ down spins in $A$ and $n - \ell$ in $B$, so $\ket{\Phi_n} = \sum_\ell\sqrt{p_\ell}\,\ket{\Phi^{(A)}_\ell}\ket{\Phi^{(B)}_{n-\ell}}$ with Dicke states of the two halves and
+\begin{equation}
+p_\ell = \binom{L_A}{\ell}\binom{L - L_A}{n - \ell}\Big/\binom{L}{n}.
+\end{equation}
+
+\subsection{Operator entanglement}
+
+An operator $\rho$ on the chain is a vector in the space of operators, with the Hilbert--Schmidt inner product $\langle A, B\rangle = \Tr(A^\dagger B)$, and it can be Schmidt-decomposed across the same cut. Expand it in the product basis $\dyad{\bs_A}{\bs_A'}\otimes\dyad{\bs_B}{\bs_B'}$,
+\begin{equation}
+\rho = \sum M_{(\bs_A\bs_A'),(\bs_B\bs_B')}\;\dyad{\bs_A}{\bs_A'}\otimes\dyad{\bs_B}{\bs_B'}, \qquad M_{(\bs_A\bs_A'),(\bs_B\bs_B')} = \langle\bs_A\bs_B\vert\rho\vert\bs_A'\bs_B'\rangle ,
+\end{equation}
+a $4^{L_A}\times4^{L-L_A}$ matrix (the ``realigned'' $\rho$). Its singular value decomposition $M = \sum_\ell s_\ell\,u_\ell w_\ell^\dagger$ gives
+\begin{equation}
+\rho = \sum_\ell s_\ell\,A_\ell\otimes B_\ell, \qquad A_\ell = \sum_{\bs_A\bs_A'}(u_\ell)_{\bs_A\bs_A'}\dyad{\bs_A}{\bs_A'},\quad B_\ell = \sum_{\bs_B\bs_B'}(w_\ell^*)_{\bs_B\bs_B'}\dyad{\bs_B}{\bs_B'},
+\end{equation}
+with $\Tr(A_\ell^\dagger A_{\ell'}) = \Tr(B_\ell^\dagger B_{\ell'}) = \delta_{\ell\ell'}$ and $\sum_\ell s_\ell^2 = \Tr(\rho^\dagger\rho)$. With the normalized weights $w_\ell = s_\ell^2/\sum_{\ell'}s_{\ell'}^2$,
+\begin{equation}
+S_{\mathrm{op}}(\rho) = -\sum_\ell w_\ell\ln w_\ell, \qquad 0 \le S_{\mathrm{op}} \le 2L_A\ln2 ;
+\end{equation}
+the $s_\ell^2$ are computed as the eigenvalues of $MM^\dagger$ ($4^{L_A}\times4^{L_A}$, \texttt{zheevd}).
+
+\textbf{Pure states.} For $\rho = \dyad\psi\psi$ with $\ket\psi = \sum_\ell\sqrt{p_\ell}\ket{\varphi_\ell}_A\ket{\chi_\ell}_B$,
+\[ \rho = \sum_{\ell\ell'}\sqrt{p_\ell p_{\ell'}}\;\dyad{\varphi_\ell}{\varphi_{\ell'}}\otimes\dyad{\chi_\ell}{\chi_{\ell'}} . \]
+The operators $\dyad{\varphi_\ell}{\varphi_{\ell'}}$ are orthonormal for $\Tr(A^\dagger B)$, and so are the $\dyad{\chi_\ell}{\chi_{\ell'}}$, so this is already the operator Schmidt decomposition, with one term per pair $(\ell, \ell')$ and weights $w_{\ell\ell'} = p_\ell p_{\ell'}$ (they sum to $1$). Hence $S_{\mathrm{op}} = -\sum_{\ell\ell'}p_\ell p_{\ell'}\ln(p_\ell p_{\ell'}) = -2\sum_\ell p_\ell\ln p_\ell = 2S_A$. In the same way, for two eigenstates with Schmidt decompositions $\ket n = \sum_\ell\sqrt{p_\ell}\ket{\varphi_\ell}_A\ket{\chi_\ell}_B$ and $\ket m = \sum_{\ell'}\sqrt{q_{\ell'}}\ket{\varphi'_{\ell'}}_A\ket{\chi'_{\ell'}}_B$ (different bases),
+\[ \dyad nm = \sum_{\ell\ell'}\sqrt{p_\ell q_{\ell'}}\;\dyad{\varphi_\ell}{\varphi'_{\ell'}}\otimes\dyad{\chi_\ell}{\chi'_{\ell'}} \]
+is again a Schmidt decomposition (the $\dyad{\varphi_\ell}{\varphi'_{\ell'}}$ are orthonormal), with weights $p_\ell q_{\ell'}$, and
+\begin{equation}
+S_{\mathrm{op}}\big(\dyad nm\big) = S_n + S_m
+\end{equation}
+exactly (checked by SVD for random states, $2\times10^{-15}$). Fig.~\ref{fig:opent} is computed this way from the eigenstate entropies, without further diagonalization.
+
+\textbf{Liouvillian modes.} An eigenmatrix $X$ is not Hermitian, and its normalization and phase are arbitrary. The two positive, unit-trace operators
+\begin{equation}
+\rho_L = \frac{XX^\dagger}{\Tr(XX^\dagger)}, \qquad \rho_R = \frac{X^\dagger X}{\Tr(X^\dagger X)}
+\end{equation}
+are density matrices; we use $S_L = S_{\mathrm{op}}(\rho_L)$, $S_R = S_{\mathrm{op}}(\rho_R)$ and the energies $E_{L,R} = \Tr(\rho_{L,R}H)$. For $X = \dyad nm$, $\rho_L = \dyad nn$ and $S_L = 2S_n$. Since $X(\lambda^*) = X(\lambda)^\dagger$, $\rho_L(\lambda^*) = \rho_R(\lambda)$, and the $(E_R, S_R)$ set equals the $(E_L, S_L)$ set.
+
+\subsection{Other single-site noise channels}
+\label{sec:channels}
+
+Besides the $\sigma^z$ dephasing of all the main results, the code (\texttt{rust/src/noise.rs}) has five more uniform single-site channels, each a set of jump operators on every site $j$:
+\begin{center}
+\small
+\begin{tabular}{lll}
+\toprule
+channel & jump operators & \\
+\midrule
+$z$ (default) & $\sqrt\gamma\,\sigma^z_j$ & dephasing \\
+$x$, $y$ & $\sqrt\gamma\,\sigma^x_j$, $\sqrt\gamma\,\sigma^y_j$ & dephasing along $x$ or $y$ \\
+depolarizing & $\sqrt{\gamma/2}\,\sigma^\alpha_j$, $\alpha = x, y, z$ & every Pauli factor decays at $2\gamma$ \\
+decay & $\sqrt\gamma\,\sigma^-_j$, $\sigma^- = \dyad{\downarrow}{\uparrow}$ & amplitude damping towards $\ket\downarrow$ \\
+thermal & $\sqrt{\gamma(\bar n+1)}\,\sigma^-_j$ and $\sqrt{\gamma\bar n}\,\sigma^+_j$ & relaxation to a thermal spin \\
+\bottomrule
+\end{tabular}
+\end{center}
+The depolarizing normalization makes every single-site Pauli factor decay at $2\gamma$, the rate of the transverse coherence under $\sigma^z$ dephasing.
+
+\paragraph{Coordinates.} For jump operators $L_k$ the dissipator is $\D(\rho) = \sum_k(L_k\rho L_k^\dagger - \tfrac12\{L_k^\dagger L_k, \rho\})$, and by the cyclic property
+\begin{equation}
+\dot r_P\big|_{\D} = \Tr\big(P\,\D(\rho)\big) = \Tr\big(\D^\dagger(P)\,\rho\big), \qquad \D^\dagger(P) = \sum_k\Big(L_k^\dagger P L_k - \tfrac12\{L_k^\dagger L_k, P\}\Big).
+\end{equation}
+Every $L_k$ acts on one site, so $\D^\dagger$ is a sum over sites of maps acting on the factor of $P$ on that site only, and it suffices to know $\D^\dagger$ on $\sigma^0, \sigma^x, \sigma^y, \sigma^z$.
+
+\paragraph{Hermitian channels.} For $L = \sqrt{g}\,\sigma^\alpha$, $L^\dagger L = g\,\mathds 1$ and $\D^\dagger(P) = g(\sigma^\alpha P\sigma^\alpha - P)$, which is $0$ if the factor $P$ commutes with $\sigma^\alpha$ and $-2gP$ if it anticommutes. For $\sigma^z$ dephasing ($g = \gamma$) this is the familiar $-2\gamma$ on $\sigma^x$ and $\sigma^y$. For the depolarizing channel ($g = \gamma/2$ for each $\alpha$) a non-identity factor anticommutes with two of the three $\sigma^\alpha$, so it decays at $2\cdot2\cdot\gamma/2 = 2\gamma$.
+
+\paragraph{Decay.} With $L = \sqrt\gamma\,\sigma^-$, $\sigma^- = \dyad{\downarrow}{\uparrow}$, $L^\dagger = \sqrt\gamma\,\dyad{\uparrow}{\downarrow}$ and $L^\dagger L = \gamma\dyad{\uparrow}{\uparrow} = \tfrac\gamma2(\mathds 1 + \sigma^z)$:
+\begin{itemize}
+\item $\D^\dagger(\mathds 1) = \gamma\dyad\uparrow\uparrow - \gamma\dyad\uparrow\uparrow = 0$ (trace preservation);
+\item $\D^\dagger(\sigma^z) = \gamma\,\ket\uparrow\langle\downarrow\vert\sigma^z\vert\downarrow\rangle\bra\uparrow - \tfrac\gamma2\{\dyad\uparrow\uparrow, \sigma^z\} = -\gamma\dyad\uparrow\uparrow - \gamma\dyad\uparrow\uparrow = -\gamma(\mathds 1 + \sigma^z)$;
+\item $\D^\dagger(\sigma^x) = \gamma\,\ket\uparrow\langle\downarrow\vert\sigma^x\vert\downarrow\rangle\bra\uparrow - \tfrac\gamma2\{\dyad\uparrow\uparrow, \sigma^x\} = 0 - \tfrac\gamma2\sigma^x$, since $\langle\downarrow\vert\sigma^x\vert\downarrow\rangle = 0$ and $\dyad\uparrow\uparrow\sigma^x + \sigma^x\dyad\uparrow\uparrow = \sigma^x$; the same for $\sigma^y$.
+\end{itemize}
+The thermal channel adds $\sqrt{\gamma\bar n}\,\sigma^+$, which by exchanging $\uparrow \leftrightarrow \downarrow$ gives $\D^\dagger(\sigma^z) = \gamma\bar n(\mathds 1 - \sigma^z)$ and $-\tfrac{\gamma\bar n}2$ on $\sigma^{x,y}$; with $\gamma(\bar n+1)$ for the decay part the sum is $\D^\dagger(\sigma^z) = -\gamma(2\bar n+1)\sigma^z - \gamma\mathds 1$.
+
+\paragraph{Summary per unit of $\gamma$} ($\D^\dagger$ on the single-site factors):
+\begin{center}
+\small
+\begin{tabular}{lcccc}
+\toprule
+channel & $\mathds 1$ & $\sigma^x$ & $\sigma^y$ & $\sigma^z$ \\
+\midrule
+$z$ & $0$ & $-2\sigma^x$ & $-2\sigma^y$ & $0$ \\
+$x$ & $0$ & $0$ & $-2\sigma^y$ & $-2\sigma^z$ \\
+$y$ & $0$ & $-2\sigma^x$ & $0$ & $-2\sigma^z$ \\
+depolarizing & $0$ & $-2\sigma^x$ & $-2\sigma^y$ & $-2\sigma^z$ \\
+decay & $0$ & $-\tfrac12\sigma^x$ & $-\tfrac12\sigma^y$ & $-\sigma^z - \mathds 1$ \\
+thermal & $0$ & $-\tfrac{2\bar n+1}2\sigma^x$ & $-\tfrac{2\bar n+1}2\sigma^y$ & $-(2\bar n+1)\sigma^z - \mathds 1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Summing over the sites, a string $P = P_{\bmu\bnu}$ is damped at the sum of the diagonal entries of its factors. For decay and thermal there is in addition a \emph{feed}: for every site $j$ where $P$ carries $\sigma^z$ ($\mu_j = 0$, $\nu_j = 1$), the term $-\gamma\mathds 1$ of $\D^\dagger(\sigma^z_j)$ gives
+\begin{equation}
+\dot r_P\big|_{\mathrm{feed}} = -\gamma\sum_{j:\,\mu_j = 0,\,\nu_j = 1} r_{P^{(j)}}, \qquad P^{(j)} = P_{\bmu,\,\bnu\oplus\be_j}
+\end{equation}
+($P$ with that $\sigma^z$ replaced by $\mathds 1$). This off-diagonal term is implemented only in the full Pauli basis. On one site, $\dot r_z = -\gamma(2\bar n+1)r_z - \gamma r_{\mathds 1}$ with $r_{\mathds 1} = 1$, so $\langle\sigma^z\rangle \to -1/(2\bar n+1)$, i.e.\ $-1$ for the decay ($\bar n = 0$). The decay drives every spin to $\ket\downarrow$, i.e.\ the chain to $\ket{\Phi_L} = \ket{\downarrow\cdots\downarrow}$, a state of the tower.
+
+\paragraph{Diffusive unravelling of the Hermitian channels.} As for $\sigma^z$, each Hermitian jump operator $\sqrt{g}\,\sigma^\alpha_j$ becomes a random rotation $e^{-i\theta\sigma^\alpha_j}$ with $\theta \sim \mathcal N(0, g\,dt)$ in every step. In the eigenbasis of $\sigma^\alpha$ the rotation multiplies the coherence by $e^{-2i\theta}$, whose average $e^{-2g\,dt}$ is exactly the damping by the channel of $\sqrt g\,\sigma^\alpha$ over $dt$. Explicitly, on the pair $(\psi(\bs), \psi(\bs\oplus\be_j))$ with $s_j = 0$: $e^{-i\theta\sigma^x} = \cos\theta - i\sin\theta\,\sigma^x$ and $e^{-i\theta\sigma^y} = \begin{pmatrix}\cos\theta & -\sin\theta\\ \sin\theta & \cos\theta\end{pmatrix}$. The depolarizing channel uses three independent rotations per site, about $x$, $y$ and $z$, each with $g = \gamma/2$; their product reproduces the sum of the three generators up to $O(dt^2)$, like the splitting with $H$. The jump unravelling is written for $\sigma^z$ only; decay and thermal have non-Hermitian jump operators and are run with the exact $\rho$ evolution only.
+
+\subsection{Operator observables of $\rho$}
+\label{sec:opobs}
+
+The exact runs can also write (option \texttt{--obs-dt}), from the coordinates $r_P$:
+\begin{itemize}
+\item the \textbf{purity} $\Tr\rho^2 = 2^{-2L}\sum_{P,Q}r_Pr_Q\Tr(PQ) = 2^{-L}\sum_P r_P^2$;
+\item the distribution of $\rho$ over strings, with weights $w_P = r_P^2/\sum_Q r_Q^2$ (identity included, $w_{\mathds 1} = 1/\sum_Q r_Q^2$), and from it: the \textbf{size} distribution $P(n) = \sum_{P:\,n(P) = n} w_P$, $n(P) = \lvert\bmu\vee\bnu\rvert$ the number of non-identity sites (sites with $\mu_j = 1$ or $\nu_j = 1$); the mean $\langle n_{xy}\rangle = \sum_P w_P\lvert\bmu\rvert$; the \textbf{support} distribution $P(\ell)$, with $\ell(P)$ the length of the shortest arc of the ring that contains all non-identity sites of $P$ ($L$ minus the longest circular run of identity sites; $\ell = 0$ for $\mathds 1$).
+\end{itemize}
+\textbf{Purity identity for $\sigma^z$ dephasing.} With $\dot r = Gr$, $G = A - \Gamma$ ($A$ antisymmetric from $H$, $\Gamma$ diagonal with entries $2\gamma n_{xy}(P)$, Eq.~\eqref{eq:generator}),
+\begin{equation}
+\frac{d}{dt}\sum_P r_P^2 = 2\,r^{\mathsf T}Gr = -2\,r^{\mathsf T}\Gamma r = -4\gamma\sum_P n_{xy}(P)\,r_P^2
+\quad\Rightarrow\quad
+\frac{d\ln\Tr\rho^2}{dt} = -4\gamma\,\langle n_{xy}\rangle ,
+\end{equation}
+because $r^{\mathsf T}Ar = 0$: the Hamiltonian conserves $\sum_P r_P^2$, and only the dephasing, through the weight on strings with $\sigma^x$ or $\sigma^y$, lowers the purity.
+
+\textbf{Operator entanglement of $\rho$} (option \texttt{--op-ent-dt}). Every string factorizes across the cut, $P = P_A\otimes P_B$, and the normalized strings $P_A/2^{L_A/2}$, $P_B/2^{(L-L_A)/2}$ are orthonormal for $\Tr(X^\dagger Y)$. So
+\begin{equation}
+\rho = 2^{-L/2}\sum_{P_A,P_B} R_{P_AP_B}\,\frac{P_A}{2^{L_A/2}}\otimes\frac{P_B}{2^{(L-L_A)/2}}, \qquad R_{P_AP_B} = r_{P_A\otimes P_B},
+\end{equation}
+is already written in orthonormal product bases, and the operator Schmidt coefficients of $\rho$ are proportional to the singular values of the real $4^{L_A}\times4^{L-L_A}$ matrix $R$. The normalized weights $w_\ell = s_\ell^2/\sum s^2$ come from the eigenvalues of $RR^{\mathsf T}$ on the smaller side (a $4096\times4096$ problem at $L = 12$), and give $S_{\mathrm{op}}$ and the Rényi-2 entropy $-\ln\sum_\ell w_\ell^2$ as in Sec.~\ref{sec:methods}.
+
+\subsection{Entanglement after a single flip}
+
+\texttt{single\_flip --ent-dt}: the entropy $S$ and the R\'enyi-2 entropy $S_2$ of the blocks $[0, \ell)$, $\ell = 1, \dots, L/2$ (\texttt{--ent-max}), of every single-flip run, with $\rho_A = \Psi\Psi^\dagger$ as above: how the entanglement created by one kick spreads.
+
+\subsection{Run options and file names}
+
+\begin{itemize}
+\item \texttt{--channel z|x|y|dep|decay|thermal} (and \texttt{--nbar}); the output files get \texttt{\_chx}, \texttt{\_chy}, \texttt{\_chdep}, \texttt{\_chdecay} or \texttt{\_chthermal\_n<$\bar n$>} (nothing for $\sigma^z$).
+\item \texttt{--seed $N$}: another random-$c$ realization (generator seeded with $1000N + L$); for $N \ne 1$ every output file gets \texttt{\_seed<$N$>} and the realization is \texttt{states\_realization\_L<L>\_seed<$N$>.csv}, so the seed-1 files are never overwritten.
+\item \texttt{--stop-te $F$}: the run also stops at $t = F\,t_1$, $t_1$ the first time the signal drops below $1/e$. With $F = 1.5$ this is enough for $\Ge$ without knowing $t_e$ in advance (as for the new channels).
+\item New outputs:
+  \begin{itemize}
+  \item \texttt{states\_obs\_*.csv}: purity, $\langle n\rangle$, $\langle n_{xy}\rangle$, $S_{\mathrm{op}}$, $S_{2,\mathrm{op}}$, $P(n)$, $P(\ell)$;
+  \item \texttt{single\_flip\_ent\_*.csv}: $S$, $S_2$ per block.
+  \end{itemize}
+\end{itemize}
+
+\paragraph{Tests of the new code} (\texttt{cargo test --release}, 17 tests in all):
+\begin{itemize}
+\item every new channel with free spins ($H_I = 0$, random product state) against the single-spin Bloch equations $\dot r_x = -hr_y + \gamma d_xr_x$, $\dot r_y = hr_x + \gamma d_yr_y$, $\dot r_z = \gamma d_zr_z + \gamma f$ ($d$ the diagonal entries, $f$ the feed) integrated by RK4: agreement to $10^{-10}$;
+\item diffusive trajectories with $\sigma^x$ dephasing and with depolarizing noise against the exact $\rho$ with the full $H$ ($L = 4$, 3000 trajectories): within $5\sigma$;
+\item the purity identity above, by finite differences ($L = 6$);
+\item eigenvalues of random symmetric ($n$ up to $600$, both code paths) and Hermitian matrices against $\Tr M$, $\Tr M^2$, $\Tr M^3$; Dicke-state block entropies against the exact formula for every block size; product states, including the scar state as the trajectories build it, give $0$, and the GHZ state $\ln 2$;
+\item $S_{\mathrm{op}}(\rho) = 2S_A(\psi)$ and $S_{2,\mathrm{op}} = 2S_2$ for a pure entangled state evolved independently as $\rho$ in the Pauli basis and as a state vector ($L = 6$, $10^{-8}$).
+\end{itemize}

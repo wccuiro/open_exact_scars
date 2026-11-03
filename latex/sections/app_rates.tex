@@ -1,0 +1,50 @@
+\section{How the decay rates are computed}
+\label{sec:rates}
+
+All rates of Sec.~\ref{sec:results} are obtained the same way, from the time series of one signal $S(t)$ per run: $m_\perp$ for the scar, $s_\perp$ for the $x$-N\'eel state, $\lvert s_z\rvert$ for the $z$-N\'eel state (Table~\ref{tab:states}). All three start at $S(0) = 1$. Code: \texttt{rates} in \texttt{plot\_scripts/fit\_states.py}.
+
+\paragraph{Envelope.} The signal precesses (the scar's $m_\perp$ is smooth, but $s_z$ crosses zero, and small systems show revivals), so the rate is read from the non-increasing envelope
+\begin{equation}
+E(t) = \max_{t' \ge t} S(t'),
+\end{equation}
+computed on the output grid ($dt = 0.1$ or finer).
+
+\paragraph{The $1/e$ rate $\Ge$ (main rate).} $t_e$ is the first time with $E(t_e) < 1/e$. Between the two output times $t_{i-1}$, $t_i$ that bracket the crossing it is interpolated linearly in $\ln E$:
+\begin{equation}
+t_e = t_{i-1} + (t_i - t_{i-1})\,\frac{\ln E_{i-1} + 1}{\ln E_{i-1} - \ln E_i}, \qquad \Ge = \frac{1}{t_e}.
+\end{equation}
+This is \emph{not} a fit of $A_0 e^{-\Gamma t}$: there is no free amplitude and no fit window. It is the rate of the exponential that starts at the true initial value $S(0) = 1$ and passes through the measured envelope at $1/e$. For a single exponential $e^{-\Gamma t}$ it returns $\Gamma$ exactly. For a general decay, write $E(t) = \exp[-\int_0^t \lambda(t')\,dt']$ with the instantaneous rate $\lambda = -d\ln E/dt$ (this uses $E(0) = 1$). The crossing condition $\ln E(t_e) = -1$ reads $\int_0^{t_e}\lambda\,dt = 1$, so
+\begin{equation}
+\Ge = \frac{1}{t_e} = \frac{1}{t_e}\int_0^{t_e} \lambda(t)\,dt,
+\end{equation}
+the instantaneous rate averaged from $t = 0$ to the $1/e$ time. This matters here because the decays are not single exponentials. The scar decays multi-exponentially, and at small $\gamma$ it follows $\exp[-\gamma\int\Db]$, whose instantaneous rate grows from $2\gamma$ to $\gamma D_{\mathrm{sat}}$ (Sec.~\ref{sec:kick}). A fit of $A_0 e^{-\Gamma t}$ with $A_0$ free would instead depend on the window: with an early fast drop it gives $A_0 < 1$ and the slower late rate. The single-kick prediction of $\Ge$ uses the same definition, $\gamma\int_0^{t_e}\Db = 1$.
+
+\paragraph{Statistical error (trajectories).} With $\sigma_m(t)$ the standard error of the trajectory-averaged signal (from the errors of $m_x$, $m_y$ or $s_x$, $s_y$), a shift $\delta E$ of the envelope at the crossing moves the crossing time by $\delta t = \delta E/\lvert dE/dt\rvert$, so $\sigma_t = \sigma_m(t_e)/\lvert dE/dt\rvert$, with the slope taken over $\pm 4$ output steps. From $\Ge = 1/t_e$, $\delta\Ge = \delta t/t_e^2$, i.e.\ $\sigma_\Gamma = \Ge^2\sigma_t$. For an exponential near $t_e$, $\lvert dE/dt\rvert = \Ge/e$ there, so $\sigma_\Gamma/\Ge = e\,\sigma_m$. The exact evolution has no statistical error.
+
+\paragraph{Tail rate $\Gamma_{\mathrm{tail}}$.} A least-squares straight-line fit of $\ln E$ between the times where $E$ drops below $10^{-2}$ and $10^{-3}$. This one \emph{is} an $A_0e^{-\Gamma t}$ fit, with $A_0$ free, on the tail only; it measures the slowest modes (the tower edges for the scar). It is used for exact runs only: trajectory runs reach their statistical floor in that window. Runs stop once the signal stays below $\max(10^{-3}, 3\sigma)$ for 10 time units, or, for the channel study and $L = 22$, at $1.5\,t_e$ (enough for $\Ge$; their tails are not used).
+
+\paragraph{Thermodynamic rate $\Ginf$.} For every state and $\gamma$, $\Ge(L) = A + B/L$ is fitted (unweighted) on $L \ge 8$ and $\Ginf = A$. The error is the larger of the fit error and $\lvert A - A_{\mathrm{quad}}\rvert$, with $A_{\mathrm{quad}}$ the intercept of a quadratic fit in $1/L$ on $L \ge 6$. Three groups of sizes and $\gamma$ are handled differently:
+\begin{itemize}
+\item \textbf{N\'eel states with finite-size revivals.} The affected small sizes are left out: $x$-N\'eel $L = 6$ at $\gamma \le 0.05$, $z$-N\'eel $L = 6, 8$ at $\gamma \le 0.02$. $z$-N\'eel has no quadratic fit; its error is $\lvert A - \Ge(L_{\max})\rvert$.
+\item \textbf{Scar at $\gamma \le 0.05$:} a second fit $A + B/L$ on the large sizes $L = 14$--$20$ only, as a check of the $L \ge 8$ fit, which includes sizes close to the cap $\Ge \approx \gamma(L-1)$. Its error is the larger of the fit error and the change of $A$ when $L = 12$ is added.
+\item \textbf{Channels other than $\sigma^z$} (no $L = 6$): the error is the larger of the fit error and the change of $A$ when $L = 8$ is dropped.
+\item \textbf{$\gamma = 0$.} It is not fitted. Its $\Ge$ is the mean over the fitted sizes; the scar never reaches $1/e$, so its $\Ge$ is $0$.
+\end{itemize}
+
+Figure~\ref{fig:wrap} shows the definition at work on the largest system, $L = 20$: at $\gamma = 0$ the precession is perfect and $\Ge = 0$; for $\gamma > 0$ the exponential $e^{-\Ge t}$ starts at $1$, meets the envelope at $1/e$, and bounds the oscillation of $m_x$, while the free-spin $e^{-2\gamma t}$ is slower. The envelope is not a single exponential: at $\gamma = 0.01$ it lies above $e^{-\Ge t}$ before $t_e$ and close to it or below after, because its instantaneous rate grows from $2\gamma$ to $\gamma D_{\mathrm{sat}}$ (Sec.~\ref{sec:kick}); $\Ge$ is the mean of that rate up to $t_e$. At $\gamma = 1$ it is almost a single exponential, close to $e^{-2\gamma t}$.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{scar_decay_L20.png}
+\caption{Scar at $L = 20$, $\gamma = 0$, $0.01$, $0.1$, $1$ (diffusive trajectories; $\gamma = 0$ is one deterministic trajectory): $m_x$ (light), $m_\perp$ (blue) and its envelope $E$ (dashed). Orange: $\pm e^{-\Ge t}$; dot: $(t_e, 1/e)$; dash-dot: $1/e$; dotted: $e^{-2\gamma t}$. Panels end at $2.5\,t_e$ (\texttt{plot\_scar\_decay\_L20.py}).}
+\label{fig:wrap}
+\end{figure}
+
+\paragraph{The envelope of the N\'eel signals.} For the scar the envelope changes little, because $m_\perp$ is already a smooth amplitude. For the N\'eel states it matters (Fig.~\ref{fig:neelenv}). Their signals decay within $t_e \approx 0.2$, so the $1/e$ crossing is set by the first fall, but afterwards they are not monotonic: $s_x$ and $s_z$ change sign, and $\lvert s_z\rvert$ of the $z$-N\'eel state at $L = 12$, $\gamma = 0.01$ comes back up to $\approx 0.1$ at $t \approx 1.7$ (a finite-size revival). The envelope $E(t) = \max_{t'\ge t}S(t')$ bridges such returns: it is non-increasing, so $t_e$ is the last time the signal is above $1/e$, never an early zero crossing. At small sizes ($L = 4, 6$ for $x$-N\'eel at $\gamma \le 0.05$, $L = 6, 8$ for $z$-N\'eel at $\gamma \le 0.02$) the revivals rise above $1/e$, which moves $t_e$ late; those sizes are left out of the fits (above). The free-spin reference $e^{-2\gamma t}$ applies to $s_\perp$ of the $x$-N\'eel state but not to $\lvert s_z\rvert$, which the $\sigma^z$ bath does not damp directly.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{neel_envelope.png}
+\caption{N\'eel states, $\gamma = 0.01$ and $1$: $x$-N\'eel at $L = 20$ ($s_x$ light, $s_\perp$ blue; diffusive trajectories) and $z$-N\'eel at $L = 12$ ($s_z$ light, $\lvert s_z\rvert$ blue; exact $\rho$), envelope $E$ dashed, $\pm e^{-\Ge t}$ orange, $(t_e, 1/e)$ marked, $t \le 3$ (\texttt{plot\_scar\_decay\_L20.py}).}
+\label{fig:neelenv}
+\end{figure}

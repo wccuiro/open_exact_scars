@@ -1,0 +1,40 @@
+\section{Summary and open points}
+\label{sec:summary}
+
+\paragraph{The exponent of $\gamma$.} The scar lifetime in the thermodynamic limit, from the smallest dissipation reached ($\gamma = 0.01$) and the largest sizes ($L \le 22$), fitted as $\Ginf \propto \gamma^p$:
+\begin{center}
+\small
+\begin{tabular}{lll}
+\toprule
+estimate & $\gamma$ range & $p$ \\
+\midrule
+$\Ginf$, $A + B/L$ on $L = 8$--$22$, weighted / unweighted & $0.01$--$0.05$ & $0.54 \pm 0.06$ / $0.58 \pm 0.05$ \\
+$\Ginf$, $A + B/L$ on $L = 14$--$20$, weighted / unweighted & $0.01$--$0.05$ & $0.54 \pm 0.02$ / $0.49 \pm 0.04$ \\
+$\Ginf$, $A + B/L$ on $L = 8$--$22$, weighted & $0.01$--$0.2$ & $0.49 \pm 0.01$ \\
+$\Ge$ of the largest size, $L = 22$ & $0.01$--$0.05$ & $0.65$ \\
+single kick with ballistic damage, $c = 2$ / $2.7$ & $0.01$--$0.05$ & $0.63$ / $0.60$ \;($\to 1/2$ as $\gamma \to 0$) \\
+other channels ($\sigma^x$, $\sigma^y$, depolarizing, thermal; $L \le 20$) & $0.01$--$0.05$ & $0.58$--$0.67$ ($\pm 0.04$--$0.09$) \\
+\bottomrule
+\end{tabular}
+\end{center}
+So the scar lifetime grows as $\gamma^{-p}$ with $p \approx 0.5$--$0.6$ over the accessible range, with $\Ginf^2/\gamma = 2.0$--$2.3$, i.e.\ $\Ginf \approx (1.4$--$1.5)\,\gamma^{1/2}$, for $0.02 \le \gamma \le 0.1$. The value of the largest size alone ($0.65$) is biased upwards: at $\gamma = 0.01$, $\Ge(L = 22)$ is still $17\%$ below $\Ginf$. The ballistic spreading of the damage predicts $p \to 1/2$ as $\gamma \to 0$ and an effective $0.60$--$0.63$ over $0.01$--$0.05$; diffusive spreading would give $2/3$. The data favour $1/2$: $2/3$ lies $1.7$--$2.1$ standard errors from the $L = 8$--$22$ fits and further from the $L = 14$--$20$ fit.
+
+\paragraph{Main results.}
+\begin{itemize}
+\item The scar transverse magnetization decays at an $L$-independent rate once $L - 1 \gg \Ginf/\gamma$; its thermodynamic rate decreases towards $0$ as $\gamma \to 0$ and tends to $2\gamma$ at large $\gamma$. The thermal $x$-N\'eel signal decays at the closed-system rate $\approx 4.8$ for every $\gamma \le 0.1$: the two differ by a factor $37$ at $\gamma = 0.01$. The $z$-N\'eel state is Zeno-protected and not a fair reference.
+\item At fixed $L$ and $\gamma \to 0$, first-order perturbation theory gives the cap $\Ge = \gamma(L - 1 + 2/L)$, the loss rate of the tower weight: the local signal then behaves like a global one.
+\item A single kick evolved with $H$ predicts the scar decay at every $L = 12$--$20$ and $0.01 \le \gamma \le 0.05$ to within $6\%$ without parameters; the lifetime is the integral of the single-kick damage. The damage of one kick spreads ballistically ($v \approx 1.6$, $\Db$ growing at $\approx 2$ per unit of time before it wraps around $L = 24$ at $\tau \approx 4$).
+\item Under $\sigma^x$, $\sigma^y$, depolarizing and thermal noise the scar rate at small $\gamma$ has the same exponent as under $\sigma^z$ and collapses onto it at the effective rate $\kappa\gamma$, $\kappa$ the damage of one kick relative to $\sigma^z$ ($1/2$, $1/2$, $1$, $3/4$). At large $\gamma$ the channels differ (Zeno protection of the scar under $\sigma^x$). The N\'eel states stay at their closed-system rate $\approx 4.5$--$5.3$ under every channel.
+\item When the signal reaches $1/e$, the N\'eel density matrix has scrambled (size $\approx 0.7\,L$, close to a random pure state), the scar density matrix has not (size $\approx L/2$, as the initial product state): the N\'eel signals are lost to the closed-system dynamics, the scar signal to the accumulation of kicks. Mori's finite $\gamma \to 0$ limit applies to the former; for the scar the limits do not commute ($\Ginf/\gamma$ grows as $\gamma$ decreases) but $\Ginf \to 0$.
+\item The scars are the low-entanglement outliers of the spectrum (logarithmic in $L$, $S = 1.32$ at $L = 12$, against a bulk dome at $97\%$ of the Page value); among the Liouvillian modes ($L \le 6$, $\gamma = 0.01$) the tower coherences stay low-entanglement outliers, almost unchanged from $\gamma = 0$.
+\item Tensor networks (Appendix~\ref{app:other}) have not reached sizes beyond the exact methods: the noisy $\rho$ from the scar state needs nearly the full bond dimension, and one kicked pure state reaches the maximal bond dimension of $L = 20$ by $t \approx 2.5$--$4$.
+\end{itemize}
+
+\paragraph{Open points.}
+\begin{itemize}
+\item $\Db_\infty(\tau)$ beyond $\tau \approx 4$, which tests the linear continuation and fixes $p$: a single kicked pure state at $L \approx 40$--$60$, as an MPS with a loose truncation.
+\item $\gamma < 0.01$: needs sizes with $L - 1 \gg \Ginf/\gamma$, i.e.\ $L \gtrsim 50$ at $\gamma = 0.005$ if $\Ginf \propto \gamma^{1/2}$.
+\item Single-kick runs with $\sigma^x$ kicks (needs a kick option in the code), to test the channel rescaling directly.
+\item The scar under decay (runs with a later stop).
+\item The forward/backward method beyond $L = 6$.
+\end{itemize}

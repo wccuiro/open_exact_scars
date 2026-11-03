@@ -54,7 +54,7 @@ GAMMA_FIT_MIN = 0.01
 NEEL_REVIVAL_GAMMA, NEEL_REVIVAL_SIZES = 0.02, (6, 8)
 NEEL_X_REVIVAL_GAMMA, NEEL_X_REVIVAL_SIZES = 0.05, (4, 6)
 G_LIN, RATE_LIN = 0.01, 0.02  # symlog axes of the 1/L figure (scar panel): linear below, so that Γ_e = 0 fits
-G_EXTRAP_MIN = 1e-10  # Γ_∞ figure: the collapse power law and the 2γ line are drawn down to this γ
+G_EXTRAP_MIN = 0.01  # Γ_∞ figure: smallest γ drawn (notes: nothing below γ = 0.01, no collapse law)
 LARGE_L_MIN = 14  # as in fit_small_gamma.py (label only)
 COLLAPSE_ANCHOR = 0.05  # γ at which the collapse power law is pinned to the extrapolated Γ_∞
 
@@ -191,35 +191,18 @@ def thermodynamic_figure(table, bounds, large):
     g = np.array(sorted(set(table["gamma"]) | set(bounds["gamma"])))
     gs = np.geomspace(G_EXTRAP_MIN, g.max(), 300)
     ax.plot(gs, 2 * gs, color=MUTED, ls=":", lw=1, label="free spins, 2γ")
-    collapse = DIR / "small_gamma_collapse.csv"
     for state in [s for s in STATES if s in set(table["state"])]:
         d = table[table["state"] == state].sort_values("gamma")
         ax.errorbar(d["gamma"], d["Gamma_inf"], yerr=d["sigma_Gamma_inf"], fmt="-o", ms=4, capsize=2,
                     color=SERIES[state], label=NAMES[state])
-        if state == "minus-x" and len(bounds):
-            ax.plot(bounds["gamma"], bounds["Gamma_e"], "^", ms=5, mfc=SURFACE, mew=1.1, color=SERIES[state],
-                    label="scar Γ_e at the largest L (L = " + ", ".join(map(str, sorted(set(bounds["L"])))) +
-                    "): lower bound")
-            if collapse.exists():
-                c = pd.read_csv(collapse).iloc[0]
-                anchor = d[np.isclose(d["gamma"], COLLAPSE_ANCHOR)]["Gamma_inf"].iloc[0]
-                gs = np.geomspace(G_EXTRAP_MIN, COLLAPSE_ANCHOR, 200)
-                law = {nu: anchor * (gs / COLLAPSE_ANCHOR) ** (1 - nu) for nu in (c["nu"], c["nu_min"], c["nu_max"])}
-                ax.fill_between(gs, law[c["nu_min"]], law[c["nu_max"]], color=SERIES[state], alpha=0.12, lw=0)
-                ax.plot(gs, law[c["nu"]], "--", lw=1.0, color=SERIES[state],
-                        label=f"collapse: Γ_∞ ∝ γ^(1 − ν), ν = {c['nu']:.2f} (band {c['nu_min']:.2f} – {c['nu_max']:.2f})")
         if state == "minus-x" and len(large):
             ax.errorbar(large["gamma"], large["A"], yerr=large["sigma_A"], fmt="s", ms=4.5, capsize=2, mew=1.1,
                         mfc=SURFACE, color=SERIES[state], label=f"scar, A + B/L on L ≥ {LARGE_L_MIN} only", zorder=3)
     ax.set(xscale="log", yscale="log", xlim=(G_EXTRAP_MIN / 1.5, 1.5 * g.max()), ylim=(None, 60), xlabel="γ",
            ylabel="Γ", title="Thermodynamic decay rate Γ_∞ (1/L → 0)")
     ax.legend(fontsize=7.5, loc="center left", bbox_to_anchor=(1.02, 0.5))
-    fig.text(0.01, -0.12, f"Γ_∞: 1/e rate of the envelope, A + B/L extrapolated to 1/L = 0 (γ ≥ {GAMMA_FIT_MIN:g}).\n"
-             f"Triangles: γ < {GAMMA_FIT_MIN:g}, where every L ≤ 20 sits at the finite-size cap Γ_e ≈ γ(L − 1) and "
-             "Γ_∞ cannot be extrapolated;\nΓ_e grows with L there, so Γ_e of the largest size bounds Γ_∞ from below. "
-             f"Dashed and band: power law through Γ_∞(γ = {COLLAPSE_ANCHOR:g}), extrapolated to γ = {G_EXTRAP_MIN:g} (data: γ ≥ {g.min():g}). Open squares: scar fit on L ≥ {LARGE_L_MIN} "
-             "(not converged at γ < 0.01).",
-             fontsize=7.5, color=INK_SECONDARY)
+    fig.text(0.01, -0.06, f"Γ_∞: 1/e rate of the envelope, A + B/L extrapolated to 1/L = 0 on L ≥ 8 (γ ≥ {GAMMA_FIT_MIN:g}). "
+             f"Open squares: scar fit on L ≥ {LARGE_L_MIN} only.", fontsize=7.5, color=INK_SECONDARY)
     fig.savefig(DIR / "states_thermodynamic_rate.png")
 
 
@@ -246,6 +229,7 @@ def main():
     inverse_l_figure(rates, table)
     print("scar, γ < GAMMA_FIT_MIN: Γ_e of the largest size (lower bound on Γ_∞):")
     print(bounds[["gamma", "L", "Gamma_e"]].to_string(index=False, float_format="%.4g"))
+    large = large[large["gamma"] >= GAMMA_FIT_MIN]
     thermodynamic_figure(table, bounds, large)
     print(f"wrote states_inverse_L.csv, states_inverse_L.png, states_thermodynamic_rate.png in {DIR}")
 

@@ -50,8 +50,8 @@ handles = [
 ]
 
 for g, sizes in sorted(runs.items(), key=lambda item: float(item[0])):
-    files = [f for _, f in sorted(sizes)]
-    fig, axes = plt.subplots(len(files), 2, figsize=(7.0, 2.5 * len(files)), squeeze=False, layout="constrained")
+    files = [f for _, f in sorted(sizes)][-2:]  # the two largest L: 2 × 2 panels (notes_layout.MAX_PANELS)
+    fig, axes = plt.subplots(len(files), 2, figsize=(7.6, 2.9 * len(files)), squeeze=False, layout="constrained")
     for row, file in zip(axes, files):
         df = pd.read_csv(file)
         l, l_a, gamma = int(df["L"].iloc[0]), int(df["L_A"].iloc[0]), df["gamma"].iloc[0]

@@ -43,14 +43,15 @@ mpl.rcParams.update({
     "lines.linewidth": 1.2, "legend.frameon": False, "savefig.dpi": 200, "savefig.bbox": "tight",
 })
 
-files = sorted(DIR.glob("entanglement_L*.csv"), key=lambda f: int(re.search(r"_L(\d+)", f.name).group(1)))
+L_SHOW = (6, 8, 10, 12)  # at most 4 panels (notes_layout.MAX_PANELS); L = 7, 9, 11 exist but are not drawn
+files = sorted((f for f in DIR.glob("entanglement_L*.csv") if int(re.search(r"_L(\d+)", f.name).group(1)) in L_SHOW),
+               key=lambda f: int(re.search(r"_L(\d+)", f.name).group(1)))
 if not files:
     sys.exit(f"no entanglement_L*.csv in {DIR}")
 blues = LinearSegmentedColormap.from_list("blues", RAMP)
 
-ncols = min(len(files), 4)
-nrows = -(-len(files) // ncols)
-fig, axes = plt.subplots(nrows, ncols, figsize=(3.0 * ncols, 2.5 * nrows), squeeze=False, layout="constrained")
+nrows, ncols = 2, 2
+fig, axes = plt.subplots(nrows, ncols, figsize=(3.8 * ncols, 2.9 * nrows), squeeze=False, layout="constrained")
 for ax, file in zip(axes.flat, files):
     df = pd.read_csv(file)
     l, l_a = int(df["L"].iloc[0]), int(df["L_A"].iloc[0])

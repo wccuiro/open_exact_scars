@@ -36,10 +36,11 @@ from matplotlib.lines import Line2D
 
 import states_data
 from fit_small_gamma import m_perp, rate
+from notes_layout import GAMMA_MIN
 
 GAMMA_MAX = 0.05
 SAT_WINDOW = 5.0
-SERIES_CASES = [(12, 0.002), (16, 0.0005), (16, 0.005), (20, 0.0005), (20, 0.002), (20, 0.01)]
+SERIES_CASES = [(12, 0.01), (16, 0.02), (20, 0.01), (20, 0.05)]  # 2 × 2 panels, γ ≥ 0.01 (notes_layout)
 
 DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "data" / "used_data"
 SURFACE, INK, INK_SECONDARY, MUTED, GRID, AXIS = "#fcfcfb", "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7"
@@ -139,6 +140,7 @@ def main():
     fig.savefig(DIR / "single_kick_damage.png")
 
     fig, (ax, bx) = plt.subplots(1, 2, figsize=(10.4, 4.0), layout="constrained")
+    t = t[t["gamma"] >= GAMMA_MIN * (1 - 1e-9)]  # the figure shows γ ≥ 0.01 only (the CSV keeps every γ)
     lo, hi = 2, max(sizes)
     ax.plot([lo, hi], [lo, hi], color=MUTED, ls=":", lw=1.1, label="measured = predicted")
     for l in sizes:
@@ -147,7 +149,7 @@ def main():
             ax.errorbar(d["pred"], d["meas"], yerr=d["sigma_measured"] / d["gamma"], fmt="o", ms=3.5, capsize=1.5,
                         color=colors[l], label=f"L = {l}")
     ax.set(xlabel="predicted Γ_e/γ (single kick)", ylabel="measured Γ_e/γ",
-           title=f"Finite L, γ ≤ {GAMMA_MAX:g}")
+           title=f"Finite L, {GAMMA_MIN:g} ≤ γ ≤ {GAMMA_MAX:g}")
     ax.legend(fontsize=7.5)
     bx.plot(inf["gamma"], 2 * inf["gamma"], color=MUTED, ls=":", lw=1.0, label="2γ")
     bx.errorbar(inf["gamma"], inf["Gamma_inf"], yerr=inf["sigma_Gamma_inf"], fmt="-o", ms=3.5, capsize=1.5,
@@ -163,7 +165,7 @@ def main():
     fig.savefig(DIR / "single_kick_rates.png")
 
     cases = [c for c in SERIES_CASES if (c[0], c[1]) in {(l, g) for (_, l, g) in runs} and c[0] in dmgs]
-    fig, axes = plt.subplots(2, 3, figsize=(10.4, 5.2), layout="constrained", squeeze=False)
+    fig, axes = plt.subplots(2, 2, figsize=(8.4, 5.6), layout="constrained", squeeze=False)
     for ax, (l, g) in zip(axes.flat, cases):
         method, run, _ = runs["minus-x", l, g]
         tt = run["t"].to_numpy()

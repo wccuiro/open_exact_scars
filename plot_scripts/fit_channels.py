@@ -98,16 +98,18 @@ def extrapolate(rates_):
                                        "Gamma_inf", "sigma_Gamma_inf"])
 
 
+OTHER = [ch for ch in CHANNELS if ch != "z"]  # σᶻ has its own figures (fit_states_inverse_L.py)
+
+
 def inverse_l_figure(rates_, table):
-    states = fsi.STATES
-    fig, axes = plt.subplots(len(CHANNELS), len(states), figsize=(4.3 * len(states), 3.0 * len(CHANNELS)),
-                             squeeze=False, layout="constrained")
+    """One figure per state, 2 × 2 panels: the four channels other than σᶻ (notes_layout: at most 4 panels)."""
     gammas = sorted(table["gamma"].unique())
     blues = LinearSegmentedColormap.from_list("blues", fsi.RAMP)
     colors = {g: blues(i / max(len(gammas) - 1, 1)) for i, g in enumerate(gammas)}
     xs = np.linspace(0, 1 / 4, 100)
-    for row, ch in enumerate(CHANNELS):
-        for ax, state in zip(axes[row], states):
+    for state in fsi.STATES:
+        fig, axes = plt.subplots(2, 2, figsize=(9.0, 6.4), squeeze=False, layout="constrained")
+        for ax, ch in zip(axes.flat, OTHER):
             for g in gammas:
                 t = table[(table["state"] == state) & (table["channel"] == ch) & (table["gamma"] == g)]
                 if t.empty:
@@ -124,61 +126,63 @@ def inverse_l_figure(rates_, table):
                     ax.plot(x[~used & sel], y[~used & sel], marker, ms=3.5, mfc="none", mew=0.8, color=colors[g])
                 xf = xs[xs <= x[used].max()]
                 ax.plot(xf, t["A_lin"] + t["B_lin"] * xf, "--", lw=0.9, color=colors[g])
-            ax.set(yscale="log", xlim=(0, 0.26), xlabel="1/L", ylabel="Γ_e",
-                   title=f"{fsi.NAMES[state]}, {CH_NAMES[ch]}")
-    handles, labels = axes[0][-1].get_legend_handles_labels()
-    fig.legend(handles, labels, fontsize=7.5, loc="outside right center")
-    fig.text(0.01, -0.01, f"dashed: A + B/L on L ≥ {LIN_MIN}, extrapolated to 1/L = 0; circles: exact, squares: "
-             "trajectories; open: not in the fit (L < 8; z-Néel L = 6, 8 at γ ≤ 0.02, x-Néel L = 6 at γ ≤ 0.05)",
-             fontsize=7.5, color=fsi.INK_SECONDARY)
-    fig.savefig(DIR / "channels_inverse_L.png")
+            ax.set(yscale="log", xlim=(0, 0.26), xlabel="1/L", ylabel="Γ_e", title=CH_NAMES[ch])
+        handles, labels = {}, {}
+        for ax in axes.flat:
+            for h, lab in zip(*ax.get_legend_handles_labels()):
+                handles.setdefault(lab, h)
+        order = sorted(handles, key=lambda s: float(s.split("= ")[1]))
+        fig.legend([handles[k] for k in order], order, fontsize=7.5, loc="outside right center")
+        fig.suptitle(f"{fsi.NAMES[state]}: Γ_e against 1/L, channels other than σᶻ", x=0.01, ha="left",
+                     fontsize=10, fontweight="bold")
+        out = DIR / f"channels_inverse_L_{state}.png"
+        fig.savefig(out)
+        plt.close(fig)
+        print(f"wrote {out}")
 
 
 def thermodynamic_figure(table):
-    fig, axes = plt.subplots(2, 3, figsize=(12.5, 7.6), layout="constrained")
+    """channels_thermodynamic_rate.png: Γ_∞ per channel other than σᶻ (2 × 2); channels_scar.png: the scar under
+    every channel, with the σᶻ fit on L ≥ 14 and the single-kick prediction (γ ≥ 0.01 only)."""
     g = np.geomspace(table["gamma"].min(), table["gamma"].max(), 100)
-    for ax, ch in zip(axes.flat, CHANNELS):
+    fig, axes = plt.subplots(2, 2, figsize=(9.6, 7.0), layout="constrained")
+    for ax, ch in zip(axes.flat, OTHER):
         ax.plot(g, 2 * g, color=fsi.MUTED, ls=":", lw=1, label="2γ")
         for state in fsi.STATES:
             d = table[(table["state"] == state) & (table["channel"] == ch)].sort_values("gamma")
             ax.errorbar(d["gamma"], d["Gamma_inf"], yerr=d["sigma_Gamma_inf"], fmt="-o", ms=3.5, capsize=2,
                         color=fsi.SERIES[state], label=fsi.NAMES[state])
         ax.set(xscale="log", yscale="log", xlabel="γ", ylabel="Γ", title=CH_NAMES[ch])
-    ax = axes.flat[-1]  # last panel: the scar under every channel
+    axes.flat[0].legend(fontsize=7.5)
+    fig.suptitle("Thermodynamic decay rate Γ_∞ (A + B/L, 1/L → 0) per noise channel", x=0.01, ha="left",
+                 fontsize=10, fontweight="bold")
+    fig.savefig(DIR / "channels_thermodynamic_rate.png")
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(6.4, 4.6), layout="constrained")
     styles = dict(zip(CHANNELS, ["-o", "--s", "-.^", ":D", "-v"]))
     colors = dict(zip(CHANNELS, ["#2a78d6", "#eb6834", "#1baf7a", "#8a5cc7", "#b8860b"]))
-    ax.plot(g, 2 * g, color=fsi.MUTED, ls=":", lw=1)
+    ax.plot(g, 2 * g, color=fsi.MUTED, ls=":", lw=1, label="2γ")
     for ch in CHANNELS:
         d = table[(table["state"] == "minus-x") & (table["channel"] == ch)].sort_values("gamma")
         ax.errorbar(d["gamma"], d["Gamma_inf"], yerr=d["sigma_Gamma_inf"], fmt=styles[ch], ms=3.5, capsize=2,
                     color=colors[ch], mfc=fsi.SURFACE, label=CH_NAMES[ch])
-    ax.set(xscale="log", yscale="log", xlabel="γ", ylabel="Γ", title="Scar m_⊥, every channel")
-    # σᶻ scar at small γ: A + B/L on L ≥ 14 (fit_small_gamma.py) and the single-kick prediction (spreading.py)
     large, pred = DIR / "states_inverse_L_large.csv", DIR / "spreading_prediction.csv"
-    for ax, color in ((axes.flat[0], fsi.SERIES["minus-x"]), (axes.flat[-1], colors["z"])):
-        if large.exists():
-            lg = pd.read_csv(large)
-            ax.errorbar(lg["gamma"], lg["A"], yerr=lg["sigma_A"], fmt="s", ms=4, capsize=2, mfc=fsi.SURFACE,
-                        color=color, label="scar σᶻ, A + B/L on L ≥ 14", zorder=3)
-        if pred.exists():
-            p = pd.read_csv(pred)
-            lo, hi = (p[p["c"] == c].sort_values("gamma") for c in sorted(p["c"].unique())[:2])
-            ax.fill_between(lo["gamma"], lo["Gamma_pred"], hi["Gamma_pred"], color=fsi.SERIES["neel"], alpha=0.4,
-                            lw=0, label="scar σᶻ, single-kick prediction (ballistic D̄_∞)")
-        gs = np.geomspace(2e-4, g.max(), 100)
-        ax.plot(gs, 2 * gs, color=fsi.MUTED, ls=":", lw=1)
-    ax.legend(fontsize=7)
-    axes.flat[0].legend(fontsize=7)
-    fig.suptitle("Thermodynamic decay rate Γ_∞ (A + B/L, 1/L → 0) per noise channel", x=0.01, ha="left",
-                 fontsize=10, fontweight="bold")
-    fig.text(0.01, -0.075, f"Γ_∞: 1/e rate of the envelope, A + B/L on L ≥ {LIN_MIN} (at least {MIN_SIZES} sizes), "
-             f"γ ≥ {GAMMA_FIT_MIN:g}. Sizes: σᶻ L = 8 … 22 (scar), 8 … 20 (Néel); σˣ, σʸ, depolarizing L = 8, 10, 12 "
-             "exact + 16, 20 trajectories (γ ≤ 2), L = 8, 10, 12 above;\nthermal L = 8, 10, 12. Decay channel left "
-             "out (scar m_⊥ rises again after the first 1/e crossing; the runs stop too early to fix t_e).\nσᶻ panel and "
-             "scar panel: open squares = scar A + B/L on L = 14 … 20 only (fit_small_gamma.py, not converged at γ < 0.01); "
-             "band = Γ_∞ from one kick with D̄_∞ linear past τ = 3, slope 2 – 2.7 (spreading.py).",
-             fontsize=7.5, color=fsi.INK_SECONDARY)
-    fig.savefig(DIR / "channels_thermodynamic_rate.png")
+    if large.exists():
+        lg = pd.read_csv(large)
+        lg = lg[lg["gamma"] >= GAMMA_FIT_MIN * (1 - 1e-9)]
+        ax.errorbar(lg["gamma"], lg["A"], yerr=lg["sigma_A"], fmt="s", ms=5, capsize=2, mfc="none",
+                    color=colors["z"], label="σᶻ, A + B/L on L ≥ 14", zorder=3)
+    if pred.exists():
+        p = pd.read_csv(pred)
+        p = p[p["gamma"] >= GAMMA_FIT_MIN * (1 - 1e-9)]
+        lo, hi = (p[p["c"] == c].sort_values("gamma") for c in sorted(p["c"].unique())[:2])
+        ax.fill_between(lo["gamma"], lo["Gamma_pred"], hi["Gamma_pred"], color=fsi.SERIES["neel"], alpha=0.35,
+                        lw=0, label="σᶻ, single-kick prediction (ballistic D̄_∞)")
+    ax.set(xscale="log", yscale="log", xlabel="γ", ylabel="Γ_∞", title="Scar m_⊥ under every channel")
+    ax.legend(fontsize=7.5)
+    fig.savefig(DIR / "channels_scar.png")
+    plt.close(fig)
 
 
 def main():
@@ -194,7 +198,7 @@ def main():
         print(wide[[c for c in CHANNELS if c in wide.columns]].to_string())
     inverse_l_figure(rates_, table)
     thermodynamic_figure(table)
-    print(f"wrote channels_rates.csv, channels_inverse_L.csv, channels_inverse_L.png, channels_thermodynamic_rate.png "
+    print(f"wrote channels_rates.csv, channels_inverse_L.csv, channels_inverse_L_<state>.png, channels_thermodynamic_rate.png, channels_scar.png "
           f"in {DIR}")
 
 

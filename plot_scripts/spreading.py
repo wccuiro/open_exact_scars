@@ -9,11 +9,10 @@ Spreading of the damage of one kick, and what it implies for the scar rate as γ
     before wrapping, ≈ 2 v_body h; 2.7 if the interior height grows from 0.7 to its finite-size saturation 0.85).
 (c) Γ_∞ predicted from that D̄_∞ (γ ∫₀^{t_e} D̄ = 1, independent kicks) against the extrapolated Γ_∞: σᶻ, A + B/L on
     L ≥ 8 (channels_inverse_L.csv) and on L ≥ 14 (states_inverse_L_large.csv). Small γ: Γ_∞ ≈ √(cγ/2).
-(d) How the signal is lost at t_e: operator entanglement S_op of ρ(t_e) (exact L = 12, σᶻ, lean states_obs files)
-    for the scar and the Néel states, and the trajectory half-chain entanglement S_A(t_e) at L = 22 (scar).
+Three panels (notes_layout: at most 4), γ ≥ 0.01 only.
 
-Input:  data/used_data/ (or the first argument): single_flip_L*.csv, lean/single_flip_L24_*.csv, lean/states_obs_*,
-        lean/states_traj_ent_*, channels_rates.csv, channels_inverse_L.csv (fit_channels.py), states_inverse_L_large.csv
+Input:  data/used_data/ (or the first argument): single_flip_L*.csv, lean/single_flip_L24_*.csv,
+        channels_rates.csv, channels_inverse_L.csv (fit_channels.py), states_inverse_L_large.csv
 Output: spreading.png, spreading_prediction.csv (gamma, c, Gamma_pred) in the same directory
 """
 
@@ -31,7 +30,7 @@ DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().paren
 L24 = DIR / "lean" / "single_flip_L24_sites0-6-12-18.csv"
 T0, SLOPES, BODY = 3.0, (2.0, 2.7), 0.35
 PROFILE_TAUS = (0.5, 1, 2, 3, 4, 6, 8, 16)
-GAMMAS = np.geomspace(2e-4, 0.3, 60)
+GAMMAS = np.geomspace(0.01, 0.3, 40)  # notes: γ ≥ 0.01 only (notes_layout.GAMMA_MIN)
 
 
 def profile(path, l):
@@ -65,7 +64,8 @@ def predicted(d24, gamma, c):
 
 
 def main():
-    fig, axes = plt.subplots(2, 2, figsize=(11, 8), layout="constrained")
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.4), layout="constrained", squeeze=False)
+    axes = axes.reshape(1, 3)
     blues = LinearSegmentedColormap.from_list("blues", fsi.RAMP)
 
     ax = axes[0, 0]
@@ -82,7 +82,7 @@ def main():
         i = np.nonzero(p < BODY)[0][0]
         fr.append(i - 1 + (p[i - 1] - BODY) / (p[i - 1] - p[i]))
     v_body = np.polyfit(ts, fr, 1)[0]
-    ax.set_title(f"(a) Damage profile of one kick, L = 24 (front of d = {BODY:g}: v = {v_body:.2f})")
+    ax.set_title(f"(a) Damage profile, L = 24 (front d = {BODY:g}: v = {v_body:.2f})")
 
     ax = axes[0, 1]
     dmg = mean_damage()
@@ -94,10 +94,10 @@ def main():
     for c, ls in zip(SLOPES, ("--", ":")):
         ax.plot(tt, np.interp(T0, d24.index, d24) + c * (tt - T0), ls, color=fsi.SERIES["neel"],
                 label=f"L → ∞ estimate, slope {c:g}")
-    ax.set(xlabel="τ", ylabel="D̄(τ)", xlim=(0, 25), ylim=(0, 32), title="(b) Mean damage D̄(τ): finite L saturate, L → ∞ linear")
+    ax.set(xlabel="τ", ylabel="D̄(τ)", xlim=(0, 25), ylim=(0, 32), title="(b) Mean damage D̄(τ)")
     ax.legend(fontsize=7.5, ncol=2)
 
-    ax = axes[1, 0]
+    ax = axes[0, 2]
     rows = [(g, c, predicted(d24, g, c)) for c in SLOPES for g in GAMMAS]
     pred = pd.DataFrame(rows, columns=["gamma", "c", "Gamma_pred"])
     pred.to_csv(DIR / "spreading_prediction.csv", index=False)
@@ -110,39 +110,12 @@ def main():
     ax.errorbar(z["gamma"], z["Gamma_inf"], yerr=z["sigma_Gamma_inf"], fmt="o", ms=4, capsize=2,
                 color=fsi.SERIES["minus-x"], label="Γ_∞, σᶻ, A + B/L on L ≥ 8")
     lg = pd.read_csv(DIR / "states_inverse_L_large.csv")
+    lg = lg[lg["gamma"] >= GAMMAS[0] * (1 - 1e-9)]
     ax.errorbar(lg["gamma"], lg["A"], yerr=lg["sigma_A"], fmt="s", ms=4, capsize=2, mfc=fsi.SURFACE,
                 color=fsi.SERIES["minus-x"], label="Γ_∞, σᶻ, A + B/L on L ≥ 14")
-    ax.set(xscale="log", yscale="log", xlabel="γ", ylabel="Γ", title="(c) Scar Γ_∞ against the single-kick prediction")
+    ax.set(xscale="log", yscale="log", xlabel="γ", ylabel="Γ", title="(c) Scar Γ_∞ and the single-kick prediction")
     ax.legend(fontsize=7.5)
 
-    ax = axes[1, 1]
-    rates = pd.read_csv(DIR / "channels_rates.csv")
-    rates = rates[(rates["channel"] == "z") & (rates["L"] == 12)]
-    for state in fsi.STATES:
-        pts = []
-        for g in sorted(rates[(rates["state"] == state) & (rates["gamma"] > 0)]["gamma"]):
-            f = DIR / "lean" / f"states_obs_{state}_L12_g{g:g}.csv"
-            if not f.exists():
-                continue
-            o = pd.read_csv(f).dropna(subset=["S_op"])
-            te = 1 / rates[(rates["state"] == state) & (rates["gamma"] == g)]["Gamma_e"].iloc[0]
-            pts.append((g, np.interp(te, o["t"], o["S_op"])))
-        pts = np.array(pts)
-        ax.plot(pts[:, 0], pts[:, 1], "-o", ms=3.5, color=fsi.SERIES[state], label=f"{fsi.NAMES[state]}: S_op(ρ), L = 12")
-    traj = []
-    r22 = pd.read_csv(DIR / "channels_rates.csv")
-    r22 = r22[(r22["state"] == "minus-x") & (r22["channel"] == "z") & (r22["L"] == 22)]
-    for f in sorted((DIR / "lean").glob("states_traj_ent_minus-x_L22_g*.csv")):
-        e = pd.read_csv(f)
-        g = e["gamma"].iloc[0]
-        te = 1 / r22[np.isclose(r22["gamma"], g)]["Gamma_e"].iloc[0]
-        traj.append((g, np.interp(te, e["t"], e["S_A"])))
-    traj = np.array(sorted(traj))
-    ax.plot(traj[:, 0], traj[:, 1], "--s", ms=3.5, mfc=fsi.SURFACE, color=fsi.SERIES["minus-x"],
-            label="scar: trajectory S_A (half chain), L = 22")
-    ax.set(xscale="log", xlabel="γ", ylabel="entanglement at t_e",
-           title="(d) Entanglement when the signal reaches 1/e (σᶻ)")
-    ax.legend(fontsize=7.5)
     fig.savefig(DIR / "spreading.png")
     print(f"v_body = {v_body:.2f}; slope of D̄_24 on τ = 1.5 … 3: {(d24[3.0] - d24[1.5]) / 1.5:.2f}")
     print(pred[np.isin(pred["c"], SLOPES)].pivot(index="gamma", columns="c", values="Gamma_pred").iloc[::6].to_string(

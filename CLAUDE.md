@@ -109,7 +109,7 @@ This is a spin coherent state with S = L/2, so it lies entirely in the tower: |�
 ## Decay rates (how they are computed)
 
 Same definition for every state, γ and L (code: `rates` in `plot_scripts/fit_states.py`, `rate` in
-`fit_small_gamma.py`; notes: `latex/notes.tex`, section "How the decay rates are computed").
+`fit_small_gamma.py`; notes: Appendix "How the decay rates are computed", `latex/sections/app_rates.tex`).
 
 - **Signal** S(t): m_⊥ (scar), s_⊥ (x-Néel), |s_z| (z-Néel); all start at S(0) = 1.
 - **Envelope** E(t) = max_{t′ ≥ t} S(t′) on the output grid: non-increasing, removes precession zeros and revivals.
@@ -179,7 +179,7 @@ Later knobs:
 
 ---
 
-# Code and results (state of 2026-10-31)
+# Code and results (state of 2026-11-03)
 
 Current focus: time evolution only. The `states` binary evolves ρ exactly (full Pauli basis, random c, current
 coefficients) from product states over a γ grid, `states_traj` does the same with trajectories for L > 14, and the
@@ -189,11 +189,33 @@ all current figures and CSVs are in `data/used_data/` (lean runs in `data/used_d
 beyond τ ≈ 4 (the damage spreads ballistically but wraps around L = 24 at τ ≈ 4); the channel rescaling below
 γ = 0.01; the scar under decay (runs stopped too early). Plan: `time-evolution-plan.md` (the earlier probe/ED plan `scar-vs-thermal-decay-plan.md` is in git
 history). Notes: `latex/notes.tex` (build `cd latex && latexmk -pdf notes.tex`; figures copied from `data/used_data/`
-into `latex/figures/`). Since 2026-10-25 they open with a Theory section (forward/backward evolution and meeting in
-the middle, spectral decomposition, scars and ETH, Mori's order of limits, first-order cap γ(L − 1 + 2/L), damage
-scaling Γ_∞ ∝ γ^(1/(1+β)) and ν = β/(1+β), other channels, meaning of the observables), the methods include ρ as an
-MPS, the MPO, TDVP sweeps, the influence matrix and transverse contraction, and CLIK, and a results section collects
-the TDVP and CLIK results. The influence matrix is theory only: it is not implemented or computed anywhere.
+into `latex/figures/`). **Modular since 2026-10-31, one file per chapter since 2026-11-03:** `latex/notes.tex` holds only the
+title, abstract and one `\notesinput{<name>}` per chapter; the preamble and macros are in `latex/preamble.tex`, the
+chapters in `latex/sections/`: `model` (Hamiltonian, eigenstate entanglement, Dissipation: every channel, limits,
+methods and their limits), `theory` (generator and adjoint, spectral decomposition incl. Jordan form, meeting in the
+middle for ρ only, scars and entanglement incl. Liouvillian modes, exact results, weak dissipation, channels at
+H_I = 0, operator observables), `results` (scar vs thermal, channels, single kick, damage spreading, operator size at
+t_e, Mori), `summary` (γ exponent), `data` (run inventory from `plot_scripts/report_runs.py`), appendices
+`app_methods`, `app_rates` (incl. the Néel envelope example), `app_other` (tensor networks, CLIK, forward/backward,
+eigenvalues without LAPACK). **Notes rules (from the user's review, 2026-11-03):** nothing below γ = 0.01 (no L ≤ 22
+reaches the thermodynamic rate there; the γ < 0.01 runs stay on disk but are not mentioned), no data with the previous
+coefficients, at most 4 panels per figure (`plot_scripts/notes_layout.py`: `MAX_PANELS`, `GAMMA_MIN`, page helpers;
+paged outputs `<name>_1.png`, ...), every claim backed by a figure. The annotated pre-review files (red notes) and the
+committed notes.tex are in `data/non_used_data/notes_annotated_2026-11-03/`. `latex/parts/<case>.tex` compiles only
+the chapters one code path uses (cases `exact_rho`, `trajectories`, `single_kick`, `spectra`, `tensor_networks`):
+`latex/build_parts.sh [case …]` builds `notes.tex` first, then `latex/parts/pdf/<case>.pdf`. A part keeps the
+numbering of the full notes (the full build writes the counters at the start of every file to `notes.sec`), and a
+`\ref` outside the part prints its number in the full notes (read from `notes.aux`, no link). A new chapter: a file in
+`sections/`, a `\notesinput` in `notes.tex` and in the parts that use it. Code-path diagrams (Archify, one per case;
+their "Notes part" cards still list the section numbers of 2026-10-31): `.archify/dataflow-code-paths-20261031-220557/index.html`.
+New scripts for the notes (2026-11-03): `plot_scar_entropy.py` (`scar_entropy.png`: scar S_A against the
+hypergeometric formula and ½ ln(πeL/8)), `fit_operator_size.py` (`operator_size.png/.csv`: size/L of ρ at t_e, A + B/L
+over L = 8, 10, 12, against γ per channel; scar ≈ 0.51 at γ ≤ 0.02, Néel ≈ 0.71), `report_runs.py` (LaTeX run table);
+`plot_scar_decay_L20.py` also writes `neel_envelope.png`; `fit_channels.py` writes `channels_inverse_L_<state>.png`,
+`channels_thermodynamic_rate.png` (channels other than σᶻ) and `channels_scar.png`; `spreading.png` has 3 panels.
+γ exponent of the scar Γ_∞ over γ = 0.01 – 0.05: 0.54 ± 0.06 (L = 8 – 22, weighted), 0.54 ± 0.02 (L = 14 – 20),
+0.49 ± 0.01 over 0.01 – 0.2; ballistic single-kick prediction 0.63 (c = 2), 0.60 (c = 2.7) over the same range.
+The influence matrix (Appendix C) is theory only: it is not implemented or computed anywhere.
 
 ## Working rules
 
@@ -242,7 +264,14 @@ julia/forward_backward.jl  meet in the middle: ρ forward with G, observables ba
                          χ, t ≤ 5, against exact `states` runs: scar γ = 0 revivals ≤ 2.5e-6 (backward only 8e-9);
                          γ = 0.1: scar z ≤ 3e-7, x 9e-6, decay 2e-6; x-Néel (z, decay), z-Néel (z, x, decay) ≤ 6e-8;
                          150 – 1070 s per run (laptop, 8 threads). Not yet run at large L.
-plot_scripts/            plot_evolution.py, fit_decay.py, compare_methods.py, resource_tables.py,
+latex/notes.tex          title, abstract, one \notesinput per chapter; latex/preamble.tex (packages, macros, the
+                         \notesinput mechanism); latex/sections/*.tex (one file per chapter); latex/parts/<case>.tex and
+                         latex/build_parts.sh (parts of the notes per code path, output latex/parts/pdf/, not tracked)
+.archify/dataflow-code-paths-20261031-220557/  Archify diagrams of the code paths (<case>.html from <case>.json,
+                         finalize receipts in review-*/), overview index.html linking the part PDFs
+plot_scripts/            notes_layout.py (MAX_PANELS = 4, GAMMA_MIN = 0.01, page helpers for the notes figures),
+                         plot_scar_entropy.py, fit_operator_size.py, report_runs.py (notes, 2026-11-03),
+                         plot_evolution.py, fit_decay.py, compare_methods.py, resource_tables.py,
                          compare_initial_states.py, plot_disorder.py, fit_probes.py, plot_spectrum.py,
                          fit_states.py, fit_states_inverse_L.py, plot_states.py, fit_small_gamma.py, single_kick.py, plot_entanglement.py,
                          plot_operator_entanglement.py, plot_lindblad_entanglement.py, plot_clik.py, fit_channels.py, spreading.py, plot_operator_spreading.py,
@@ -335,6 +364,22 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
   - `fit_states.py [dir]` (any number of sizes): `states_rates.csv` (state, method, L, gamma, cut, selected, Gamma_e,
     Gamma_tail, sigma_tail, t_tail_min, t_tail_max; one row per run) and `states_rates.png` (Γ against γ, selected
     runs; tail slopes only for exact runs, trajectories reach their statistical floor in the tail window).
+  - **Notes figures (2026-11-03):** every figure of the notes has at most 4 panels and only γ = 0, γ ≥ 0.01
+    (`notes_layout.py`). The entries below describe the scripts before that change where not updated; the current
+    outputs are: `plot_states.py` → `states_<scar|neel|neel-x|neel_n>_<1|2|3>.png` (4 γ per page);
+    `plot_scar_decay_L20.py` → `scar_decay_L20.png` (γ = 0, 0.01, 0.1, 1) and `neel_envelope.png` (x-Néel L = 20 and
+    z-Néel L = 12 at γ = 0.01, 1, t ≤ 3); `plot_entanglement.py`, `plot_operator_entanglement.py` → L = 6, 8, 10, 12;
+    `plot_lindblad_entanglement.py` → the two largest L per γ; `fit_states_inverse_L.py` → Γ_∞ figure for γ ≥ 0.01 only
+    (no lower bounds, no collapse band; `G_EXTRAP_MIN` = 0.01); `single_kick.py` → series at (L, γ) = (12, 0.01),
+    (16, 0.02), (20, 0.01), (20, 0.05), finite-L panel γ ≥ 0.01 (CSV keeps every γ); `spreading.py` → 3 panels
+    (profile, D̄, prediction for γ ≥ 0.01; the entanglement panel is gone); `fit_channels.py` →
+    `channels_inverse_L_<state>.png` (σˣ, σʸ, dep, thermal), `channels_thermodynamic_rate.png` (the same four
+    channels), `channels_scar.png` (scar, every channel, σᶻ L ≥ 14 fit and single-kick band for γ ≥ 0.01);
+    `plot_scar_entropy.py` → `scar_entropy.png`; `fit_operator_size.py` → `operator_size.png`, `operator_size.csv`
+    (size/L of ρ at t_e, A + B/L over L = 8, 10, 12, error = change when L = 8 is dropped; decay left out for the
+    scar); `report_runs.py` → LaTeX run table on stdout (γ ≥ 0.01 only). Run order: `fit_states.py`,
+    `fit_small_gamma.py`, `fit_states_inverse_L.py`, `single_kick.py`, `fit_channels.py`, `spreading.py`,
+    `fit_channels.py` (again, for the band), then the others; copy the figures named in the notes to `latex/figures/`.
   - `fit_states_inverse_L.py`: Γ_e against 1/L, only γ ≥ 0.01 (`GAMMA_FIT_MIN`; squares = any non-exact method);
     the scar fit on L ≥ 14 (from `fit_small_gamma.py`, `states_inverse_L_large.csv`) as open squares in
     `states_thermodynamic_rate.png`;

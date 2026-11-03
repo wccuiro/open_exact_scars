@@ -1,0 +1,586 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Previous coefficients: how the code works",
+    "output": ".archify/dataflow-code-paths-20261031-220557/previous_coefficients.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:wccuiro/open_exact_scars.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "29c736826b2498dd3fffb82f34ded3e41e0d66f0"
+    }
+  },
+  "stages": [
+    {
+      "label": "Inputs"
+    },
+    {
+      "label": "Core"
+    },
+    {
+      "label": "Data (CSV)"
+    },
+    {
+      "label": "Analysis"
+    },
+    {
+      "label": "Results"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "params",
+      "type": "database",
+      "label": "parameters.rs",
+      "sublabel": "h, a, b, c (current)",
+      "stage": 0,
+      "row": 0,
+      "sources": [
+        {
+          "path": "rust/src/parameters.rs",
+          "line": 13,
+          "end_line": 33,
+          "label": "h, a, b, c, random-c range"
+        }
+      ],
+      "height": 66
+    },
+    {
+      "id": "model",
+      "type": "backend",
+      "label": "model.rs Params",
+      "sublabel": "baseline / random_c",
+      "stage": 0,
+      "row": 2,
+      "sources": [
+        {
+          "path": "rust/src/model.rs",
+          "line": 35,
+          "end_line": 68,
+          "label": "baseline, random_c, free_spins"
+        }
+      ],
+      "height": 66
+    },
+    {
+      "id": "main",
+      "type": "backend",
+      "label": "main.rs",
+      "sublabel": "exact rho, minus-x|random",
+      "stage": 1,
+      "row": 2,
+      "sources": [
+        {
+          "path": "rust/src/main.rs",
+          "line": 49,
+          "end_line": 85,
+          "label": "per L: Liouvillian, propagate"
+        },
+        {
+          "path": "rust/src/liouville.rs",
+          "line": 111,
+          "end_line": 120,
+          "label": "orbits if translation invariant"
+        }
+      ],
+      "height": 66
+    },
+    {
+      "id": "traj",
+      "type": "backend",
+      "label": "trajectories",
+      "sublabel": "diffusive psi(t)",
+      "stage": 1,
+      "row": 1,
+      "sources": [
+        {
+          "path": "rust/src/bin/trajectories.rs",
+          "line": 40,
+          "end_line": 80,
+          "label": "parallel trajectories, sums"
+        },
+        {
+          "path": "rust/src/trajectory.rs",
+          "line": 263,
+          "end_line": 275,
+          "label": "Trajectory::step"
+        }
+      ],
+      "height": 66
+    },
+    {
+      "id": "disorder",
+      "type": "backend",
+      "label": "disorder",
+      "sublabel": "cone states, 4^L",
+      "stage": 1,
+      "row": 0,
+      "sources": [
+        {
+          "path": "rust/src/bin/disorder.rs",
+          "line": 53,
+          "end_line": 111,
+          "label": "random c, cone azimuths"
+        },
+        {
+          "path": "rust/src/bin/disorder.rs",
+          "line": 115,
+          "end_line": 128,
+          "label": "write_realization"
+        }
+      ],
+      "height": 66
+    },
+    {
+      "id": "probes",
+      "type": "backend",
+      "label": "probes",
+      "sublabel": "free, P1, P2, P3",
+      "stage": 1,
+      "row": 3,
+      "sources": [
+        {
+          "path": "rust/src/bin/probes.rs",
+          "line": 69,
+          "end_line": 77,
+          "label": "random-c Lindbladian, tower traces"
+        },
+        {
+          "path": "rust/src/bin/probes.rs",
+          "line": 152,
+          "end_line": 155,
+          "label": "probe CSV files"
+        }
+      ],
+      "height": 66
+    },
+    {
+      "id": "evol",
+      "type": "database",
+      "label": "evolution_L<L>.csv",
+      "sublabel": "+ evolution_random",
+      "stage": 2,
+      "row": 2,
+      "sources": [
+        {
+          "path": "rust/src/main.rs",
+          "line": 61,
+          "end_line": 63,
+          "label": "file and header"
+        }
+      ],
+      "height": 66
+    },
+    {
+      "id": "trajcsv",
+      "type": "database",
+      "label": "trajectories_L<L>.csv",
+      "sublabel": "mean, err, std",
+      "stage": 2,
+      "row": 1,
+      "width": 140,
+      "sources": [
+        {
+          "path": "rust/src/bin/trajectories.rs",
+          "line": 65,
+          "end_line": 66,
+          "label": "file and header"
+        }
+      ],
+      "height": 66
+    },
+    {
+      "id": "discsv",
+      "type": "database",
+      "label": "disorder_L<L>.csv",
+      "sublabel": "+ realization",
+      "stage": 2,
+      "row": 0,
+      "sources": [
+        {
+          "path": "rust/src/bin/disorder.rs",
+          "line": 98,
+          "end_line": 100,
+          "label": "file and header"
+        }
+      ],
+      "height": 66
+    },
+    {
+      "id": "probecsv",
+      "type": "database",
+      "label": "probe_*.csv",
+      "sublabel": "free, P1, P2, P3",
+      "stage": 2,
+      "row": 3,
+      "sources": [
+        {
+          "path": "rust/src/bin/probes.rs",
+          "line": 27,
+          "end_line": 31,
+          "label": "columns"
+        }
+      ],
+      "height": 66
+    },
+    {
+      "id": "statesrates",
+      "type": "database",
+      "label": "states_rates.csv",
+      "sublabel": "from exact_rho case",
+      "stage": 2,
+      "row": 4,
+      "sources": [
+        {
+          "path": "plot_scripts/fit_states.py",
+          "line": 85,
+          "label": "written by fit_states.py"
+        }
+      ],
+      "height": 66,
+      "yOffset": -10
+    },
+    {
+      "id": "fitdecay",
+      "type": "backend",
+      "label": "fit_decay.py",
+      "sublabel": "+ plot_evolution, ...",
+      "stage": 3,
+      "row": 2,
+      "sources": [
+        {
+          "path": "plot_scripts/fit_decay.py",
+          "line": 1,
+          "end_line": 11,
+          "label": "fit and outputs"
+        },
+        {
+          "path": "plot_scripts/plot_evolution.py",
+          "line": 33,
+          "end_line": 36,
+          "label": "reads evolution_L*.csv"
+        },
+        {
+          "path": "plot_scripts/compare_initial_states.py",
+          "line": 44,
+          "end_line": 47,
+          "label": "reads both prefixes"
+        }
+      ],
+      "height": 66
+    },
+    {
+      "id": "compare",
+      "type": "backend",
+      "label": "compare_methods.py",
+      "sublabel": "exact vs traj, TDVP",
+      "stage": 3,
+      "row": 1,
+      "sources": [
+        {
+          "path": "plot_scripts/compare_methods.py",
+          "line": 10,
+          "end_line": 12,
+          "label": "inputs"
+        },
+        {
+          "path": "plot_scripts/compare_methods.py",
+          "line": 93,
+          "end_line": 116,
+          "label": "trajectories vs exact"
+        }
+      ],
+      "height": 66
+    },
+    {
+      "id": "plotdis",
+      "type": "backend",
+      "label": "plot_disorder.py",
+      "sublabel": "per theta, per alpha",
+      "stage": 3,
+      "row": 0,
+      "sources": [
+        {
+          "path": "plot_scripts/plot_disorder.py",
+          "line": 38,
+          "end_line": 41,
+          "label": "reads disorder_L*.csv"
+        }
+      ],
+      "height": 66
+    },
+    {
+      "id": "fitprobes",
+      "type": "backend",
+      "label": "fit_probes.py",
+      "sublabel": "+ plot_gamma_scan",
+      "stage": 3,
+      "row": 3,
+      "sources": [
+        {
+          "path": "plot_scripts/fit_probes.py",
+          "line": 68,
+          "end_line": 104,
+          "label": "reads probes, writes rates.csv"
+        },
+        {
+          "path": "plot_scripts/plot_gamma_scan.py",
+          "line": 39,
+          "end_line": 43,
+          "label": "gamma scan, tagged runs"
+        }
+      ],
+      "height": 66
+    },
+    {
+      "id": "ratesvsl",
+      "type": "backend",
+      "label": "plot_rates_vs_L.py",
+      "sublabel": "redrawn, new coeffs",
+      "stage": 3,
+      "row": 4,
+      "sources": [
+        {
+          "path": "plot_scripts/plot_rates_vs_L.py",
+          "line": 1,
+          "end_line": 17,
+          "label": "appendix figures"
+        }
+      ],
+      "height": 66,
+      "yOffset": -10
+    },
+    {
+      "id": "figs",
+      "type": "database",
+      "label": "data/*.png",
+      "sublabel": "decay_fit, probe_*",
+      "stage": 4,
+      "row": 0,
+      "sources": [
+        {
+          "path": "plot_scripts/fit_decay.py",
+          "line": 93,
+          "label": "decay_fit.png"
+        },
+        {
+          "path": "plot_scripts/fit_probes.py",
+          "line": 199,
+          "end_line": 223,
+          "label": "probe_scaling, probe_timeseries"
+        }
+      ],
+      "height": 66
+    },
+    {
+      "id": "notes",
+      "type": "external",
+      "label": "Notes part",
+      "sublabel": "previous_coefficients.pdf",
+      "tag": "LaTeX",
+      "stage": 4,
+      "row": 3,
+      "width": 150,
+      "height": 66
+    }
+  ],
+  "flows": [
+    {
+      "id": "f-params",
+      "from": "params",
+      "to": "model",
+      "label": "h, a, b, c",
+      "labelAt": [
+        100,
+        271
+      ]
+    },
+    {
+      "id": "f-main",
+      "from": "model",
+      "to": "main",
+      "label": "uniform c"
+    },
+    {
+      "id": "f-traj",
+      "from": "model",
+      "to": "traj",
+      "label": "uniform c",
+      "channelX": 175,
+      "labelSegment": 2,
+      "route": "vertical-channel"
+    },
+    {
+      "id": "f-dis",
+      "from": "model",
+      "to": "disorder",
+      "label": "random c",
+      "channelX": 175,
+      "labelSegment": 2,
+      "route": "vertical-channel"
+    },
+    {
+      "id": "f-probes",
+      "from": "model",
+      "to": "probes",
+      "label": "random c",
+      "channelX": 175,
+      "labelSegment": 2,
+      "route": "vertical-channel"
+    },
+    {
+      "id": "w-evol",
+      "from": "main",
+      "to": "evol",
+      "label": "m_x, m_y, m_z",
+      "variant": "emphasis"
+    },
+    {
+      "id": "w-traj",
+      "from": "traj",
+      "to": "trajcsv",
+      "label": "mean +- err"
+    },
+    {
+      "id": "w-dis",
+      "from": "disorder",
+      "to": "discsv",
+      "label": "per-site m"
+    },
+    {
+      "id": "w-probes",
+      "from": "probes",
+      "to": "probecsv",
+      "label": "m_perp, w, C(t)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "r-decay",
+      "from": "evol",
+      "to": "fitdecay",
+      "label": "amplitude",
+      "variant": "emphasis",
+      "labelAt": [
+        628,
+        407
+      ]
+    },
+    {
+      "id": "r-cmp-exact",
+      "from": "evol",
+      "to": "compare",
+      "label": "exact reference",
+      "route": "vertical-channel",
+      "channelX": 672
+    },
+    {
+      "id": "r-cmp-traj",
+      "from": "trajcsv",
+      "to": "compare",
+      "label": "trajectory mean"
+    },
+    {
+      "id": "r-dis",
+      "from": "discsv",
+      "to": "plotdis",
+      "label": "m_alpha(t)"
+    },
+    {
+      "id": "r-probes",
+      "from": "probecsv",
+      "to": "fitprobes",
+      "label": "probe series",
+      "variant": "emphasis"
+    },
+    {
+      "id": "r-rates",
+      "from": "statesrates",
+      "to": "ratesvsl",
+      "label": "Gamma_e (new)"
+    },
+    {
+      "id": "p-cmp",
+      "from": "compare",
+      "to": "figs",
+      "label": "method checks",
+      "toSide": "bottom",
+      "fromSide": "right"
+    },
+    {
+      "id": "p-dis",
+      "from": "plotdis",
+      "to": "figs",
+      "label": "disorder_*.png"
+    },
+    {
+      "id": "n-decay",
+      "from": "fitdecay",
+      "to": "notes",
+      "label": "Gamma/gamma table",
+      "variant": "emphasis",
+      "toSide": "top",
+      "fromSide": "right"
+    },
+    {
+      "id": "n-probes",
+      "from": "fitprobes",
+      "to": "notes",
+      "label": "probe rates",
+      "variant": "emphasis"
+    },
+    {
+      "id": "n-figs",
+      "from": "ratesvsl",
+      "to": "notes",
+      "label": "rates_vs_L figs",
+      "toSide": "bottom",
+      "fromSide": "right"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "How to run",
+      "items": [
+        "cargo run --release -- [--gamma 0.01] [--lmin 4] [--lmax 8] [--init minus-x|random]",
+        "cargo run --release --bin trajectories -- [--trajectories 1000] [--seed 1]",
+        "cargo run --release --bin disorder -- [--thetas 0,0.125,0.25,0.375,0.5]",
+        "cargo run --release --bin probes -- [--gamma 0.01 | --gammas 0.002,0.01 --tag name]",
+        "Then: plot_evolution.py, fit_decay.py, compare_initial_states.py, compare_methods.py, plot_disorder.py, fit_probes.py, plot_gamma_scan.py (all read and write data/)"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Previous coefficients",
+      "items": [
+        "These laptop runs (13-14 October 2026) used h = 0.5, a = (0.73, 0.41, 0.29), b = (0.58, -0.37, 0.66), c_xz = 0.31, c_zy = -0.44, c_yx = 0.27 (CLAUDE.md, Hamiltonian baseline)",
+        "parameters.rs now holds the current coefficients: rerunning these binaries does not reproduce the appendix data",
+        "Rates are A0 e^(-Gamma t) window fits, not the 1/e rates of the main text",
+        "The appendix figures rates_vs_L_*.png are redrawn by plot_rates_vs_L.py from the current runs (states_rates.csv); spectrum.png comes from ed (spectra case)"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Key mechanics",
+      "items": [
+        "main.rs and disorder share Liouvillian + Propagator: translation orbits for the uniform baseline, full 4^L Pauli basis for random c",
+        "trajectories: real-noise diffusive unravelling, trajectories in parallel, mean, standard error and one-trajectory spread per time",
+        "disorder and probes draw the same random-c realization (generator 1000 seed + L)",
+        "probes evolve operators forward with the Lindbladian and form autocorrelations Tr[e^(Lt)(A) B]",
+        "fit_decay.py and fit_probes.py also write decay_fit.png and probe_*.png to data/; the notes now use the redrawn rates_vs_L figures instead"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Notes part",
+      "items": [
+        "Compile: latex/build_parts.sh previous_coefficients -> latex/parts/pdf/previous_coefficients.pdf (full notes are built first; numbering as in latex/notes.tex)",
+        "Sections: 1 Model; How the decay rates are computed; Appendix A Earlier results with the previous coefficients (L <= 10)",
+        "Appendix subsections: Scar oscillations and their decay; Scar versus non-scar probes; Liouvillian spectrum; Dependence on gamma at fixed L = 6"
+      ]
+    }
+  ]
+}

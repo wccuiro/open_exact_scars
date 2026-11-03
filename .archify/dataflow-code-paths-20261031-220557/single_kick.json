@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Single kick (single_flip): how the code works",
+    "output": ".archify/dataflow-code-paths-20261031-220557/single_kick.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:wccuiro/open_exact_scars.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "29c736826b2498dd3fffb82f34ded3e41e0d66f0"
+    }
+  },
+  "stages": [
+    { "label": "Inputs" },
+    { "label": "Core" },
+    { "label": "Data (CSV)" },
+    { "label": "Analysis" },
+    { "label": "Results" }
+  ],
+  "nodes": [
+    { "id": "params", "type": "backend", "label": "parameters.rs", "sublabel": "h, a, b, c; random-c range", "tag": "model", "stage": 0, "row": 0,
+      "sources": [ { "path": "rust/src/parameters.rs", "line": 13, "end_line": 37, "label": "coefficients" },
+                   { "path": "rust/src/model.rs", "line": 51, "end_line": 56, "label": "Params::random_c" } ] },
+    { "id": "cli", "type": "frontend", "label": "CLI options", "sublabel": "--L --phases --sites --ent-dt", "tag": "cli.rs", "stage": 0, "row": 2,
+      "sources": [ { "path": "rust/src/bin/single_flip.rs", "line": 10, "end_line": 11, "label": "usage" },
+                   { "path": "rust/src/bin/single_flip.rs", "line": 40, "end_line": 49, "label": "Options::parse" } ] },
+    { "id": "ham", "type": "backend", "label": "Hamiltonian H", "sublabel": "seed 1000·seed + L, Pauli terms", "tag": "trajectory.rs", "stage": 1, "row": 0,
+      "sources": [ { "path": "rust/src/bin/single_flip.rs", "line": 55, "end_line": 62, "label": "realization, H" },
+                   { "path": "rust/src/trajectory.rs", "line": 49, "end_line": 52, "label": "Hamiltonian::new" } ] },
+    { "id": "runs", "type": "backend", "label": "Kicked runs (m, k)", "sublabel": "σᶻ_k on scar state at t′ = φ_m/h", "tag": "single_flip.rs", "stage": 1, "row": 1,
+      "sources": [ { "path": "rust/src/bin/single_flip.rs", "line": 81, "end_line": 91, "label": "phases × sites" },
+                   { "path": "rust/src/trajectory.rs", "line": 296, "end_line": 301, "label": "reference_bloch" },
+                   { "path": "rust/src/trajectory.rs", "line": 161, "end_line": 181, "label": "Trajectory::product" } ] },
+    { "id": "evolve", "type": "backend", "label": "Evolve + damage", "sublabel": "e^(−iHτ); D = Σ_j (1 − Re c_j)", "tag": "H only, no noise", "stage": 1, "row": 2,
+      "sources": [ { "path": "rust/src/bin/single_flip.rs", "line": 103, "end_line": 125, "label": "time loop, rows" },
+                   { "path": "rust/src/trajectory.rs", "line": 183, "end_line": 200, "label": "unitary (Taylor)" },
+                   { "path": "rust/src/trajectory.rs", "line": 303, "end_line": 308, "label": "coherences c_j" } ] },
+    { "id": "ent", "type": "backend", "label": "Block entanglement", "sublabel": "S, S₂ of sites [0, ℓ)", "tag": "--ent-dt > 0", "stage": 1, "row": 3,
+      "sources": [ { "path": "rust/src/bin/single_flip.rs", "line": 126, "end_line": 148, "label": "every Δ" },
+                   { "path": "rust/src/entanglement.rs", "line": 185, "end_line": 195, "label": "block_spectrum" },
+                   { "path": "rust/src/entanglement.rs", "line": 236, "end_line": 240, "label": "entropies" } ] },
+    { "id": "other", "type": "database", "label": "Other pipelines' CSV", "sublabel": "scar runs, Γ_∞, channel fits", "tag": "states, states_traj", "stage": 2, "row": 0,
+      "sources": [ { "path": "plot_scripts/single_kick.py", "line": 17, "end_line": 17, "label": "single_kick inputs" },
+                   { "path": "plot_scripts/single_kick.py", "line": 104, "end_line": 118, "label": "runs, states_inverse_L" },
+                   { "path": "plot_scripts/spreading.py", "line": 15, "end_line": 16, "label": "spreading inputs" } ] },
+    { "id": "flipcsv", "type": "database", "label": "single_flip_L<L>.csv", "sublabel": "L, m, phi, k, tau, D, re_c, im_c, z", "tag": "_sites…, _seed…", "stage": 2, "row": 2, "height": 84,
+      "sources": [ { "path": "rust/src/bin/single_flip.rs", "line": 21, "end_line": 23, "label": "file format" },
+                   { "path": "rust/src/bin/single_flip.rs", "line": 100, "end_line": 102, "label": "header" } ] },
+    { "id": "entcsv", "type": "database", "label": "single_flip_ent_*.csv", "sublabel": "L, m, phi, k, tau, ell, S, S2", "tag": "no plot script", "stage": 2, "row": 3,
+      "sources": [ { "path": "rust/src/bin/single_flip.rs", "line": 24, "end_line": 24, "label": "file format" },
+                   { "path": "rust/src/bin/single_flip.rs", "line": 74, "end_line": 78, "label": "header" } ] },
+    { "id": "kick", "type": "backend", "label": "single_kick.py", "sublabel": "D̄(τ); Γ_e from γ∫D̄ = 1", "tag": "single_kick_*", "stage": 3, "row": 0,
+      "sources": [ { "path": "plot_scripts/single_kick.py", "line": 1, "end_line": 24, "label": "purpose, I/O" },
+                   { "path": "plot_scripts/single_kick.py", "line": 60, "end_line": 69, "label": "damage()" },
+                   { "path": "plot_scripts/single_kick.py", "line": 94, "end_line": 112, "label": "prediction table" } ] },
+    { "id": "spread", "type": "backend", "label": "spreading.py", "sublabel": "profile d_r(τ); D̄_∞; Γ_∞ ≈ √(cγ/2)", "tag": "L = 24 lean", "stage": 3, "row": 1,
+      "sources": [ { "path": "plot_scripts/spreading.py", "line": 1, "end_line": 18, "label": "purpose, I/O" },
+                   { "path": "plot_scripts/spreading.py", "line": 37, "end_line": 56, "label": "profile, mean D" },
+                   { "path": "plot_scripts/spreading.py", "line": 100, "end_line": 103, "label": "prediction CSV" } ] },
+    { "id": "fourier", "type": "backend", "label": "damage_fourier.py", "sublabel": "d(k, τ), front width σ(τ)", "tag": "damage_fourier*", "stage": 3, "row": 2,
+      "sources": [ { "path": "plot_scripts/damage_fourier.py", "line": 1, "end_line": 21, "label": "purpose, I/O" },
+                   { "path": "plot_scripts/damage_fourier.py", "line": 33, "end_line": 45, "label": "files, transform" },
+                   { "path": "plot_scripts/damage_fourier.py", "line": 72, "end_line": 78, "label": "CSV output" } ] },
+    { "id": "lean", "type": "backend", "label": "lean_plan_analysis.py", "sublabel": "A1 ∫D̄ vs data; A2 subsampling", "tag": "lean_A*", "stage": 3, "row": 3,
+      "sources": [ { "path": "plot_scripts/lean_plan_analysis.py", "line": 1, "end_line": 21, "label": "purpose, I/O" },
+                   { "path": "plot_scripts/lean_plan_analysis.py", "line": 46, "end_line": 52, "label": "flip_table" },
+                   { "path": "plot_scripts/lean_plan_analysis.py", "line": 118, "end_line": 124, "label": "A1 figure" } ] },
+    { "id": "notes", "type": "external", "label": "Notes part", "sublabel": "latex/parts/pdf/single_kick.pdf", "tag": "LaTeX", "stage": 4, "row": 0 },
+    { "id": "offnotes", "type": "database", "label": "Outside this part", "sublabel": "damage_fourier.png, lean_A*", "tag": "figures, CSV", "stage": 4, "row": 3,
+      "sources": [ { "path": "plot_scripts/damage_fourier.py", "line": 114, "end_line": 116, "label": "damage_fourier.png" },
+                   { "path": "plot_scripts/lean_plan_analysis.py", "line": 122, "end_line": 122, "label": "lean_A1_damage.png" } ] }
+  ],
+  "flows": [
+    { "id": "f-params-ham", "from": "params", "to": "ham", "label": "h, a, b, c", "variant": "emphasis" },
+    { "id": "f-ham-runs", "from": "ham", "to": "runs", "label": "H", "variant": "emphasis" },
+    { "id": "f-cli-runs", "from": "cli", "to": "runs", "label": "L, phases, sites" },
+    { "id": "f-cli-ent", "from": "cli", "to": "ent", "label": "--ent-dt, ℓ max" },
+    { "id": "f-runs-evolve", "from": "runs", "to": "evolve", "label": "kicked ψ", "variant": "emphasis" },
+    { "id": "f-evolve-ent", "from": "evolve", "to": "ent", "label": "ψ every Δ" },
+    { "id": "f-evolve-csv", "from": "evolve", "to": "flipcsv", "label": "D, c_j, z_j", "variant": "emphasis" },
+    { "id": "f-ent-csv", "from": "ent", "to": "entcsv", "label": "S, S₂" },
+    { "id": "f-other-kick", "from": "other", "to": "kick", "label": "m_⊥ runs, Γ_∞" },
+    { "id": "f-other-spread", "from": "other", "to": "spread", "label": "Γ_∞, S_op" },
+    { "id": "f-csv-kick", "from": "flipcsv", "to": "kick", "label": "D(m, k, τ)", "variant": "emphasis" },
+    { "id": "f-csv-spread", "from": "flipcsv", "to": "spread", "label": "re c_j profile" },
+    { "id": "f-csv-fourier", "from": "flipcsv", "to": "fourier", "label": "re c_j profile" },
+    { "id": "f-csv-lean", "from": "flipcsv", "to": "lean", "label": "D(m, k, τ)" },
+    { "id": "f-kick-notes", "from": "kick", "to": "notes", "label": "3 figures", "variant": "emphasis" },
+    { "id": "f-spread-notes", "from": "spread", "to": "notes", "label": "spreading.png" },
+    { "id": "f-fourier-off", "from": "fourier", "to": "offnotes", "label": "Fourier front" },
+    { "id": "f-lean-off", "from": "lean", "to": "offnotes", "label": "A1–A4 outputs" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "How to run",
+      "items": [
+        "cd rust && cargo run --release --bin single_flip -- --L 12 [--phases 16] [--sites all|0,3,6] [--t-max 25] [--dt 0.1] [--seed 1] [--ent-dt Δ] [--ent-max L/2]",
+        "Writes to data/ (or $SCARS_DATA_DIR) while it runs; also states_realization_L<L>.csv (c of every bond, same realization as states and states_traj)",
+        "Analysis order: fit_states.py → fit_small_gamma.py → fit_states_inverse_L.py → single_kick.py; fit_channels.py → spreading.py; damage_fourier.py and lean_plan_analysis.py stand alone (all read data/used_data)"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Key mechanics",
+      "items": [
+        "One run per (phase m, site k): spin k reversed in the xy plane of the noiseless product state at t′ = φ_m/h, then e^(−iHτ) only",
+        "c_j = ⟨σˣ_j⟩ + i⟨σʸ_j⟩ divided by its noiseless value; D(0) = 2, and D stays 2 if H_I = 0",
+        "All runs advance together one output step at a time (rayon); weak-γ prediction m_⊥(t) ≈ exp[−γ ∫₀ᵗ D̄(τ) dτ]",
+        "single_flip_ent_*.csv is written with --ent-dt but no plot script reads it"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Notes part",
+      "items": [
+        "Compile: latex/build_parts.sh single_kick → latex/parts/pdf/single_kick.pdf (full notes are built first; numbering as in latex/notes.tex)",
+        "Model; Theory: weak dissipation, order of limits and finite-size cap",
+        "Methods: notation, Pauli strings, pure states (trajectories and single flips), entanglement entropy, entanglement after a single flip, eigenvalues without LAPACK, run options and file names",
+        "Single-kick test; lean runs: spreading of the damage and the scar rate as γ → 0, the order of limits (Mori) for the scar"
+      ]
+    }
+  ]
+}

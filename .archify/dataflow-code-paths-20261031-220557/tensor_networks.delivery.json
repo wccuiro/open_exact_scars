@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "6a5281f4-340e-4507-aa0b-36293b8e1045",
+  "status": "current",
+  "command": "deliver",
+  "type": "dataflow",
+  "input": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/tensor_networks.json",
+  "output": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/tensor_networks.html",
+  "specification": {
+    "sha256": "659d95f83d2272e0d8c94a0e55888405389dadee453b939b690a551b3ca19e77",
+    "bytes": 9636
+  },
+  "artifact": {
+    "sha256": "544c3409f60ef88b1111646a08f391a32472328f86ed1bc05bd69f3b3756fbe5",
+    "bytes": 858771
+  }
+}

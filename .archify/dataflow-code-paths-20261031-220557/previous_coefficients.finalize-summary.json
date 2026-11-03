@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "fail",
+  "type": "dataflow",
+  "quality": "showcase",
+  "specification": {
+    "path": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/previous_coefficients.json",
+    "sha256": "a4707cdfbbb54bd8de84e56865cd647ccfc7dde4b00ccaa6cdf4070d25be71a6",
+    "bytes": 14316
+  },
+  "artifact": {
+    "path": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/previous_coefficients.html"
+  },
+  "gates": {
+    "validate": "fail",
+    "deliver": "not-run",
+    "check": "not-run",
+    "browser-check": "not-run"
+  },
+  "failedStage": "validate",
+  "diagnostics": [
+    {
+      "code": "composition/desktop-readability",
+      "severity": "error",
+      "message": "Final artifact failed composition/desktop-readability.",
+      "subject": {
+        "check": "composition",
+        "nodeId": "main"
+      },
+      "evidence": {
+        "owner": {
+          "kind": "node",
+          "id": "main"
+        },
+        "viewportWidth": 1440,
+        "viewportHeight": 900,
+        "availableDiagramWidth": 930,
+        "budgetBasis": "legacy-930",
+        "readerContract": "declared-wide-v1",
+        "requestedTargetPx": null,
+        "requestedTargetMet": null,
+        "budgetLimit": "legacy",
+        "viewBoxWidth": 1076,
+        "scale": 0.8643122676579925,
+        "text": "exact rho, minus-x|random",
+        "detail": "context",
+        "sourceFontPx": 6.9,
+        "projectedFontPx": 5.963754646840148,
+        "minimumProjectedFontPx": 6
+      },
+      "supportedFixes": [
+        "Preserve the semantic text and any supplied coordinates, routes, sides, channels, and labels. Compactly reflow automatic spacing and empty corridors so the complete viewBox width is at most 1069px (current 1076px; 6.9px source text at 930px desktop budget). If supplied geometry fixes that width, use a renderer-supported semantic text-size setting or renderer-level fix instead. Position-only label controls cannot repair its projection."
+      ]
+    }
+  ],
+  "diagnosticSummary": {
+    "total": 1,
+    "shown": 1,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/previous_coefficients.finalize.json",
+    "summaryReceipt": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/previous_coefficients.finalize-summary.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-31T21:08:31.328Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 393,
+  "browserCheck": {
+    "requested": true,
+    "ran": false
+  },
+  "nextAction": {
+    "action": "edit-in-place",
+    "candidate": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/previous_coefficients.json",
+    "constraint": "Preserve unaffected semantics and geometry; apply each diagnostic's supportedFixes, or the fix its message names, and do not replace the whole candidate.",
+    "then": "finalize-once"
+  }
+}

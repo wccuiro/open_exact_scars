@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Tensor networks and CLIK: how the code works",
+    "output": ".archify/dataflow-code-paths-20261031-220557/tensor_networks.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:wccuiro/open_exact_scars.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "29c736826b2498dd3fffb82f34ded3e41e0d66f0"
+    }
+  },
+  "stages": [
+    { "label": "Inputs" },
+    { "label": "Core" },
+    { "label": "Data (CSV)" },
+    { "label": "Analysis" },
+    { "label": "Results" }
+  ],
+  "nodes": [
+    { "id": "edref", "type": "database", "label": "Rust ED spectra", "sublabel": "from ed, lindblad_entanglement", "stage": 0, "row": 0, "tag": "reference",
+      "sources": [
+        { "path": "rust/src/bin/lindblad_entanglement.rs", "line": 233, "end_line": 233, "label": "writes lindblad_entanglement_L_g" },
+        { "path": "rust/src/bin/ed.rs", "line": 140, "end_line": 140, "label": "writes spectrum_open_L (--open 1)" }
+      ] },
+    { "id": "params", "type": "backend", "label": "parameters.rs", "sublabel": "h, a, b, c, random-c range", "stage": 0, "row": 1, "tag": "model",
+      "sources": [ { "path": "rust/src/parameters.rs", "line": 13, "end_line": 37 } ] },
+    { "id": "hbin", "type": "backend", "label": "hamiltonian", "sublabel": "Rust binary, random c seed 1", "stage": 0, "row": 2, "tag": "Rust",
+      "sources": [ { "path": "rust/src/bin/hamiltonian.rs", "line": 21, "end_line": 36 } ] },
+    { "id": "hcsv", "type": "database", "label": "hamiltonian_L.csv", "sublabel": "string, coef (I/X/Y/Z)", "stage": 0, "row": 3, "tag": "_open for open chain",
+      "sources": [ { "path": "rust/src/bin/hamiltonian.rs", "line": 37, "end_line": 50 } ] },
+    { "id": "statesref", "type": "database", "label": "states_*.csv", "sublabel": "exact Rust evolution", "stage": 0, "row": 4, "tag": "reference",
+      "sources": [ { "path": "rust/src/bin/states.rs", "line": 132, "end_line": 132, "label": "writes states_<state>_L_g" } ] },
+    { "id": "tdvp", "type": "backend", "label": "lindblad_tdvp.jl", "sublabel": "TDVP of rho from |->, own H", "stage": 1, "row": 0, "tag": "old coefficients",
+      "sources": [
+        { "path": "julia/lindblad_tdvp.jl", "line": 52, "end_line": 79, "label": "hamiltonian_terms (previous h, a, b, c)" },
+        { "path": "julia/lindblad_tdvp.jl", "line": 83, "end_line": 102, "label": "Lindbladian as real MPO" },
+        { "path": "julia/lindblad_tdvp.jl", "line": 131, "end_line": 158, "label": "evolve: two-site TDVP" }
+      ] },
+    { "id": "clik", "type": "backend", "label": "clik.jl", "sublabel": "Krylov eigs of L, dense or MPS", "stage": 1, "row": 1, "tag": "ITensor",
+      "sources": [
+        { "path": "julia/clik.jl", "line": 59, "end_line": 71, "label": "read_hamiltonian" },
+        { "path": "julia/clik.jl", "line": 241, "end_line": 285, "label": "run_clik + krylov_eigs" },
+        { "path": "julia/clik.jl", "line": 303, "end_line": 315, "label": "check against Rust ED" }
+      ] },
+    { "id": "fb", "type": "backend", "label": "forward_backward.jl", "sublabel": "rho forward, O backward", "stage": 1, "row": 3, "tag": "includes clik.jl",
+      "sources": [
+        { "path": "julia/forward_backward.jl", "line": 199, "end_line": 215, "label": "fb_main: H, G and G^T MPOs" },
+        { "path": "julia/forward_backward.jl", "line": 230, "end_line": 263, "label": "forward and backward halves" },
+        { "path": "julia/forward_backward.jl", "line": 283, "end_line": 303, "label": "--ref comparison" }
+      ] },
+    { "id": "tdvpcsv", "type": "database", "label": "tdvp_L_chi_dt.csv", "sublabel": "mx, my, mz, bond_dim", "stage": 2, "row": 0, "tag": "one per chi",
+      "sources": [ { "path": "julia/lindblad_tdvp.jl", "line": 138, "end_line": 153 } ] },
+    { "id": "clikcsv", "type": "database", "label": "clik_*.csv", "sublabel": "_eigs, _states, clik_ed", "stage": 2, "row": 1, "tag": "nested T",
+      "sources": [
+        { "path": "julia/clik.jl", "line": 369, "end_line": 389, "label": "_states.csv and _eigs.csv" },
+        { "path": "julia/clik.jl", "line": 289, "end_line": 298, "label": "clik_ed (dense backend)" }
+      ] },
+    { "id": "fbcsv", "type": "database", "label": "fb_*.csv", "sublabel": "fwd, mid, bwd, spread", "stage": 2, "row": 3, "tag": "per chi",
+      "sources": [ { "path": "julia/forward_backward.jl", "line": 265, "end_line": 281 } ] },
+    { "id": "compare", "type": "backend", "label": "compare_methods.py", "sublabel": "TDVP vs exact m(t)", "stage": 3, "row": 0, "tag": "data/",
+      "sources": [
+        { "path": "plot_scripts/compare_methods.py", "line": 1, "end_line": 13 },
+        { "path": "plot_scripts/compare_methods.py", "line": 55, "end_line": 89 }
+      ] },
+    { "id": "plotclik", "type": "backend", "label": "plot_clik.py", "sublabel": "errors of tower modes", "stage": 3, "row": 1, "tag": "used_data/",
+      "sources": [
+        { "path": "plot_scripts/plot_clik.py", "line": 49, "end_line": 57, "label": "reads Rust ED reference" },
+        { "path": "plot_scripts/plot_clik.py", "line": 75, "end_line": 101, "label": "reads clik_*_eigs.csv" }
+      ] },
+    { "id": "tdvpfig", "type": "database", "label": "TDVP figure", "sublabel": "tdvp_convergence.png", "stage": 4, "row": 0, "tag": "figure",
+      "sources": [ { "path": "plot_scripts/compare_methods.py", "line": 88, "end_line": 89 } ] },
+    { "id": "clikfigs", "type": "database", "label": "CLIK figures", "sublabel": "clik_spectrum, _convergence", "tag": "+ clik_errors.csv", "stage": 4, "row": 1,
+      "sources": [
+        { "path": "plot_scripts/plot_clik.py", "line": 101, "end_line": 101 },
+        { "path": "plot_scripts/plot_clik.py", "line": 142, "end_line": 142 },
+        { "path": "plot_scripts/plot_clik.py", "line": 161, "end_line": 161 }
+      ] },
+    { "id": "notes", "type": "external", "label": "Notes part", "sublabel": "latex/parts/pdf/tensor_networks.pdf", "stage": 4, "row": 3, "tag": "LaTeX" }
+  ],
+  "flows": [
+    { "id": "f-params", "from": "params", "to": "hbin", "label": "coefficients" },
+    { "id": "f-hcsv", "from": "hbin", "to": "hcsv", "label": "Pauli strings", "variant": "emphasis" },
+    { "id": "f-h-clik", "from": "hcsv", "to": "clik", "label": "H terms", "variant": "emphasis" },
+    { "id": "f-h-fb", "from": "hcsv", "to": "fb", "label": "H terms", "variant": "emphasis" },
+    { "id": "f-edref-clik", "from": "edref", "to": "clik", "label": "ED check" },
+    { "id": "f-states-fb", "from": "statesref", "to": "fb", "label": "--ref check" },
+    { "id": "f-tdvp", "from": "tdvp", "to": "tdvpcsv", "label": "m(t), chi" },
+    { "id": "f-clik", "from": "clik", "to": "clikcsv", "label": "Krylov eigs", "variant": "emphasis" },
+    { "id": "f-fb", "from": "fb", "to": "fbcsv", "label": "<O>(t) splits", "variant": "emphasis" },
+    { "id": "f-tdvpcsv", "from": "tdvpcsv", "to": "compare", "label": "m(t) per chi" },
+    { "id": "f-clikcsv", "from": "clikcsv", "to": "plotclik", "label": "eigs vs T", "variant": "emphasis" },
+    { "id": "f-edref-plot", "from": "edref", "to": "plotclik", "label": "tower targets" },
+    { "id": "f-compare", "from": "compare", "to": "tdvpfig", "label": "TDVP error" },
+    { "id": "f-plotclik", "from": "plotclik", "to": "clikfigs", "label": "errors vs T", "variant": "emphasis" },
+    { "id": "f-notes-clik", "from": "clikfigs", "to": "notes", "label": "CLIK results" },
+    { "id": "f-notes-fb", "from": "fbcsv", "to": "notes", "label": "validation" },
+    { "id": "f-notes-tdvp", "from": "tdvpfig", "to": "notes", "label": "TDVP results" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "How to run",
+      "items": [
+        "cd rust && cargo run --release --bin hamiltonian -- --L 6 [--open 0|1]  (writes data/hamiltonian[_open]_L6.csv)",
+        "cd julia && julia --project=. -t 16 clik.jl --L 6 --gamma 0.01 --backend dense|mps [--open 1] [--init scar] [--chi 64] [--expand-every 1]",
+        "julia --project=. -t 8 forward_backward.jl --L 8 --gamma 0.1 --state minus-x [--channel z] [--chi 64] [--ref states.csv]",
+        "julia --project=. lindblad_tdvp.jl L maxdims [gamma] [tmax] [dt] [cutoff]  (previous coefficients, data/)",
+        "Analysis: python plot_scripts/plot_clik.py [dir]  (default data/used_data); python plot_scripts/compare_methods.py (also needs evolution_L<L>.csv from the old main binary)"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Notes part",
+      "items": [
+        "Compile: latex/build_parts.sh tensor_networks → latex/parts/pdf/tensor_networks.pdf (full notes are built first; numbering as in latex/notes.tex)",
+        "1 Model; 2 Theory; 2.1 Lindblad dynamics: forward and backward evolution",
+        "3 How the simulations are done; 3.2 Pauli strings; 3.4 Density matrices: exact evolution in the Pauli basis",
+        "3.13 Tensor networks: rho as an MPS, TDVP, influence matrix, CLIK; 12 Tensor-network and Krylov (CLIK) results"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Key mechanics",
+      "items": [
+        "rho = 2^-L sum_P r_P P on PauliVec sites (1, sx, sy, sz); the Lindbladian is a real MPO",
+        "CLIK: physical (real time) and traceless (complex time, angle alpha) states sampled every dt; Gram and projected L matrices, eigenvalues for nested T",
+        "Forward/backward: rho with G, observable with G^T (H -> -H); <O>(t1 + t2) = o(t2).r(t1) / Tr rho(t1)",
+        "Stepping: Taylor series with exact MPO applications below chi-switch, two-site TDVP with global Krylov expansion above"
+      ]
+    }
+  ]
+}

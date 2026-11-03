@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "8d9e592a-c14c-4845-9f9e-faab43941ea5",
+  "status": "current",
+  "command": "deliver",
+  "type": "dataflow",
+  "input": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.json",
+  "output": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.html",
+  "specification": {
+    "sha256": "f93aa721ddd6d4ac420ff9f140113b7fe62e6ad488263fc786c046290a18f9fe",
+    "bytes": 10957
+  },
+  "artifact": {
+    "sha256": "bbc49ab1cfc34bf02a090cc6cf44692f18f975b356981c5f149ad985ad212c7a",
+    "bytes": 860669
+  }
+}

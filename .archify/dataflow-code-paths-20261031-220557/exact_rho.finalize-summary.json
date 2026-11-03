@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "skipped",
+  "type": "dataflow",
+  "quality": "showcase",
+  "specification": {
+    "path": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/exact_rho.json",
+    "sha256": "dd7a72e12d23a6ade99a00a66fabc46135e53109ac2d18a44026ae4f3a005d2e",
+    "bytes": 9849
+  },
+  "artifact": {
+    "path": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/exact_rho.html",
+    "sha256": "cfcde196d882248ed48fd95228d2e73531c0faa26764ae3f8bf93aea17434e2b",
+    "bytes": 861945
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "skipped"
+  },
+  "failedStage": "browser-check",
+  "diagnostics": [
+    {
+      "code": "viewer/chrome-unavailable",
+      "severity": "warning",
+      "message": "No supported browser found. Install Chrome/Chromium (or Microsoft Edge), or set ARCHIFY_CHROME to its executable path.",
+      "subject": {
+        "artifact": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/exact_rho.html"
+      },
+      "evidence": {
+        "executable": null
+      },
+      "supportedFixes": [
+        "set ARCHIFY_CHROME to a Chrome/Chromium executable (or Microsoft Edge) and rerun browser-check"
+      ]
+    }
+  ],
+  "diagnosticSummary": {
+    "total": 1,
+    "shown": 1,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/exact_rho.finalize.json",
+    "summaryReceipt": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/exact_rho.finalize-summary.json",
+    "browserCheckReceipt": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/exact_rho.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-31T21:08:31.328Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 765,
+  "browserCheck": {
+    "requested": true,
+    "ran": false
+  }
+}

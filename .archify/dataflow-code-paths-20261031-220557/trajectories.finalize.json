@@ -1,0 +1,387 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "skipped",
+  "type": "dataflow",
+  "quality": "showcase",
+  "startedAt": "2026-10-31T21:09:35.562Z",
+  "specification": {
+    "path": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.json",
+    "sha256": "74d73c1a0eaaa621ab10d26b047756536f7855836c6f249fff1c4beac62c51a6",
+    "bytes": 11344
+  },
+  "artifact": {
+    "path": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.html",
+    "sha256": "1f33a00b4b8f8e21ff641c6bfad73042eb48a7582090f27f8f7f76c985eed52d",
+    "bytes": 864673
+  },
+  "stages": {
+    "validate": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": null,
+      "execution": "embedded-in-deliver",
+      "command": [
+        "/home/wccuirom/.nvm/versions/node/v24.21.0/bin/node",
+        "/home/wccuirom/.claude/skills/archify/bin/archify.mjs",
+        "deliver",
+        "dataflow",
+        "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.json",
+        "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "/home/wccuirom/repos/open_exact_scars",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": true,
+        "command": "validate",
+        "specification": {
+          "sha256": "74d73c1a0eaaa621ab10d26b047756536f7855836c6f249fff1c4beac62c51a6",
+          "bytes": 11344
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        }
+      }
+    },
+    "deliver": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 340,
+      "command": [
+        "/home/wccuirom/.nvm/versions/node/v24.21.0/bin/node",
+        "/home/wccuirom/.claude/skills/archify/bin/archify.mjs",
+        "deliver",
+        "dataflow",
+        "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.json",
+        "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "/home/wccuirom/repos/open_exact_scars",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "receiptId": "674af129-034f-4cea-af31-4cc333648461",
+        "ok": true,
+        "command": "deliver",
+        "type": "dataflow",
+        "input": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.json",
+        "output": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.html",
+        "specification": {
+          "sha256": "74d73c1a0eaaa621ab10d26b047756536f7855836c6f249fff1c4beac62c51a6",
+          "bytes": 11344
+        },
+        "artifact": {
+          "sha256": "1f33a00b4b8f8e21ff641c6bfad73042eb48a7582090f27f8f7f76c985eed52d",
+          "bytes": 864673
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        },
+        "evidence": {
+          "verified": true,
+          "repository": "git@github.com:wccuiro/open_exact_scars",
+          "revision": "29c736826b2498dd3fffb82f34ded3e41e0d66f0",
+          "references": 34,
+          "linkMode": "local-only"
+        },
+        "update": {
+          "status": "unavailable",
+          "installedVersion": null,
+          "availableVersion": null,
+          "releaseNotes": null,
+          "checkedAt": null,
+          "source": null,
+          "noticeRequired": false,
+          "noticeText": null,
+          "reason": "disabled"
+        }
+      }
+    },
+    "check": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 149,
+      "command": [
+        "/home/wccuirom/.nvm/versions/node/v24.21.0/bin/node",
+        "/home/wccuirom/.claude/skills/archify/bin/archify.mjs",
+        "check",
+        "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.html",
+        "--require-provenance"
+      ],
+      "receipt": {
+        "ok": true,
+        "file": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.html",
+        "artifact": {
+          "sha256": "1f33a00b4b8f8e21ff641c6bfad73042eb48a7582090f27f8f7f76c985eed52d",
+          "bytes": 864673
+        },
+        "checks": [
+          {
+            "name": "single_svg",
+            "ok": true,
+            "details": [
+              "found 1 <svg> block(s)"
+            ]
+          },
+          {
+            "name": "finite_svg",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "orthogonal_arrows",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "label_route_clearance",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_crossings",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_corridors",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "container_border_runs",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "route_rhythm",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "legend_clearance",
+            "ok": true,
+            "details": []
+          }
+        ],
+        "composition": {
+          "schemaVersion": 1,
+          "profile": "showcase",
+          "status": "pass",
+          "summary": {
+            "errors": 0,
+            "warnings": 0
+          },
+          "metrics": {
+            "properCrossings": 0,
+            "resolvedCrossovers": 0,
+            "ambiguousCorridors": 0,
+            "arrowheadCollisions": 0,
+            "containerBorderRuns": 0,
+            "labelRouteClearanceIssues": 0,
+            "labelCanvasOverflowIssues": 0,
+            "minLabelRouteClearance": 6,
+            "desktopReadabilityIssues": 0,
+            "viewportHeightIssues": 0,
+            "minProjectedNodeTextPx": 6.095505617977528,
+            "maxBends": 4,
+            "routesOverSuggestedBends": 1,
+            "maxStretch": 1,
+            "routesOverSuggestedStretch": 0,
+            "minSegmentPx": 24,
+            "minInteriorSegmentPx": 31,
+            "shortSegmentCount": 0,
+            "shortEndpointSegmentCount": 0,
+            "shortInteriorSegmentCount": 0,
+            "microSegmentCount": 0
+          },
+          "suggestedLimits": {
+            "bendsPerRelationship": 2,
+            "stretch": 1.35,
+            "segmentPx": 16,
+            "microSegmentPx": 8
+          },
+          "routeReview": {
+            "crossings": [],
+            "detours": [
+              {
+                "relationship": {
+                  "id": "f-csv-ch",
+                  "from": "trajcsv",
+                  "to": "channels",
+                  "label": "lean _ch files",
+                  "collectionIndex": 14,
+                  "artifactIndex": 15
+                },
+                "bends": 4,
+                "stretch": 1
+              }
+            ]
+          },
+          "leadingSpace": {
+            "measured": false,
+            "reviewSuggested": false
+          },
+          "desktopReadability": {
+            "budgetBasis": "legacy-930",
+            "readerContract": "declared-wide-v1",
+            "availableDiagramWidth": 930,
+            "actualBudgetPx": 930,
+            "limit": "legacy",
+            "requestedTargetPx": null,
+            "requestedTargetMet": null,
+            "hardFloorPx": 6,
+            "hardFloorMet": true,
+            "minimumOwner": {
+              "kind": "node",
+              "id": "params"
+            },
+            "minimumSourceTextPx": 7,
+            "minimumProjectedTextPx": 6.095505617977528,
+            "semanticTextCount": 57
+          },
+          "issues": []
+        },
+        "provenance": "current",
+        "deliveryReceiptId": "674af129-034f-4cea-af31-4cc333648461"
+      }
+    },
+    "browser-check": {
+      "status": "skipped",
+      "exitCode": 2,
+      "durationMs": 328,
+      "command": [
+        "/home/wccuirom/.nvm/versions/node/v24.21.0/bin/node",
+        "/home/wccuirom/.claude/skills/archify/bin/archify.mjs",
+        "browser-check",
+        "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.html",
+        "--json",
+        "--require-provenance"
+      ],
+      "execution": "in-process",
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": false,
+        "command": "browser-check",
+        "evidenceKind": "automated-browser",
+        "status": "skipped",
+        "visualReview": "not-requested",
+        "provenance": "current",
+        "deliveryReceiptId": "674af129-034f-4cea-af31-4cc333648461",
+        "artifact": {
+          "path": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.html",
+          "sha256": "1f33a00b4b8f8e21ff641c6bfad73042eb48a7582090f27f8f7f76c985eed52d",
+          "bytes": 864673
+        },
+        "state": {
+          "detail": "read",
+          "motion": "still"
+        },
+        "chrome": {
+          "status": "unavailable",
+          "executable": null
+        },
+        "diagnostics": [
+          {
+            "code": "viewer/chrome-unavailable",
+            "severity": "warning",
+            "message": "No supported browser found. Install Chrome/Chromium (or Microsoft Edge), or set ARCHIFY_CHROME to its executable path.",
+            "subject": {
+              "artifact": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.html"
+            },
+            "evidence": {
+              "executable": null
+            },
+            "supportedFixes": [
+              "set ARCHIFY_CHROME to a Chrome/Chromium executable (or Microsoft Edge) and rerun browser-check"
+            ]
+          }
+        ],
+        "containment": {
+          "status": "skipped",
+          "policy": "fit-or-reader-declared-readable-vertical-scroll",
+          "viewports": []
+        },
+        "themeStates": {
+          "status": "skipped",
+          "viewports": []
+        },
+        "readability": {
+          "status": "skipped",
+          "minimumProjectedNodeTextPx": 6,
+          "viewports": []
+        },
+        "viewerChrome": {
+          "status": "skipped",
+          "viewports": []
+        },
+        "captures": {
+          "status": "not-requested",
+          "screenshots": [],
+          "contactSheet": null
+        },
+        "sidecars": {
+          "receipt": "trajectories.browser-check.json",
+          "files": []
+        },
+        "error": "No supported browser found. Install Chrome/Chromium (or Microsoft Edge), or set ARCHIFY_CHROME to its executable path."
+      }
+    }
+  },
+  "browserCheck": {
+    "requested": true,
+    "ran": false
+  },
+  "diagnostics": [
+    {
+      "code": "viewer/chrome-unavailable",
+      "severity": "warning",
+      "message": "No supported browser found. Install Chrome/Chromium (or Microsoft Edge), or set ARCHIFY_CHROME to its executable path.",
+      "subject": {
+        "artifact": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.html"
+      },
+      "evidence": {
+        "executable": null
+      },
+      "supportedFixes": [
+        "set ARCHIFY_CHROME to a Chrome/Chromium executable (or Microsoft Edge) and rerun browser-check"
+      ]
+    }
+  ],
+  "evidence": {
+    "receipt": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.finalize.json",
+    "summaryReceipt": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.finalize-summary.json",
+    "browserCheckReceipt": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/trajectories.browser-check.json"
+  },
+  "visualReview": "not-requested",
+  "failedStage": "browser-check",
+  "finishedAt": "2026-10-31T21:09:36.458Z",
+  "durationMs": 895,
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-31T21:08:31.328Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Exact ρ evolution (states): how the code works",
+    "output": ".archify/dataflow-code-paths-20261031-220557/exact_rho.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:wccuiro/open_exact_scars.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "29c736826b2498dd3fffb82f34ded3e41e0d66f0"
+    }
+  },
+  "stages": [
+    { "label": "Inputs" },
+    { "label": "Core" },
+    { "label": "Data (CSV)" },
+    { "label": "Analysis" },
+    { "label": "Results" }
+  ],
+  "nodes": [
+    { "id": "params", "type": "external", "label": "parameters.rs", "sublabel": "h, a, b, c, c range", "tag": "coefficients", "stage": 0, "row": 0,
+      "sources": [ { "path": "rust/src/parameters.rs", "line": 14, "end_line": 37 } ] },
+    { "id": "cli", "type": "frontend", "label": "CLI options", "sublabel": "--state --gammas --channel", "tag": "states", "stage": 0, "row": 2,
+      "sources": [ { "path": "rust/src/bin/states.rs", "line": 67, "end_line": 94 } ] },
+    { "id": "model", "type": "backend", "label": "Params::random_c", "sublabel": "model.rs, seed 1000·s+L", "tag": "random c", "stage": 1, "row": 0,
+      "sources": [ { "path": "rust/src/model.rs", "line": 47, "end_line": 56 }, { "path": "rust/src/bin/states.rs", "line": 105, "end_line": 108 } ] },
+    { "id": "liou", "type": "backend", "label": "Liouvillian", "sublabel": "liouville.rs + noise.rs", "tag": "4^L Pauli basis", "stage": 1, "row": 1,
+      "sources": [ { "path": "rust/src/liouville.rs", "line": 110, "end_line": 140 }, { "path": "rust/src/noise.rs", "line": 37, "end_line": 52 }, { "path": "rust/src/liouville.rs", "line": 299, "end_line": 320 } ] },
+    { "id": "run", "type": "backend", "label": "run(): evolve ρ", "sublabel": "Taylor exp(𝓛 dt), stop rule", "tag": "states.rs", "stage": 1, "row": 2,
+      "sources": [ { "path": "rust/src/bin/states.rs", "line": 157, "end_line": 254 }, { "path": "rust/src/liouville.rs", "line": 323, "end_line": 366 } ] },
+    { "id": "opstats", "type": "backend", "label": "Operator stats", "sublabel": "entanglement.rs", "tag": "--obs-dt", "stage": 1, "row": 3,
+      "sources": [ { "path": "rust/src/bin/states.rs", "line": 204, "end_line": 225 }, { "path": "rust/src/entanglement.rs", "line": 237, "end_line": 284 }, { "path": "rust/src/entanglement.rs", "line": 299, "end_line": 336 } ] },
+    { "id": "realization", "type": "database", "label": "states_realization", "sublabel": "_L<L>.csv: c per bond", "stage": 2, "row": 0,
+      "sources": [ { "path": "rust/src/model.rs", "line": 128, "end_line": 140 } ] },
+    { "id": "statescsv", "type": "database", "label": "states_<state>", "sublabel": "_L<L>_g<γ><sfx>.csv", "tag": "m_α, s_α vs t", "stage": 2, "row": 2, "height": 96,
+      "sources": [ { "path": "rust/src/bin/states.rs", "line": 132, "end_line": 132 }, { "path": "rust/src/bin/states.rs", "line": 175, "end_line": 200 } ] },
+    { "id": "obscsv", "type": "database", "label": "states_obs_<state>", "sublabel": "_L<L>_g<γ><sfx>.csv", "tag": "purity, size, S_op", "stage": 2, "row": 3,
+      "sources": [ { "path": "rust/src/bin/states.rs", "line": 133, "end_line": 133 }, { "path": "rust/src/bin/states.rs", "line": 177, "end_line": 184 } ] },
+    { "id": "plotstates", "type": "backend", "label": "plot_states.py", "sublabel": "time series per γ", "stage": 3, "row": 0,
+      "sources": [ { "path": "plot_scripts/plot_states.py", "line": 87, "end_line": 106 } ] },
+    { "id": "fitstates", "type": "backend", "label": "fit_states.py", "sublabel": "Γ_e = 1/t_e per run", "tag": "1st", "stage": 3, "row": 1,
+      "sources": [ { "path": "plot_scripts/fit_states.py", "line": 62, "end_line": 85 }, { "path": "plot_scripts/states_data.py", "line": 61, "end_line": 94 } ] },
+    { "id": "extrap", "type": "backend", "label": "1/L extrapolation", "sublabel": "fit_small_gamma → inverse_L", "tag": "2nd, 3rd", "stage": 3, "row": 2,
+      "sources": [ { "path": "plot_scripts/fit_small_gamma.py", "line": 267, "end_line": 290 }, { "path": "plot_scripts/fit_states_inverse_L.py", "line": 226, "end_line": 234 } ] },
+    { "id": "fitchannels", "type": "backend", "label": "fit_channels.py", "sublabel": "Γ_∞ per noise channel", "stage": 3, "row": 3,
+      "sources": [ { "path": "plot_scripts/fit_channels.py", "line": 49, "end_line": 58 }, { "path": "plot_scripts/fit_channels.py", "line": 184, "end_line": 190 } ] },
+    { "id": "opspread", "type": "backend", "label": "Op. spreading", "sublabel": "plot_operator_spreading.py", "stage": 3, "row": 4,
+      "sources": [ { "path": "plot_scripts/plot_operator_spreading.py", "line": 57, "end_line": 84 } ] },
+    { "id": "figures", "type": "database", "label": "Figures + tables", "sublabel": "data/used_data/*.png, *.csv", "stage": 4, "row": 1,
+      "sources": [ { "path": "plot_scripts/fit_states.py", "line": 85, "end_line": 85 }, { "path": "plot_scripts/fit_states_inverse_L.py", "line": 179, "end_line": 223 }, { "path": "plot_scripts/fit_channels.py", "line": 181, "end_line": 181 } ] },
+    { "id": "notes", "type": "external", "label": "Notes part", "sublabel": "latex/parts/pdf/exact_rho.pdf", "tag": "LaTeX", "stage": 4, "row": 3 }
+  ],
+  "flows": [
+    { "id": "f-params", "from": "params", "to": "model", "label": "h, a, b, c" },
+    { "id": "f-cli-liou", "from": "cli", "to": "liou", "label": "--channel" },
+    { "id": "f-cli-run", "from": "cli", "to": "run", "label": "state, γ, dt", "variant": "emphasis" },
+    { "id": "f-model-liou", "from": "model", "to": "liou", "label": "H Pauli terms" },
+    { "id": "f-model-real", "from": "model", "to": "realization", "label": "c per bond" },
+    { "id": "f-liou-run", "from": "liou", "to": "run", "label": "𝓛 and ρ₀", "variant": "emphasis" },
+    { "id": "f-run-ops", "from": "run", "to": "opstats", "label": "r_P every Δ" },
+    { "id": "f-run-csv", "from": "run", "to": "statescsv", "label": "row per step", "variant": "emphasis" },
+    { "id": "f-ops-csv", "from": "opstats", "to": "obscsv", "label": "purity, size" },
+    { "id": "f-csv-plot", "from": "statescsv", "to": "plotstates", "label": "m_⊥, |s_z|, s_⊥" },
+    { "id": "f-csv-fit", "from": "statescsv", "to": "fitstates", "label": "signal S(t)", "variant": "emphasis" },
+    { "id": "f-csv-extrap", "from": "statescsv", "to": "extrap", "label": "scar runs" },
+    { "id": "f-csv-chan", "from": "statescsv", "to": "fitchannels", "label": "_ch<x|y|…> runs" },
+    { "id": "f-obs-spread", "from": "obscsv", "to": "opspread", "label": "lean obs files" },
+    { "id": "f-fit-extrap", "from": "fitstates", "to": "extrap", "label": "states_rates.csv", "variant": "emphasis" },
+    { "id": "f-chan-spread", "from": "fitchannels", "to": "opspread", "label": "t_e per run" },
+    { "id": "f-plot-fig", "from": "plotstates", "to": "figures", "label": "states_*.png" },
+    { "id": "f-fit-fig", "from": "fitstates", "to": "figures", "label": "Γ_e table" },
+    { "id": "f-extrap-fig", "from": "extrap", "to": "figures", "label": "Γ_∞(γ)", "variant": "emphasis" },
+    { "id": "f-chan-fig", "from": "fitchannels", "to": "figures", "label": "channel Γ_∞" },
+    { "id": "f-spread-fig", "from": "opspread", "to": "figures", "label": "spreading.png" },
+    { "id": "f-fig-notes", "from": "figures", "to": "notes", "label": "latex/figures/" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "How to run",
+      "items": [
+        "cd rust && cargo run --release --bin states -- --state minus-x|neel|neel-x [--lmin 4 --lmax 8] [--gammas 0,0.01,0.1] [--dt 0.1] [--t-max 1000] [--stop 1e-3] [--seed 1] [--stop-te F] [--channel z|x|y|dep|decay|thermal] [--obs-dt Δ] [--op-ent-dt Δ′]",
+        "Output in data/ (or $SCARS_DATA_DIR); suffix _ch<channel> for a channel other than σᶻ, _seed<N> for realization N ≠ 1",
+        "Analysis order (default dir data/used_data): fit_states.py → fit_small_gamma.py → fit_states_inverse_L.py; fit_channels.py → plot_operator_spreading.py; plot_states.py any time",
+        "Copy the figures from data/used_data/ into latex/figures/ before compiling the notes"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Notes part",
+      "items": [
+        "Compile: latex/build_parts.sh exact_rho → latex/parts/pdf/exact_rho.pdf (full notes are built first; numbering as in latex/notes.tex)",
+        "1 Model; 2 Theory: 2.4 Other single-site noise channels, 2.5 What the new observables measure",
+        "3 How the simulations are done: 3.1 Notation, 3.2 Pauli strings, 3.4 Density matrices: exact evolution in the Pauli basis, 3.7 Operator entanglement, 3.8 Other single-site noise channels, 3.9 Operator observables of ρ, 3.12 Run options and file names",
+        "4 How the decay rates are computed; 5 Exact results; 6 Scar against thermal decay up to L = 20; 7 Small γ: the finite-size cap",
+        "10 Results of the lean runs: 10.1 Runs and checks, 10.2 Thermodynamic rates under every noise channel, 10.4 Operator spreading of the evolving state"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Key mechanics",
+      "items": [
+        "ρ = 2^−L Σ_P r_P P: the generator is real (antisymmetric H part plus diagonal channel damping); random c removes translation, so the full 4^L basis is used, matrix-free from L = 11",
+        "One random-c realization per L from Rng(1000·seed + L); the γ list runs in parallel on the same 𝓛",
+        "Each output step: exp(𝓛 dt) as a Taylor series summed to round-off in substeps of norm ≤ 4; output step min(dt, DT_GAMMA/γ)",
+        "Stop when the signal (m_⊥, |s_z| or s_⊥) stays below --stop for STOP_WINDOW, at --stop-te × the first 1/e time, or at --t-max; γ = 0 runs to --t-zero and checks reference 1"
+      ]
+    }
+  ]
+}

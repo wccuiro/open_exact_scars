@@ -1,0 +1,397 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "skipped",
+  "type": "dataflow",
+  "quality": "showcase",
+  "startedAt": "2026-10-31T21:09:05.671Z",
+  "specification": {
+    "path": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.json",
+    "sha256": "f93aa721ddd6d4ac420ff9f140113b7fe62e6ad488263fc786c046290a18f9fe",
+    "bytes": 10957
+  },
+  "artifact": {
+    "path": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.html",
+    "sha256": "bbc49ab1cfc34bf02a090cc6cf44692f18f975b356981c5f149ad985ad212c7a",
+    "bytes": 860669
+  },
+  "stages": {
+    "validate": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": null,
+      "execution": "embedded-in-deliver",
+      "command": [
+        "/home/wccuirom/.nvm/versions/node/v24.21.0/bin/node",
+        "/home/wccuirom/.claude/skills/archify/bin/archify.mjs",
+        "deliver",
+        "dataflow",
+        "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.json",
+        "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "/home/wccuirom/repos/open_exact_scars",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": true,
+        "command": "validate",
+        "specification": {
+          "sha256": "f93aa721ddd6d4ac420ff9f140113b7fe62e6ad488263fc786c046290a18f9fe",
+          "bytes": 10957
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        }
+      }
+    },
+    "deliver": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 320,
+      "command": [
+        "/home/wccuirom/.nvm/versions/node/v24.21.0/bin/node",
+        "/home/wccuirom/.claude/skills/archify/bin/archify.mjs",
+        "deliver",
+        "dataflow",
+        "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.json",
+        "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "/home/wccuirom/repos/open_exact_scars",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "receiptId": "dcbeaa20-69ec-431f-bebc-071b0bcecf87",
+        "ok": true,
+        "command": "deliver",
+        "type": "dataflow",
+        "input": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.json",
+        "output": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.html",
+        "specification": {
+          "sha256": "f93aa721ddd6d4ac420ff9f140113b7fe62e6ad488263fc786c046290a18f9fe",
+          "bytes": 10957
+        },
+        "artifact": {
+          "sha256": "bbc49ab1cfc34bf02a090cc6cf44692f18f975b356981c5f149ad985ad212c7a",
+          "bytes": 860669
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        },
+        "evidence": {
+          "verified": true,
+          "repository": "git@github.com:wccuiro/open_exact_scars",
+          "revision": "29c736826b2498dd3fffb82f34ded3e41e0d66f0",
+          "references": 36,
+          "linkMode": "local-only"
+        },
+        "update": {
+          "status": "unavailable",
+          "installedVersion": null,
+          "availableVersion": null,
+          "releaseNotes": null,
+          "checkedAt": null,
+          "source": null,
+          "noticeRequired": false,
+          "noticeText": null,
+          "reason": "disabled"
+        }
+      }
+    },
+    "check": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 119,
+      "command": [
+        "/home/wccuirom/.nvm/versions/node/v24.21.0/bin/node",
+        "/home/wccuirom/.claude/skills/archify/bin/archify.mjs",
+        "check",
+        "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.html",
+        "--require-provenance"
+      ],
+      "receipt": {
+        "ok": true,
+        "file": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.html",
+        "artifact": {
+          "sha256": "bbc49ab1cfc34bf02a090cc6cf44692f18f975b356981c5f149ad985ad212c7a",
+          "bytes": 860669
+        },
+        "checks": [
+          {
+            "name": "single_svg",
+            "ok": true,
+            "details": [
+              "found 1 <svg> block(s)"
+            ]
+          },
+          {
+            "name": "finite_svg",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "orthogonal_arrows",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "label_route_clearance",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_crossings",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_corridors",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "container_border_runs",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "route_rhythm",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "legend_clearance",
+            "ok": true,
+            "details": []
+          }
+        ],
+        "composition": {
+          "schemaVersion": 1,
+          "profile": "showcase",
+          "status": "pass",
+          "summary": {
+            "errors": 0,
+            "warnings": 0
+          },
+          "metrics": {
+            "properCrossings": 0,
+            "resolvedCrossovers": 1,
+            "ambiguousCorridors": 0,
+            "arrowheadCollisions": 0,
+            "containerBorderRuns": 0,
+            "labelRouteClearanceIssues": 0,
+            "labelCanvasOverflowIssues": 0,
+            "minLabelRouteClearance": 13.3,
+            "desktopReadabilityIssues": 0,
+            "viewportHeightIssues": 0,
+            "minProjectedNodeTextPx": 6.095505617977528,
+            "maxBends": 2,
+            "routesOverSuggestedBends": 0,
+            "maxStretch": 1,
+            "routesOverSuggestedStretch": 0,
+            "minSegmentPx": 21.7,
+            "minInteriorSegmentPx": 21.7,
+            "shortSegmentCount": 0,
+            "shortEndpointSegmentCount": 0,
+            "shortInteriorSegmentCount": 0,
+            "microSegmentCount": 0
+          },
+          "suggestedLimits": {
+            "bendsPerRelationship": 2,
+            "stretch": 1.35,
+            "segmentPx": 16,
+            "microSegmentPx": 8
+          },
+          "routeReview": {
+            "crossings": [
+              {
+                "left": {
+                  "id": "f-other-spread",
+                  "from": "other",
+                  "to": "spread",
+                  "label": "Γ_∞, S_op",
+                  "collectionIndex": 9,
+                  "artifactIndex": 10
+                },
+                "right": {
+                  "id": "f-csv-kick",
+                  "from": "flipcsv",
+                  "to": "kick",
+                  "label": "D(m, k, τ)",
+                  "collectionIndex": 10,
+                  "artifactIndex": 11
+                },
+                "point": [
+                  648.25,
+                  262
+                ]
+              }
+            ],
+            "detours": []
+          },
+          "leadingSpace": {
+            "measured": false,
+            "reviewSuggested": false
+          },
+          "desktopReadability": {
+            "budgetBasis": "legacy-930",
+            "readerContract": "declared-wide-v1",
+            "availableDiagramWidth": 930,
+            "actualBudgetPx": 930,
+            "limit": "legacy",
+            "requestedTargetPx": null,
+            "requestedTargetMet": null,
+            "hardFloorPx": 6,
+            "hardFloorMet": true,
+            "minimumOwner": {
+              "kind": "node",
+              "id": "params"
+            },
+            "minimumSourceTextPx": 7,
+            "minimumProjectedTextPx": 6.095505617977528,
+            "semanticTextCount": 48
+          },
+          "issues": []
+        },
+        "provenance": "current",
+        "deliveryReceiptId": "dcbeaa20-69ec-431f-bebc-071b0bcecf87"
+      }
+    },
+    "browser-check": {
+      "status": "skipped",
+      "exitCode": 2,
+      "durationMs": 238,
+      "command": [
+        "/home/wccuirom/.nvm/versions/node/v24.21.0/bin/node",
+        "/home/wccuirom/.claude/skills/archify/bin/archify.mjs",
+        "browser-check",
+        "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.html",
+        "--json",
+        "--require-provenance"
+      ],
+      "execution": "in-process",
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": false,
+        "command": "browser-check",
+        "evidenceKind": "automated-browser",
+        "status": "skipped",
+        "visualReview": "not-requested",
+        "provenance": "current",
+        "deliveryReceiptId": "dcbeaa20-69ec-431f-bebc-071b0bcecf87",
+        "artifact": {
+          "path": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.html",
+          "sha256": "bbc49ab1cfc34bf02a090cc6cf44692f18f975b356981c5f149ad985ad212c7a",
+          "bytes": 860669
+        },
+        "state": {
+          "detail": "read",
+          "motion": "still"
+        },
+        "chrome": {
+          "status": "unavailable",
+          "executable": null
+        },
+        "diagnostics": [
+          {
+            "code": "viewer/chrome-unavailable",
+            "severity": "warning",
+            "message": "No supported browser found. Install Chrome/Chromium (or Microsoft Edge), or set ARCHIFY_CHROME to its executable path.",
+            "subject": {
+              "artifact": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.html"
+            },
+            "evidence": {
+              "executable": null
+            },
+            "supportedFixes": [
+              "set ARCHIFY_CHROME to a Chrome/Chromium executable (or Microsoft Edge) and rerun browser-check"
+            ]
+          }
+        ],
+        "containment": {
+          "status": "skipped",
+          "policy": "fit-or-reader-declared-readable-vertical-scroll",
+          "viewports": []
+        },
+        "themeStates": {
+          "status": "skipped",
+          "viewports": []
+        },
+        "readability": {
+          "status": "skipped",
+          "minimumProjectedNodeTextPx": 6,
+          "viewports": []
+        },
+        "viewerChrome": {
+          "status": "skipped",
+          "viewports": []
+        },
+        "captures": {
+          "status": "not-requested",
+          "screenshots": [],
+          "contactSheet": null
+        },
+        "sidecars": {
+          "receipt": "single_kick.browser-check.json",
+          "files": []
+        },
+        "error": "No supported browser found. Install Chrome/Chromium (or Microsoft Edge), or set ARCHIFY_CHROME to its executable path."
+      }
+    }
+  },
+  "browserCheck": {
+    "requested": true,
+    "ran": false
+  },
+  "diagnostics": [
+    {
+      "code": "viewer/chrome-unavailable",
+      "severity": "warning",
+      "message": "No supported browser found. Install Chrome/Chromium (or Microsoft Edge), or set ARCHIFY_CHROME to its executable path.",
+      "subject": {
+        "artifact": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.html"
+      },
+      "evidence": {
+        "executable": null
+      },
+      "supportedFixes": [
+        "set ARCHIFY_CHROME to a Chrome/Chromium executable (or Microsoft Edge) and rerun browser-check"
+      ]
+    }
+  ],
+  "evidence": {
+    "receipt": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.finalize.json",
+    "summaryReceipt": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.finalize-summary.json",
+    "browserCheckReceipt": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/single_kick.browser-check.json"
+  },
+  "visualReview": "not-requested",
+  "failedStage": "browser-check",
+  "finishedAt": "2026-10-31T21:09:06.426Z",
+  "durationMs": 754,
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-31T21:08:31.328Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  }
+}

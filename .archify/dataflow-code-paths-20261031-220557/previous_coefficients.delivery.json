@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "9e94837a-7829-4283-9ba1-9d47784f5ce1",
+  "status": "current",
+  "command": "deliver",
+  "type": "dataflow",
+  "input": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/previous_coefficients.json",
+  "output": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/previous_coefficients.html",
+  "specification": {
+    "sha256": "08ce6eff311cac0dbee74d7873dfd4809be429009b3ded3353067107af194bc1",
+    "bytes": 14300
+  },
+  "artifact": {
+    "sha256": "e1154084fe01ff7413e6f7641e4af0f132ccbafd1ec3e1f404d95e212a122638",
+    "bytes": 861044
+  }
+}

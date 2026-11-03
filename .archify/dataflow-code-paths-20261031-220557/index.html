@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scar code paths</title>
+<style>
+  :root { --bg: #f7f7f5; --fg: #1d1f21; --muted: #5f6368; --card: #ffffff; --line: #dcdcd8; --link: #1f5fa8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16181b; --fg: #e6e6e3; --muted: #a0a4a8; --card: #1f2226; --line: #33373c; --link: #7fb2ec; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 16px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.lead { color: var(--muted); margin: 0 0 24px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+  .case { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .case h2 { font-size: 16px; margin: 0 0 4px; }
+  .case p { margin: 0 0 10px; color: var(--muted); font-size: 13.5px; }
+  .case a { color: var(--link); text-decoration: none; margin-right: 14px; font-weight: 600; }
+  .case a:hover { text-decoration: underline; }
+  code { font: 12.5px ui-monospace, monospace; background: color-mix(in srgb, var(--line) 45%, transparent); padding: 1px 4px; border-radius: 4px; }
+  .build { margin-top: 28px; color: var(--muted); font-size: 13.5px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Scar tower code paths</h1>
+<p class="lead">One diagram per data-generation path, from parameters to CSV to plot scripts to figures, and the part of the notes that path uses.</p>
+<div class="grid">
+  <div class="case"><h2>Exact ρ evolution</h2><p><code>states</code>: ρ in the full Pauli basis, every noise channel, operator observables.</p>
+    <a href="exact_rho.html">Diagram</a><a href="../../latex/parts/pdf/exact_rho.pdf">Notes part (PDF)</a></div>
+  <div class="case"><h2>Quantum trajectories</h2><p><code>states_traj</code>: diffusive and jump unravellings, trajectory entanglement.</p>
+    <a href="trajectories.html">Diagram</a><a href="../../latex/parts/pdf/trajectories.pdf">Notes part (PDF)</a></div>
+  <div class="case"><h2>Single kick</h2><p><code>single_flip</code>: one σ<sup>z</sup> kick on the scar state, damage D(τ).</p>
+    <a href="single_kick.html">Diagram</a><a href="../../latex/parts/pdf/single_kick.pdf">Notes part (PDF)</a></div>
+  <div class="case"><h2>Spectra and entanglement</h2><p><code>ed</code>, <code>entanglement</code>, <code>lindblad_entanglement</code>: dense diagonalization of H and 𝓛.</p>
+    <a href="spectra.html">Diagram</a><a href="../../latex/parts/pdf/spectra.pdf">Notes part (PDF)</a></div>
+  <div class="case"><h2>Tensor networks and CLIK</h2><p><code>hamiltonian</code> → <code>julia/</code>: TDVP, CLIK, forward/backward evolution.</p>
+    <a href="tensor_networks.html">Diagram</a><a href="../../latex/parts/pdf/tensor_networks.pdf">Notes part (PDF)</a></div>
+  <div class="case"><h2>Previous coefficients</h2><p><code>main</code>, <code>trajectories</code>, <code>disorder</code>, <code>probes</code>: the earlier laptop runs (appendix).</p>
+    <a href="previous_coefficients.html">Diagram</a><span style="color:var(--muted);font-size:13px">no notes part: the old coefficients were removed from the notes</span></div>
+</div>
+<p class="build">Recompile a part after editing the notes: <code>latex/build_parts.sh &lt;case&gt;</code> (all parts without arguments). It builds the full <code>notes.tex</code> first, so every part keeps the numbering of the full notes.</p>
+</main>
+</body>
+</html>

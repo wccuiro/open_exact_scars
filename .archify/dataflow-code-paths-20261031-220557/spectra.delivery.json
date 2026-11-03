@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "a9ad65a7-adef-4035-bea0-65f53f61576c",
+  "status": "current",
+  "command": "deliver",
+  "type": "dataflow",
+  "input": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/spectra.json",
+  "output": "/home/wccuirom/repos/open_exact_scars/.archify/dataflow-code-paths-20261031-220557/spectra.html",
+  "specification": {
+    "sha256": "44fd73d54753feb35dffd9e2aefc1a58fe543f033e9ea0c5e6c3836fb9213ae9",
+    "bytes": 11725
+  },
+  "artifact": {
+    "sha256": "e7aa9b54915fd8ae3d10eca237be9b9d30de42decc5a2f8d8056ffd30808ade4",
+    "bytes": 852129
+  }
+}

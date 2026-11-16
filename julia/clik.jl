@@ -26,8 +26,9 @@
 # Backends:
 #   dense  4^L vectors, propagators e^{𝓛 dz} by matrix exponential (L ≤ 6); also full ED of 𝓛 as the reference.
 #   mps    two-site TDVP (ITensorMPS, local Arnoldi exponentials), bond dimension ≤ --chi, cutoff 1e-30 (truncation
-#          only through --chi); --n-sub internal steps per δt. --expand-every k > 0: global Krylov basis expansion
-#          every k internal steps. Without it the first steps are wrong at the 1e-2 level even at full χ (L = 6):
+#          only through --chi); --n-sub internal steps per δt. --expand-every k (default 1; 0 = never): global
+#          Krylov basis expansion at internal steps 1, k + 1, 2k + 1, … of each evolution (counted over the whole
+#          run, across δt). Without it the first steps are wrong at the 1e-2 level even at full χ (L = 6):
 #          the range-4 terms of H lie outside the two-site tangent space while the bonds are small. Skipped once
 #          every bond has the full dimension, where TDVP is exact. L_ij = ⟪ρ_i|𝓛ρ_j⟫ with 𝓛ρ_j stored as an MPS
 #          of bond dimension ≤ --chi-apply (exact at the full dimension 4^(L/2)). --check-dense 1 (L ≤ 6) also runs
@@ -36,7 +37,7 @@
 # Usage:
 #   julia --project=. -t 16 clik.jl --L 6 --gamma 0.01 --backend dense [--open 0|1] [--init random|scar] [--T 300]
 #         [--dt 0.5] [--alpha 0.0005] [--seed 1] [--terms 4] [--eps 1e-12] [--n-T 10]
-#         mps only: [--chi 64] [--chi-apply 4χ] [--n-sub 10] [--expand-every 0] [--check-dense 0]
+#         mps only: [--chi 64] [--chi-apply 4χ] [--n-sub 10] [--expand-every 1] [--check-dense 0]
 #
 # --open 1: open chain (hamiltonian_open_L<L>.csv). --init scar: initial states built from spin coherent states (tower).
 #
@@ -46,7 +47,9 @@
 #   <tag>_states.csv  n, label (0 physical, 1 traceless), z_re, z_im, trace_re, trace_im, bond_dim, seconds
 #                     (trace of the normalized stored state; bond_dim 0 for dense)
 #   clik_ed_L<L>_g<γ>[_open].csv   re, im: all eigenvalues of 𝓛 (dense backend), compared with the Rust ED
-#                     (used_data/lindblad_entanglement_L<L>_g<γ>.csv, or spectrum_open_L<L>.csv) if that file exists.
+#                     (lindblad_entanglement_L<L>_g<γ>.csv, or spectrum_open_L<L>.csv for the open chain; γ in the
+#                     Rust format, g0.01, g1, g0), the first found in used_data/ and then the top of $SCARS_DATA_DIR
+#                     and of the repository's data/; a line says so when there is none.
 
 include("lindblad_tdvp.jl")
 using Random
@@ -54,6 +57,22 @@ using Random
 # ---- input --------------------------------------------------------------------------------------
 
 const DATA = get(ENV, "SCARS_DATA_DIR", joinpath(@__DIR__, "..", "data"))
+"The repository's data/ (finished runs are kept in its used_data/), whatever \$SCARS_DATA_DIR is."
+const REPO_DATA = joinpath(@__DIR__, "..", "data")
+
+"Output name of a number as Rust prints an f64 (1.0 → 1, 0.0 → 0, 0.01 → 0.01; below 1e-4 Julia writes e-notation, Rust does not)."
+num(x) = isinteger(x) ? string(Int(x)) : string(x)
+
+"""
+The first existing file `name` in the subdirectories `subdirs` ("" = the directory itself) of \$SCARS_DATA_DIR and
+then of the repository's data/ (`nothing` if none), and the list of paths tried.
+"""
+function find_data(name, subdirs)
+    roots = unique(normpath.([DATA, REPO_DATA]))
+    tried = [normpath(joinpath(r, s, name)) for r in roots for s in subdirs]
+    i = findfirst(isfile, tried)
+    return (i === nothing ? nothing : tried[i]), tried
+end
 
 "H from hamiltonian_L<L>.csv (hamiltonian_open_L<L>.csv for the open chain), in the format of `hamiltonian_terms` (sorted site => axis list → coefficient)."
 function read_hamiltonian(L; open_chain = false)
@@ -154,7 +173,7 @@ function Dense(mpo::MPO, sites)
     return Dense(G, one, Dict{ComplexF64, Matrix{ComplexF64}}())
 end
 
-function evolve(b::Dense, ψ, dz)
+function evolve(b::Dense, ψ, dz; done = 0)
     P = get!(() -> exp(ComplexF64.(b.G) .* dz), b.props, dz)
     return P * ψ
 end
@@ -197,9 +216,14 @@ function full_bonds(ψ::MPS)
     return all(linkdim(ψ, j) == min(4^j, 4^(L - j)) for j in 1:(L - 1))
 end
 
-function evolve(b::MPSBackend, ψ, dz)
-    for step in 1:b.n_sub
-        if b.expand_every > 0 && (step - 1) % b.expand_every == 0 && !full_bonds(ψ)
+"""
+`n_sub` internal steps of dz/n_sub. `done` = number of earlier calls on this state, so that the expansion counter
+runs over the internal steps of the whole evolution: expansion at internal steps 1, k + 1, 2k + 1, … (k = expand_every).
+"""
+function evolve(b::MPSBackend, ψ, dz; done = 0)
+    for s in 1:b.n_sub
+        i = done * b.n_sub + s - 1                      # internal steps this state has already taken
+        if b.expand_every > 0 && i % b.expand_every == 0 && !full_bonds(ψ)
             ψ = expand(ψ, b.G; alg = "global_krylov", krylovdim = 2, cutoff = 1.0e-12,
                 apply_kwargs = (; maxdim = b.chi, cutoff = 1.0e-12))
         end
@@ -250,7 +274,7 @@ function run_clik(b::Backend, ψp, ψu; dt, T, α, log_prefix = "")
     for step in 0:n_steps
         for e in 1:2
             if step > 0
-                states[e] = evolve(b, states[e], dzs[e])
+                states[e] = evolve(b, states[e], dzs[e]; done = step - 1)
                 states[e] /= norm(states[e])
             end
             m, lcol, lrow = add!(b, s, states[e])
@@ -301,18 +325,24 @@ function exact_spectrum(b::Dense, L, γ, open_chain)
     @printf("ED: %d eigenvalues in %.1f s, slowest nonzero Re λ = %.6f, α_max = %.5f -> %s\n", length(λ),
         time() - t0, maximum(real(x) for x in λ if abs(x) > 1.0e-9), αmax, path)
     # Rust ED: spectrum_open_L<L>.csv (`ed --open 1`, rows of this γ) or lindblad_entanglement_L<L>_g<γ>.csv
-    rust = open_chain ? joinpath(DATA, "spectrum_open_L$(L).csv") :
-           joinpath(DATA, "used_data", "lindblad_entanglement_L$(L)_g$(γ).csv")
-    if isfile(rust)
-        cols = split(first(eachline(rust)), ",")
-        ire, iim, ig = findfirst(==("re"), cols), findfirst(==("im"), cols), findfirst(==("gamma"), cols)
-        rows = [split(l, ",") for l in Iterators.drop(eachline(rust), 1)]
-        filter!(r -> parse(Float64, r[ig]) == γ, rows)
-        ref = [parse(Float64, r[ire]) + im * parse(Float64, r[iim]) for r in rows]
-        dist = maximum(minimum(abs.(λ .- r)) for r in ref)
-        @printf("ED check against %s: %d eigenvalues, largest distance to the Julia spectrum %.2e\n",
-            rust, length(ref), dist)
+    name = open_chain ? "spectrum_open_L$(L).csv" : "lindblad_entanglement_L$(L)_g$(num(γ)).csv"
+    rust, tried = find_data(name, ("used_data", ""))
+    if rust === nothing
+        println("ED cross-check skipped: $name not found (tried ", join(tried, ", "), ")")
+        return λ
     end
+    cols = split(first(eachline(rust)), ",")
+    ire, iim, ig = findfirst(==("re"), cols), findfirst(==("im"), cols), findfirst(==("gamma"), cols)
+    rows = [split(l, ",") for l in Iterators.drop(eachline(rust), 1)]
+    filter!(r -> parse(Float64, r[ig]) == γ, rows)
+    if isempty(rows)
+        @printf("ED cross-check skipped: no rows with γ = %g in %s\n", γ, rust)
+        return λ
+    end
+    ref = [parse(Float64, r[ire]) + im * parse(Float64, r[iim]) for r in rows]
+    dist = maximum(minimum(abs.(λ .- r)) for r in ref)
+    @printf("ED check against %s: %d eigenvalues, largest distance to the Julia spectrum %.2e\n",
+        rust, length(ref), dist)
     return λ
 end
 
@@ -321,7 +351,7 @@ end
 function main(args)
     o = parse_options(args, Dict("L" => "6", "gamma" => "0.01", "backend" => "dense", "T" => "300", "dt" => "0.5",
         "alpha" => "0.0005", "seed" => "1", "terms" => "4", "eps" => "1e-12", "n-T" => "10", "chi" => "64",
-        "n-sub" => "10", "expand-every" => "0", "chi-apply" => "0", "check-dense" => "0", "open" => "0",
+        "n-sub" => "10", "expand-every" => "1", "chi-apply" => "0", "check-dense" => "0", "open" => "0",
         "init" => "random"))
     L, γ = parse(Int, o["L"]), parse(Float64, o["gamma"])
     T, dt, α = parse(Float64, o["T"]), parse(Float64, o["dt"]), parse(Float64, o["alpha"])

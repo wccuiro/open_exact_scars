@@ -8,8 +8,9 @@
 # An observable O = Σ_P o_P P, o_P = Tr(OP)/2^L, has Tr(Oρ) = Σ_P o_P r_P = o·r, and d(o·r)/dt = o·Gr = (Gᵀo)·r, so
 # the backward (Heisenberg) evolution is do/dt = Gᵀ o. Per site, A^a is symmetric and B^a antisymmetric, and every
 # Hamiltonian term carries an odd number of B factors, so the Hamiltonian part of Gᵀ is minus that of G (H → −H).
-# The dissipator is diagonal for the Hermitian channels (Gᵀ = G there); decay and thermal have the feed σᶻ → −𝟙
-# (dr_z/dt ∋ −γ r_𝟙), whose transpose maps 𝟙 → σᶻ. 𝓛†(𝟙) = 0 for every channel, so Tr ρ(t) = 𝟙·r(t) exactly and
+# The dissipator is diagonal for the Hermitian channels (Gᵀ = G there); decay and thermal also have a feed between 𝟙
+# and σᶻ: G feeds the 𝟙 coordinate into σᶻ (𝓓(𝟙) ∋ −γσᶻ, dr_z/dt ∋ −γ r_𝟙), and Gᵀ feeds σᶻ into 𝟙
+# (𝓓†(σᶻ) ∋ −γ𝟙, do_𝟙/dt ∋ −γ o_z). 𝓛†(𝟙) = 0 for every channel, so Tr ρ(t) = 𝟙·r(t) exactly and
 # ⟨O⟩ is divided by the trace of the forward state (TDVP truncation does not keep it).
 #
 # Both halves are MPS of the 4-dimensional PauliVec sites (bond dimension ≤ --chi). Stepping (`step`): a Taylor series
@@ -21,9 +22,10 @@
 #
 # For every output time t_n = n δt, with forward states ρ_i (i ≤ ⌈N/2⌉) and backward observables o_j (j ≤ ⌈N/2⌉):
 #   mid     split i = ⌈n/2⌉, j = n − i
-#   fwd     forward only (j = 0): ρ evolved to t_n, same χ           (with --full 1)
-#   bwd     backward only (i = 0): O evolved (Heisenberg) to t_n     (with --full 1)
+#   fwd     forward only (j = 0): ρ evolved to t_n, same χ
+#   bwd     backward only (i = 0): O evolved (Heisenberg) to t_n
 #   spread  max − min of ⟨O⟩ over all stored splits i + j = n (a truncation-error estimate; 0 when exact)
+# fwd and bwd go to t_max with --full 1 (default), only to ⌈N/2⌉ δt ≈ t_max/2 with --full 0 (empty after).
 #
 # Observables (--obs, any of): mx, my, mz (uniform, (1/L) Σ_j σ^α_j), sx, sy, sz (staggered, (1/L) Σ_j (−1)^j σ^α_j,
 # j = 0 … L−1), the columns of the Rust `states` output. Initial states (--state): minus-x |−⟩^⊗L, neel-x |+−+−…⟩,
@@ -34,16 +36,22 @@
 #
 # Usage:
 #   julia --project=. -t 8 forward_backward.jl --L 8 --gamma 0.1 --state minus-x [--channel z] [--nbar 1] [--chi 64]
-#         [--t-max 10] [--dt 0.1] [--n-sub 2] [--method hybrid|taylor|tdvp] [--chi-switch 16] [--cutoff 1e-14]
-#         [--obs mx,my,mz,sx,sy,sz]
+#         [--t-max 10] [--dt 0.1] [--n-sub 2] [--method hybrid|taylor|tdvp] [--chi-switch 16]
+#         [--cutoff 1e-14·2^(6−L)] [--obs mx,my,mz,sx,sy,sz]
 #         [--full 1] [--check 0] [--ref path.csv]
+#   --cutoff: SVD truncation cutoff of every MPS operation. ITensors takes it relative to the squared norm of the MPS
+#          it truncates; for ρ that is ‖r‖² = Σ_P r_P² = 2^L Tr ρ², so a fixed cutoff gives an absolute error of the
+#          trace and of local observables that grows with L. The default 1e-14 · 2^(6−L) keeps the discarded weight
+#          (≈ 1e-14 · 2^6 Tr ρ²) independent of L, and is the validated 1e-14 at L = 6.
 #   --check 1 (L ≤ 6): dense G and Gᵀ from the two MPOs, |G_mpoᵀ − G_adjoint| and the trace column.
-#   --ref: Rust `states` CSV to compare with (default: ../data/used_data/states_<state>_L<L>_g<γ><channel>.csv if it
-#          exists); prints the largest deviation of fwd, mid and bwd per observable.
+#   --ref: Rust `states` CSV to compare with (default: states_<state>_L<L>_g<γ><channel>.csv, the first found in
+#          used_data/ and then used_data/lean/ (channel runs) of $SCARS_DATA_DIR and of the repository's data/; a line
+#          says so when there is none); prints the largest deviation of fwd, mid and bwd per observable.
 #
 # Output (../data, or $SCARS_DATA_DIR): fb_<state>_L<L>_g<γ><channel>_chi<χ>.csv with columns
 #   L, gamma, chi, t, obs, fwd, mid, bwd, spread, n_splits, bond_fwd, bond_bwd, seconds
-# (fwd, bwd empty with --full 0; bond_fwd, bond_bwd: bond dimensions of the two halves of the mid split).
+# (with --full 0, fwd and bwd are empty for t > ⌈N/2⌉ δt; bond_fwd, bond_bwd: bond dimensions of the two halves of
+# the mid split).
 
 include("clik.jl")
 
@@ -70,8 +78,6 @@ function channel_rates(ch, nbar)
     error("--channel z, x, y, dep, decay or thermal, got $ch")
 end
 
-"Output name of a number as Rust prints an f64 (1.0 → 1, 0.01 → 0.01)."
-num(x) = isinteger(x) ? string(Int(x)) : string(x)
 channel_suffix(ch, nbar) = ch == "z" ? "" : ch == "thermal" ? "_chthermal_n$(num(nbar))" : "_ch$(ch)"
 
 """
@@ -199,14 +205,15 @@ end
 function fb_main(args)
     o = parse_options(args, Dict("L" => "8", "gamma" => "0.1", "state" => "minus-x", "channel" => "z", "nbar" => "1",
         "chi" => "64", "t-max" => "10", "dt" => "0.1", "n-sub" => "2", "method" => "hybrid", "chi-switch" => "16",
-        "obs" => "mx,my,mz,sx,sy,sz", "full" => "1", "check" => "0", "ref" => "", "cutoff" => "1e-14"))
+        "obs" => "mx,my,mz,sx,sy,sz", "full" => "1", "check" => "0", "ref" => "", "cutoff" => ""))
     L, γ, st, ch = parse(Int, o["L"]), parse(Float64, o["gamma"]), o["state"], o["channel"]
     nbar, χ = parse(Float64, o["nbar"]), parse(Int, o["chi"])
     dt, N = parse(Float64, o["dt"]), round(Int, parse(Float64, o["t-max"]) / parse(Float64, o["dt"]))
     n_sub, full = parse(Int, o["n-sub"]), o["full"] == "1"
     names = split(o["obs"], ",")
-    kw = (; chi = χ, n_sub, γ, method = o["method"], cutoff = parse(Float64, o["cutoff"]),
-        chi_switch = parse(Int, o["chi-switch"]))
+    # SVD cutoff, relative to ‖r‖² = 2^L Tr ρ²: the default keeps the discarded weight independent of L (header)
+    cutoff = isempty(o["cutoff"]) ? 1.0e-14 * 2.0^(6 - L) : parse(Float64, o["cutoff"])
+    kw = (; chi = χ, n_sub, γ, method = o["method"], cutoff, chi_switch = parse(Int, o["chi-switch"]))
 
     sites = siteinds("PauliVec", L)
     terms = read_hamiltonian(L)
@@ -215,8 +222,8 @@ function fb_main(args)
     one = product_mps(sites, fill([1.0, 0, 0, 0], L))
     ρ0 = product_mps(sites, [initial_site(st, j - 1) for j in 1:L])
     ops = [observable(sites, String(n)) for n in names]
-    @printf("L = %d, γ = %g, channel %s, state %s, χ = %d, δt = %g, N = %d, %d threads; MPO bond dimension %d (G), %d (Gᵀ)\n",
-        L, γ, ch, st, χ, dt, N, Threads.nthreads(), maxlinkdim(G), maxlinkdim(Gt))
+    @printf("L = %d, γ = %g, channel %s, state %s, χ = %d, cutoff %g, δt = %g, N = %d, %d threads; MPO bond dimension %d (G), %d (Gᵀ)\n",
+        L, γ, ch, st, χ, cutoff, dt, N, Threads.nthreads(), maxlinkdim(G), maxlinkdim(Gt))
 
     if o["check"] == "1"
         L <= 6 || error("--check 1: L ≤ 6")
@@ -282,8 +289,12 @@ function fb_main(args)
 
     ref = o["ref"]
     if isempty(ref)
-        ref = joinpath(DATA, "used_data", "states_$(st)_L$(L)_g$(num(γ))$(channel_suffix(ch, nbar)).csv")
-        isfile(ref) || return
+        name = "states_$(st)_L$(L)_g$(num(γ))$(channel_suffix(ch, nbar)).csv"
+        ref, tried = find_data(name, ("used_data", joinpath("used_data", "lean")))
+        if ref === nothing
+            println("no reference to compare with: $name not found (tried ", join(tried, ", "), "); give one with --ref")
+            return
+        end
     end
     r = read_reference(ref)
     println("against ", ref, " (max |Δ| over the common times):")

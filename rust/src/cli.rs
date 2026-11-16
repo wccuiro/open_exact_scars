@@ -1,7 +1,7 @@
 //! Command-line options shared by the binaries: `--key value` pairs.
 //!
 //! Sizes: `--L 6` runs one size; `--lmin 4 --lmax 8` runs a range (not both forms at once).
-//! Unknown keys are an error, so a mistyped option is not silently ignored.
+//! Unknown keys are an error, so a mistyped option is not silently ignored; so is a key given twice.
 
 use std::collections::HashMap;
 use std::ops::RangeInclusive;
@@ -14,13 +14,16 @@ impl Options {
     /// Parses the command line; `known` lists the accepted keys (without `--`).
     pub fn parse(known: &[&str]) -> Self {
         let argv: Vec<String> = std::env::args().skip(1).collect();
-        let values: HashMap<String, String> = argv
-            .chunks(2)
-            .map(|pair| match pair {
-                [key, value] if key.starts_with("--") => (key[2..].to_string(), value.clone()),
+        let mut values: HashMap<String, String> = HashMap::new();
+        for pair in argv.chunks(2) {
+            match pair {
+                [key, value] if key.starts_with("--") => {
+                    let previous = values.insert(key[2..].to_string(), value.clone());
+                    assert!(previous.is_none(), "option {key} given twice");
+                }
                 _ => panic!("options are given as --key value, got {pair:?}"),
-            })
-            .collect();
+            }
+        }
         for key in values.keys() {
             assert!(known.contains(&key.as_str()), "unknown option --{key}; accepted: --{}", known.join(", --"));
         }

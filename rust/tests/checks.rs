@@ -420,9 +420,38 @@ fn purity_decay_identity() {
     }
 }
 
-/// Free spins (H_I = 0) with each channel: every site follows its own Bloch equation,
-/// dr_x = −h r_y + γ d_x r_x, dr_y = h r_x + γ d_y r_y, dr_z = γ d_z r_z + γ f (d the diagonal, f the feed),
-/// integrated here with RK4 and compared with the exact Lindbladian in the full basis.
+/// 2 × 2 complex matrices (re, im) for the single-spin reference of `channels_with_free_spins`; index 0 = |↑⟩.
+type M2 = [[(f64, f64); 2]; 2];
+const PAULI: [M2; 3] = [
+    [[(0.0, 0.0), (1.0, 0.0)], [(1.0, 0.0), (0.0, 0.0)]],
+    [[(0.0, 0.0), (0.0, -1.0)], [(0.0, 1.0), (0.0, 0.0)]],
+    [[(1.0, 0.0), (0.0, 0.0)], [(0.0, 0.0), (-1.0, 0.0)]],
+];
+/// σ⁻ = |↓⟩⟨↑|
+const LOWER: M2 = [[(0.0, 0.0), (0.0, 0.0)], [(1.0, 0.0), (0.0, 0.0)]];
+fn mul(a: &M2, b: &M2) -> M2 {
+    let cm = |x: (f64, f64), y: (f64, f64)| (x.0 * y.0 - x.1 * y.1, x.0 * y.1 + x.1 * y.0);
+    std::array::from_fn(|i| {
+        std::array::from_fn(|j| {
+            let (u, w) = (cm(a[i][0], b[0][j]), cm(a[i][1], b[1][j]));
+            (u.0 + w.0, u.1 + w.1)
+        })
+    })
+}
+/// a + c · b
+fn add(a: &M2, b: &M2, c: f64) -> M2 {
+    std::array::from_fn(|i| std::array::from_fn(|j| (a[i][j].0 + c * b[i][j].0, a[i][j].1 + c * b[i][j].1)))
+}
+fn scale(a: &M2, c: f64) -> M2 {
+    add(&[[(0.0, 0.0); 2]; 2], a, c)
+}
+fn dagger(a: &M2) -> M2 {
+    std::array::from_fn(|i| std::array::from_fn(|j| (a[j][i].0, -a[j][i].1)))
+}
+
+/// Free spins (H_I = 0) with each channel: every site follows its own single-spin Lindblad equation, built here from
+/// the jump operators (independently of the rate tables in noise.rs), integrated with RK4 and compared with the exact
+/// Lindbladian in the full basis.
 #[test]
 fn channels_with_free_spins() {
     let p = Params::free_spins(4);
@@ -435,27 +464,54 @@ fn channels_with_free_spins() {
         let magnetization = Magnetization::new(&liou);
         let mut v = liou.product_state(&n);
         let mut prop = Propagator::new(&liou, gamma, 0.5);
-        let [dx, dy, dz] = channel.site_diag();
-        let f = channel.feed();
-        let deriv = |r: [f64; 3]| [-p.h * r[1] + gamma * dx * r[0], p.h * r[0] + gamma * dy * r[1], gamma * dz * r[2] + gamma * f];
-        let mut bloch = n.clone();
+        // reference: one spin, dρ/dt = −i[(h/2)σᶻ, ρ] + Σ_k (L_k ρ L_k† − ½{L_k†L_k, ρ}) with the jump operators written
+        // out here (not taken from noise.rs), integrated as a 2 × 2 complex matrix
+        let jumps: Vec<M2> = match channel {
+            Channel::X => vec![scale(&PAULI[0], gamma.sqrt())],
+            Channel::Y => vec![scale(&PAULI[1], gamma.sqrt())],
+            Channel::Depolarizing => PAULI.iter().map(|s| scale(s, (gamma / 2.0).sqrt())).collect(),
+            Channel::Decay => vec![scale(&LOWER, gamma.sqrt())],
+            Channel::Thermal { nbar } => {
+                vec![scale(&LOWER, (gamma * (nbar + 1.0)).sqrt()), scale(&dagger(&LOWER), (gamma * nbar).sqrt())]
+            }
+            Channel::Z => unreachable!(),
+        };
+        let ham = scale(&PAULI[2], p.h / 2.0);
+        let deriv = |rho: &M2| -> M2 {
+            let comm = add(&mul(&ham, rho), &mul(rho, &ham), -1.0);
+            let mut d: M2 = std::array::from_fn(|i| std::array::from_fn(|j| (comm[i][j].1, -comm[i][j].0))); // −i[H, ρ]
+            for lk in &jumps {
+                let ld = dagger(lk);
+                let ldl = mul(&ld, lk);
+                d = add(&d, &mul(&mul(lk, rho), &ld), 1.0);
+                d = add(&d, &add(&mul(&ldl, rho), &mul(rho, &ldl), 1.0), -0.5);
+            }
+            d
+        };
+        let mut rhos: Vec<M2> = n
+            .iter()
+            .map(|r| [[(0.5 + r[2] / 2.0, 0.0), (r[0] / 2.0, -r[1] / 2.0)], [(r[0] / 2.0, r[1] / 2.0), (0.5 - r[2] / 2.0, 0.0)]])
+            .collect();
         let mut worst = 0.0f64;
         for _ in 0..6 {
             prop.step(&mut v);
-            for r in bloch.iter_mut() {
+            for rho in rhos.iter_mut() {
                 let h = 1e-3;
                 for _ in 0..500 {
-                    let k1 = deriv(*r);
-                    let k2 = deriv(std::array::from_fn(|a| r[a] + h / 2.0 * k1[a]));
-                    let k3 = deriv(std::array::from_fn(|a| r[a] + h / 2.0 * k2[a]));
-                    let k4 = deriv(std::array::from_fn(|a| r[a] + h * k3[a]));
-                    *r = std::array::from_fn(|a| r[a] + h / 6.0 * (k1[a] + 2.0 * k2[a] + 2.0 * k3[a] + k4[a]));
+                    let k1 = deriv(rho);
+                    let k2 = deriv(&add(rho, &k1, h / 2.0));
+                    let k3 = deriv(&add(rho, &k2, h / 2.0));
+                    let k4 = deriv(&add(rho, &k3, h));
+                    let k = add(&add(&k1, &k4, 1.0), &add(&k2, &k3, 1.0), 2.0);
+                    *rho = add(rho, &k, h / 6.0);
                 }
             }
             let site = magnetization.per_site(&v);
-            for j in 0..p.l {
+            for (j, rho) in rhos.iter().enumerate() {
+                // ⟨σ^a⟩ = Tr(ρ σ^a): x = 2 Re ρ₀₁, y = −2 Im ρ₀₁, z = ρ₀₀ − ρ₁₁
+                let r = [2.0 * rho[0][1].0, -2.0 * rho[0][1].1, rho[0][0].0 - rho[1][1].0];
                 for a in 0..3 {
-                    worst = worst.max((site[a][j] - bloch[j][a]).abs());
+                    worst = worst.max((site[a][j] - r[a]).abs());
                 }
             }
         }

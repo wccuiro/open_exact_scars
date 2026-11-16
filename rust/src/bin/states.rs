@@ -13,11 +13,12 @@
 //!                                         [--obs-dt 0] [--op-ent-dt 0]
 //!
 //! --channel: the single-site noise (noise.rs; default σᶻ dephasing; decay and thermal use --nbar for thermal).
-//! --stop-te F > 0: also stop at t = F · t₁, t₁ the first time the signal drops below 1/e (enough for Γ_e).
+//! --stop-te F > 0: also stop at t = F · t₁, t₁ the start of the latest stretch with the signal below 1/e (a revival
+//! above 1/e before F · t₁ resets t₁; for a non-increasing envelope t₁ is its 1/e time; enough for Γ_e).
 //! --obs-dt Δ > 0 (full Pauli basis): every Δ also write purity, operator size, X/Y count and support distributions
-//! (entanglement.rs); --op-ent-dt Δ' > 0 adds the operator entanglement S_op of ρ across sites 0 … L/2 − 1 | rest
-//! (von Neumann and Rényi-2) every Δ' (rounded to a multiple of the output step; costly at L = 12: a 4096 × 4096
-//! eigenvalue problem).
+//! (entanglement.rs); --op-ent-dt Δ' > 0 (needs --obs-dt) adds the operator entanglement S_op of ρ across sites
+//! 0 … L/2 − 1 | rest (von Neumann and Rényi-2) every Δ' (rounded to a multiple of the output step, independently of
+//! Δ: a row is also written at every S_op time; costly at L = 12: a 4096 × 4096 eigenvalue problem).
 //!
 //! Model coefficients: src/parameters.rs. H has random c (Params::random_c, generator seeded with
 //! 1000 · seed + L, the same realization as `disorder`, `probes` and `ed` for the same parameters).
@@ -75,6 +76,7 @@ fn main() {
         obs_dt: args.f64("obs-dt", 0.0),
         op_ent_dt: args.f64("op-ent-dt", 0.0),
     };
+    assert!(extra.op_ent_dt <= 0.0 || extra.obs_dt > 0.0, "--op-ent-dt needs --obs-dt");
     let state = match args.str("state") {
         Some("minus-x") => State::MinusX,
         Some("neel") => State::Neel,
@@ -202,9 +204,11 @@ fn run(
             csv.flush().unwrap();
         }
         if let Some(f) = obs.as_mut() {
-            if step % obs_every == 0 {
+            // S_op on its own grid (every ent_every steps), with an obs row at each S_op time
+            let ent_due = ent_every > 0 && step % ent_every == 0;
+            if step % obs_every == 0 || ent_due {
                 let st = operator_stats(&v, l);
-                let (s_op, s2_op) = if ent_every > 0 && step % ent_every == 0 {
+                let (s_op, s2_op) = if ent_due {
                     entropies(&operator_weights(&v, l, l / 2))
                 } else {
                     (f64::NAN, f64::NAN)
@@ -236,7 +240,10 @@ fn run(
                 State::Neel => sz.abs(),
                 State::NeelX => sx.hypot(sy),
             };
-            if t_cross.is_none() && signal < (-1.0f64).exp() {
+            // start of the latest stretch below 1/e (reset when the signal comes back above it)
+            if signal >= (-1.0f64).exp() {
+                t_cross = None;
+            } else if t_cross.is_none() {
                 t_cross = Some(t);
             }
             if extra.stop_te > 0.0 && t_cross.is_some_and(|tc| t >= extra.stop_te * tc) {

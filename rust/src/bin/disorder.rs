@@ -61,7 +61,9 @@ fn main() {
         let magnetization = Magnetization::new(&liou);
 
         // every (θ, γ) run is independent; rows are collected and written in order
-        let runs: Vec<(f64, f64)> = thetas.iter().flat_map(|&th| [(th, 0.0), (th, gamma)]).collect();
+        // γ = 0 for every θ, plus the chosen γ (once only if --gamma 0)
+        let gs: &[f64] = if gamma == 0.0 { &[0.0] } else { &[0.0, gamma] };
+        let runs: Vec<(f64, f64)> = thetas.iter().flat_map(|&th| gs.iter().map(move |&g| (th, g))).collect();
         let results: Vec<(String, f64)> = runs
             .par_iter()
             .map(|&(theta, g)| {

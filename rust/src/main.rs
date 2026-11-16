@@ -63,7 +63,9 @@ fn main() {
         writeln!(csv, "L,gamma,t,mx,my,mz").unwrap();
         let mut check = 0.0f64;
         let mut m0 = [0.0; 3];
-        for g in [0.0, gamma] {
+        // γ = 0 is always run first (reference 1); --gamma 0 must not run it twice
+        let runs: &[f64] = if gamma == 0.0 { &[0.0] } else { &[0.0, gamma] };
+        for &g in runs {
             let mut prop = Propagator::new(&liou, g, dt);
             let mut v = if random { liou.product_state(&bloch) } else { liou.initial_state() };
             for step in 0..=steps {

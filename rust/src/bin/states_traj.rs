@@ -17,7 +17,8 @@
 //! --ent-dt Δ > 0: every Δ the half-chain entanglement of every trajectory (sites 0 … L/2 − 1 | rest; von Neumann
 //! S_A and Rényi-2), averaged over the trajectories ("diffusive-trajectory entanglement": it depends on the
 //! unravelling). One Hermitian 2^{L/2} eigenvalue problem per trajectory and time.
-//! --stop-te F > 0: also stop at t = F · t₁, t₁ the first time the signal drops below 1/e.
+//! --stop-te F > 0: also stop at t = F · t₁, t₁ the start of the latest stretch with the signal below 1/e (a revival
+//! above 1/e before F · t₁ resets t₁; for a non-increasing envelope t₁ is its 1/e time).
 //! A realization seed N ≠ 1 adds _seed<N> to the file names (and to states_realization).
 //!
 //! Model coefficients: src/parameters.rs. H has random c (Params::random_c, generator seeded with
@@ -40,7 +41,8 @@
 //!
 //! Output (data/ or $SCARS_DATA_DIR), one row per step, flushed every row:
 //!   states_traj_<state>_L<L>_g<γ>[_jump][_ch…][_seed<N>][_s<traj-seed>].csv   L, gamma, trajectories, t, mx, my,
-//!       mz, sx, sy, sz, then the standard errors mx_err … sz_err (_jump: jump unravelling; _ch…: channel ≠ σᶻ)
+//!       mz, sx, sy, sz, then the standard errors mx_err … sz_err and the covariances of the means mxmy_cov, sxsy_cov
+//!       (_jump: jump unravelling; _ch…: channel ≠ σᶻ)
 //!   states_traj_ent_<same>.csv (with --ent-dt)   L, gamma, trajectories, t, S_A, S_A_err, S2, S2_err
 //!       m_α = (1/L) Σ_j ⟨σ^α_j⟩,  s_α = (1/L) Σ_j (−1)^j ⟨σ^α_j⟩, averaged over the trajectories
 //!   states_realization_L<L>.csv         j, and the c coefficients of bond (j, j+1)
@@ -214,7 +216,8 @@ fn run(
     let dt = if gamma > 0.0 { dt.min(DT_GAMMA / gamma) } else { dt };
     let steps = (t_max / dt).round() as usize;
     let mut csv = BufWriter::new(File::create(file).unwrap());
-    writeln!(csv, "L,gamma,trajectories,t,mx,my,mz,sx,sy,sz,mx_err,my_err,mz_err,sx_err,sy_err,sz_err").unwrap();
+    writeln!(csv, "L,gamma,trajectories,t,mx,my,mz,sx,sy,sz,mx_err,my_err,mz_err,sx_err,sy_err,sz_err,mxmy_cov,sxsy_cov")
+        .unwrap();
 
     // independent noise for every (seed, L, γ, trajectory); Rng::new mixes the bits
     let base = seed.wrapping_mul(0x9e3779b97f4a7c15) ^ ((l as u64) << 48) ^ gamma.to_bits().rotate_left(20);
@@ -249,12 +252,13 @@ fn run(
             trajs.par_iter_mut().for_each(|traj| traj.advance(gamma, dt, t));
         }
 
-        // per trajectory: [mx, my, mz, sx, sy, sz] and their squares, summed over the trajectories
+        // per trajectory: [mx, my, mz, sx, sy, sz], their squares, and the products mx·my, sx·sy, summed over the
+        // trajectories
         let sums = trajs
             .par_iter()
             .map(|traj| {
                 let site = traj.per_site();
-                let mut r = [0.0f64; 12];
+                let mut r = [0.0f64; 14];
                 for a in 0..3 {
                     r[a] = site[a].iter().sum::<f64>() / l as f64;
                     r[a + 3] = site[a].iter().enumerate().map(|(j, &x)| if j % 2 == 0 { x } else { -x }).sum::<f64>() / l as f64;
@@ -262,6 +266,8 @@ fn run(
                 for a in 0..6 {
                     r[a + 6] = r[a] * r[a];
                 }
+                r[12] = r[0] * r[1];
+                r[13] = r[3] * r[4];
                 if n == 1 && gamma == 0.0 && state == State::MinusX {
                     // exact reference 1: every spin follows (−cos ht, −sin ht, 0)
                     let (s, c) = (params.h * t).sin_cos();
@@ -271,7 +277,7 @@ fn run(
                 (r, 0.0)
             })
             .reduce(
-                || ([0.0; 12], 0.0),
+                || ([0.0; 14], 0.0),
                 |(mut a, da), (b, db)| {
                     a.iter_mut().zip(&b).for_each(|(p, q)| *p += q);
                     (a, da.max(db))
@@ -285,9 +291,17 @@ fn run(
         let err: [f64; 6] = std::array::from_fn(|a| {
             ((s[a + 6] / nf - mean[a] * mean[a]).max(0.0) / (nf - 1.0).max(1.0)).sqrt()
         });
+        // covariance of the means of (mx, my) and of (sx, sy), same normalization as err²: the error of
+        // m_⊥ = √(mx² + my²) is √(mx² σx² + my² σy² + 2 mx my cov) / m_⊥
+        let cov = |a: usize, b: usize, k: usize| (s[k] / nf - mean[a] * mean[b]) / (nf - 1.0).max(1.0);
+        let (mxmy_cov, sxsy_cov) = (cov(0, 1, 12), cov(3, 4, 13));
         let [mx, my, mz, sx, sy, sz] = mean;
         let e = err.map(|x| format!("{x:.4e}")).join(",");
-        writeln!(csv, "{l},{gamma},{n},{t:.6},{mx:.12e},{my:.12e},{mz:.12e},{sx:.12e},{sy:.12e},{sz:.12e},{e}").unwrap();
+        writeln!(
+            csv,
+            "{l},{gamma},{n},{t:.6},{mx:.12e},{my:.12e},{mz:.12e},{sx:.12e},{sy:.12e},{sz:.12e},{e},{mxmy_cov:.4e},{sxsy_cov:.4e}"
+        )
+        .unwrap();
         csv.flush().unwrap();
 
         // half-chain entanglement of every trajectory, averaged
@@ -314,7 +328,10 @@ fn run(
                 State::Neel => (sz.abs(), err[5]),
                 State::NeelX => (sx.hypot(sy), err[3].hypot(err[4])),
             };
-            if t_cross.is_none() && signal < (-1.0f64).exp() {
+            // start of the latest stretch below 1/e (reset when the signal comes back above it)
+            if signal >= (-1.0f64).exp() {
+                t_cross = None;
+            } else if t_cross.is_none() {
                 t_cross = Some(t);
             }
             if opts.stop_te > 0.0 && t_cross.is_some_and(|tc| t >= opts.stop_te * tc) {

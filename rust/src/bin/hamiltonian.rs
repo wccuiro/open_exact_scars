@@ -6,7 +6,8 @@
 //! realization as `states`, `ed` and `lindblad_entanglement`). --open 1: open chain (terms that leave 0 … L−1
 //! dropped) instead of the periodic ring of parameters.rs; same c realization.
 //!
-//! Output (data/ or $SCARS_DATA_DIR): hamiltonian_L<L>.csv (hamiltonian_open_L<L>.csv with --open 1), columns
+//! Output (data/ or $SCARS_DATA_DIR): hamiltonian_L<L>.csv (hamiltonian_open_L<L>.csv with --open 1; _seed<N> added
+//! for a seed N ≠ 1), columns
 //!   string, coef
 //! one row per Pauli string, H = Σ coef · string; `string` has one character I, X, Y, Z per site 0 … L−1.
 
@@ -15,7 +16,7 @@ use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 
 use open_exact_scars::cli::Options;
-use open_exact_scars::model::{hamiltonian_terms, Params};
+use open_exact_scars::model::{hamiltonian_terms, seed_suffix, Params};
 use open_exact_scars::trajectory::Rng;
 
 fn main() {
@@ -34,7 +35,8 @@ fn main() {
             params.periodic = false;
         }
         let terms = hamiltonian_terms(&params);
-        let file = data.join(format!("hamiltonian{}_L{l}.csv", if open_chain { "_open" } else { "" }));
+        // seed 1 keeps the plain name (the input of julia/clik.jl and forward_backward.jl); other seeds get _seed<N>
+        let file = data.join(format!("hamiltonian{}_L{l}{}.csv", if open_chain { "_open" } else { "" }, seed_suffix(seed)));
         let mut csv = BufWriter::new(File::create(&file).unwrap());
         writeln!(csv, "string,coef").unwrap();
         for (p, coef) in &terms {

@@ -28,7 +28,7 @@ The $z$-N\'eel state is a biased reference: it is diagonal in the $z$ basis, so 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{states_scar_1.png}
-\caption{Scar: $m_\perp$ against $\gamma t$, $\gamma = 0.01$--$0.1$, one line per $L$; dotted: the free-spin $e^{-2\gamma t}$ (\texttt{plot\_states.py}).}
+\caption{Scar: $m_\perp$ against $\gamma t$, $\gamma = 0.01$--$0.1$, one line per $L$; dashed: $L = 22$ (lean runs, stopped at $1.5$ times the first $1/e$ crossing); dotted: the free-spin $e^{-2\gamma t}$ (\texttt{plot\_states.py}).}
 \label{fig:scar}
 \end{figure}
 
@@ -107,7 +107,7 @@ $z$-N\'eel $\Ginf$ & 5.04(9) & 5.03(9) & 5.08(19) & 4.89(7) & 4.72(5) & 4.28(2) 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{states_neel-x_1.png}
-\caption{$x$-N\'eel: $s_\perp$ against $t$, $\gamma = 0$--$0.05$; dotted: $e^{-2\gamma t}$ (\texttt{plot\_states.py}).}
+\caption{$x$-N\'eel: $s_\perp$ against $t$, $\gamma = 0$--$0.05$; time axis linear for $t \le 1$, logarithmic beyond; dotted: $e^{-2\gamma t}$ (\texttt{plot\_states.py}).}
 \label{fig:neelx1}
 \end{figure}
 
@@ -127,7 +127,7 @@ $z$-N\'eel $\Ginf$ & 5.04(9) & 5.03(9) & 5.08(19) & 4.89(7) & 4.72(5) & 4.28(2) 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{states_neel_1.png}
-\caption{$z$-N\'eel: $\lvert s_z\rvert$ against $t$, $\gamma = 0$--$0.05$ (\texttt{plot\_states.py}).}
+\caption{$z$-N\'eel: $\lvert s_z\rvert$ against $t$, $\gamma = 0$--$0.05$; time axis linear for $t \le 1$, logarithmic beyond; dashed: trajectory runs of the lean batch ($L = 16$, $20$, stopped at $1.5$ times the first $1/e$ crossing) (\texttt{plot\_states.py}).}
 \label{fig:neel1}
 \end{figure}
 
@@ -147,7 +147,7 @@ $z$-N\'eel $\Ginf$ & 5.04(9) & 5.03(9) & 5.08(19) & 4.89(7) & 4.72(5) & 4.28(2) 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{states_neel_n_1.png}
-\caption{$z$-N\'eel: $\langle n\rangle/L = (1 - m_z)/2$, $\gamma = 0$--$0.05$ (\texttt{plot\_states.py}).}
+\caption{$z$-N\'eel: $\langle n\rangle/L = (1 - m_z)/2$, $\gamma = 0$--$0.05$; dashed as in Fig.~\ref{fig:neel1} (\texttt{plot\_states.py}).}
 \label{fig:neeln1}
 \end{figure}
 
@@ -358,7 +358,7 @@ For every channel (decay left out for the scar), state and $\gamma$ with exact r
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{operator_size.png}
-\caption{Operator size per site of $\rho(t_e)$, extrapolated $A + B/L$ over $L = 8, 10, 12$, against $\gamma$ for every channel; dotted: $1/2$ (product state with all spins in the plane, the initial value for the scar and $x$-N\'eel) and $3/4$ (random pure state). Runs that never reach $1/e$ (Zeno-protected) are missing (\texttt{fit\_operator\_size.py}).}
+\caption{Operator size per site of $\rho(t_e)$, extrapolated $A + B/L$ over $L = 8, 10, 12$, against $\gamma$ for every channel; dotted: $1/2$ (product state with all spins in the plane, the initial value for the scar and $x$-N\'eel) and $3/4$ (random pure state). Points are missing where the run has no saved row before $t_e$, and the scar under $\sigma^x$ at $\gamma = 20$ never reaches $1/e$ (Zeno protection). The lean runs saved the operator observables too sparsely where their run plan misjudged $t_e$ (the in-plane states under $\sigma^y$, $z$-N\'eel at $\gamma \ge 1$): those points are missing or interpolated between two rows (e.g.\ the scar under $\sigma^y$ at $\gamma = 2$); a rerun with a corrected plan is pending (\texttt{fit\_operator\_size.py}).}
 \label{fig:opsize}
 \end{figure}
 

@@ -69,7 +69,8 @@ for ax, file in zip(axes.flat, files):
 
     # scar–bulk (both orders) and scar–scar
     es, ss = e[scar], s[scar]
-    de = np.concatenate([(eb[None, :] - es[:, None]).ravel(), (es[None, :] - eb[:, None]).ravel()])
+    # both blocks laid out as (scar, bulk), like `so`: E_bulk − E_scar, then its mirror E_scar − E_bulk
+    de = np.concatenate([(eb[None, :] - es[:, None]).ravel(), (es[:, None] - eb[None, :]).ravel()])
     so = np.concatenate([(sb[None, :] + ss[:, None]).ravel()] * 2)
     ax.scatter(de, so, s=1.5, color=AQUA, alpha=0.35, linewidths=0, rasterized=True)
     ax.scatter((es[None, :] - es[:, None]).ravel(), (ss[None, :] + ss[:, None]).ravel(), s=12, color=ORANGE,

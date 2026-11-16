@@ -56,12 +56,13 @@ def panel(ax, state, l, g, method, run):
     t_end = T_NEEL if state != "minus-x" else T_SPAN / gamma_e if gamma_e > 0 else t[-1]
     sel = t <= t_end
     ax.plot(t[sel], raw[sel], color=LIGHT, lw=0.9, label="raw signal (m_x, s_x, s_z)")
-    ax.plot(t[sel], s[sel], color=BLUE, lw=1.3, label="decay signal S (m_⊥, s_⊥, |s_z|)")
-    ax.plot(t[sel], env[sel], color=INK, lw=0.9, ls="--", label="envelope E")
+    ax.plot(t[sel], s[sel], color=BLUE, lw=1.3, label="decay signal S (m_⊥, s_⊥, |s_z|)", zorder=3)
+    ax.plot(t[sel], env[sel], color=INK, lw=0.9, ls="--", label="envelope E", zorder=3.5)
     ts = np.linspace(0, t[sel][-1], 400)
     wrap = np.exp(-gamma_e * ts)
-    ax.plot(ts, wrap, color=ORANGE, lw=1.4, label="±e^(−Γ_e t)")
-    ax.plot(ts, -wrap, color=ORANGE, lw=1.4)
+    # below S and E: at γ = 0 all three are 1 and S, E must stay visible
+    ax.plot(ts, wrap, color=ORANGE, lw=1.4, label="±e^(−Γ_e t)", zorder=1.5)
+    ax.plot(ts, -wrap, color=ORANGE, lw=1.4, zorder=1.5)
     if g > 0:
         if free:
             ax.plot(ts, np.exp(-2 * g * ts), color=MUTED, ls=":", lw=1.1, label="e^(−2γt), free spins")

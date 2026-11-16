@@ -3,7 +3,7 @@
 
 What has been computed with the current coefficients (Sec.~\ref{sec:model}; random $c$, seed $1$ unless stated). All data are in \texttt{data/used\_data/} (not tracked by git), the channel study and the newer runs in its subfolder \texttt{lean/}. The decay rates of every run are in \texttt{states\_rates.csv} and \texttt{channels\_rates.csv}, the extrapolations in \texttt{states\_\allowbreak inverse\_\allowbreak L.csv}, \texttt{states\_\allowbreak inverse\_\allowbreak L\_\allowbreak large.csv} and \texttt{channels\_\allowbreak inverse\_\allowbreak L.csv}.
 
-\paragraph{Time evolution} (\texttt{states}: exact $\rho$; \texttt{states\_traj}: trajectories, $224$ per run at $L \le 18$, $112$ at $L = 20$, $56$--$112$ at $L = 22$ and for the channel study and the seeds). Every run starts from the state of Table~\ref{tab:states} and stops once its signal has decayed (below $10^{-3}$, or at $1.5\,t_e$ for the channel study and $L = 22$). The exact runs at $L = 8, 10, 12$ of every channel also record the purity, the operator size and support distributions and the operator entanglement of $\rho$.
+\paragraph{Time evolution} (\texttt{states}: exact $\rho$; \texttt{states\_traj}: trajectories, $224$ per run at $L \le 18$, $112$ at $L = 20$, $56$--$112$ at $L = 22$ and for the channel study and the seeds). Every run starts from the state of Table~\ref{tab:states} and stops once its signal has decayed (below $10^{-3}$, or at $1.5$ times the first $1/e$ crossing of the raw signal for the channel study and $L = 22$). The exact runs at $L = 8, 10, 12$ of every channel also record the purity, the operator size and support distributions and the operator entanglement of $\rho$.
 \begin{center}
 \small
 \begin{longtable}{lllcp{2.6cm}p{6.2cm}}

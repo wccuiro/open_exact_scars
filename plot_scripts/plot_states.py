@@ -10,6 +10,11 @@ per L. One run per (L, γ), chosen by states_data.select: exact where it finishe
 
 The runs stop once the decay signal (m_⊥ or |s_z|) stays below 1e-3, so ⟨n⟩ may not have relaxed yet.
 
+σᶻ runs of the lean batch (data/used_data/lean/) are added where data/used_data/ has no run of that (state, L, γ),
+for the γ already plotted (scar L = 22, z-Néel trajectories L = 16, 20): dashed, they stop at 1.5 × their first 1/e
+crossing. The Néel signal panels have a time axis linear for t ≤ 1 and logarithmic beyond (symlog): the decay of
+L ≥ 8 happens at t_e ≈ 0.2, while the runs (the L = 4, 6 ones with finite-size revivals) last up to t ≈ 10² – 10³.
+
 Input:  states_<state>_L<L>_g<γ>.csv and states_traj_<state>_L<L>_g<γ>.csv in data/used_data/ (or the directory given
         as the first argument)
 Only γ = 0 and γ ≥ 0.01 (notes_layout.GAMMA_MIN), at most 4 panels per figure: <name>_1.png, <name>_2.png, ...
@@ -44,11 +49,21 @@ mpl.rcParams.update({
 
 
 def load(state):
+    """{(L, γ): run} and the set of (L, γ) taken from the lean runs."""
     chosen = states_data.select(states_data.load(DIR, states=(state,)))
-    return {(l, g): run for (_, l, g), (_, run, _) in chosen.items()}
+    runs = {(l, g): run for (_, l, g), (_, run, _) in chosen.items()}
+    gammas = {g for _, g in runs}
+    lean = set()
+    if (DIR / "lean").is_dir():
+        for (_, l, g), (_, run, _) in states_data.select(states_data.load(DIR / "lean", states=(state,))).items():
+            if (l, g) not in runs and g in gammas:
+                runs[l, g] = run
+                lean.add((l, g))
+    return runs, lean
 
 
-def grid(runs, gammas, signal, x, ylabel, title, stem, log=True, ref=None, hline=None):
+
+def grid(runs, gammas, signal, x, ylabel, title, stem, log=True, ref=None, hline=None, lean=(), symlog=False):
     """One panel per γ, at most MAX_PANELS per figure: <stem>.png, or <stem>_1.png, <stem>_2.png, ..."""
     if not runs:
         return
@@ -64,9 +79,14 @@ def grid(runs, gammas, signal, x, ylabel, title, stem, log=True, ref=None, hline
             for l in sizes:
                 if (l, g) in runs:
                     run = runs[l, g]
-                    ax.plot(x(run, g), signal(run), color=colors[l])
+                    ax.plot(x(run, g), signal(run), color=colors[l], ls="--" if (l, g) in lean else "-")
+            if symlog:
+                ax.set_xscale("symlog", linthresh=1.0, linscale=1.0)
+                ax.set_xlim(0, None)
             if ref is not None and g > 0:
-                xs = np.linspace(0, ax.get_xlim()[1], 200)
+                top = ax.get_xlim()[1]
+                xs = np.linspace(0, top, 400) if not symlog else np.concatenate(
+                    [np.linspace(0, 1, 50), np.geomspace(1, max(top, 1.0), 200)])
                 ax.plot(xs, ref(xs, g), color=MUTED, ls=":", lw=1.1)
             if hline is not None:
                 ax.axhline(hline, color=MUTED, ls=":", lw=1.1)
@@ -79,6 +99,8 @@ def grid(runs, gammas, signal, x, ylabel, title, stem, log=True, ref=None, hline
         for ax in axes[:, 0]:
             ax.set_ylabel(ylabel)
         handles = [Line2D([], [], color=colors[l], lw=2, label=f"L = {l}") for l in sizes]
+        if any(gg in chunk for _, gg in lean):
+            handles.append(Line2D([], [], color=MUTED, ls="--", label="lean run (stops at 1.5 × first 1/e crossing)"))
         if ref is not None:
             handles.append(Line2D([], [], color=MUTED, ls=":", label="e^(−2γt), H_I = 0"))
         fig.legend(handles=handles, loc="outside lower center", ncols=min(len(handles), 5))
@@ -90,7 +112,7 @@ def grid(runs, gammas, signal, x, ylabel, title, stem, log=True, ref=None, hline
 
 
 def main():
-    scar, neel, neel_x = load("minus-x"), load("neel"), load("neel-x")
+    (scar, lean_scar), (neel, lean_neel), (neel_x, lean_neel_x) = load("minus-x"), load("neel"), load("neel-x")
     g_scar = sorted({g for _, g in scar if g > 0 and keep_gamma(g)})
     g_neel = sorted({g for _, g in neel if keep_gamma(g)})
     g_neel_x = sorted({g for _, g in neel_x if keep_gamma(g)})
@@ -101,14 +123,17 @@ def main():
     def t(run, g):
         return 0 if run is None else run["t"]
 
+    s_z, s_perp = (lambda r: r["sz"].abs()), (lambda r: np.hypot(r["sx"], r["sy"]))
     grid(scar, g_scar, lambda r: np.hypot(r["mx"], r["my"]), gt, "m_⊥",
-         "Scar |−⟩^⊗L: transverse magnetization against γt", "states_scar", ref=lambda x, g: np.exp(-2 * x))
-    grid(neel, g_neel, lambda r: r["sz"].abs(), t, "|s_z|", "z-Néel: staggered magnetization", "states_neel")
-    grid(neel_x, g_neel_x, lambda r: np.hypot(r["sx"], r["sy"]), t, "s_⊥",
+         "Scar |−⟩^⊗L: transverse magnetization against γt", "states_scar", ref=lambda x, g: np.exp(-2 * x),
+         lean=lean_scar)
+    grid(neel, g_neel, s_z, t, "|s_z|", "z-Néel: staggered magnetization", "states_neel", lean=lean_neel,
+         symlog=True)
+    grid(neel_x, g_neel_x, s_perp, t, "s_⊥",
          "x-Néel |+−+−…⟩: staggered transverse magnetization", "states_neel-x",
-         ref=lambda x, g: np.exp(-2 * g * x))
+         ref=lambda x, g: np.exp(-2 * g * x), lean=lean_neel_x, symlog=True)
     grid(neel, g_neel, lambda r: (1 - r["mz"]) / 2, t, "⟨n⟩ / L",
-         "z-Néel: number of down spins ⟨n⟩/L = (1 − m_z)/2", "states_neel_n", log=False, hline=0.5)
+         "z-Néel: number of down spins ⟨n⟩/L = (1 − m_z)/2", "states_neel_n", log=False, hline=0.5, lean=lean_neel)
 
 
 if __name__ == "__main__":

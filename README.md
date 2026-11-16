@@ -22,10 +22,10 @@ julia --project=. -e 'using Pkg; Pkg.instantiate()'   # once
 julia --project=. lindblad_tdvp.jl 8 16,32,64         # TDVP at L = 8 for three bond dimensions
 
 cd ../plot_scripts                           # needs numpy, pandas, matplotlib
-python plot_evolution.py                     # ⟨σˣ⟩, ⟨σʸ⟩, ⟨σᶻ⟩ against time, one curve per L
-python fit_decay.py                          # exponential fit per L, then the rate against L
-python compare_methods.py                    # TDVP and trajectories against the exact evolution
-python resource_tables.py                    # time and RAM estimates for the three methods
+python fit_states.py                         # decay rates Γ_e of every run (states, states_traj output)
+python fit_states_inverse_L.py               # Γ_e against 1/L, extrapolation to L → ∞
+python plot_states.py                        # time series of the scar and Néel states
+# every script and the full run order: CLAUDE.md, "Output files"
 ```
 
 Options are listed at the top of each program. The Rust binaries write to `data/`, or to

@@ -13,7 +13,7 @@ Fit: straight line in ln(signal) against t, slope −Γ, σ_Γ the standard erro
           −ln(|C⁺_γ| / |C⁺_0|) on it. That window grows with L (the floor drops), so ΔΓ is also
           printed on common windows [0, T], T in P3_COMMON.
 Step 2 (printed): Γ(L) fitted with a power law Γ = a L^b (b with its standard error) and with an
-          exponential Γ = a e^(cL), with the rms relative residuals, as in fit_decay.py.
+          exponential Γ = a e^(cL), with the rms relative residuals (as the removed fit_decay.py did).
 
 Input:  data/probe_P1.csv, probe_P2.csv, probe_P3.csv, probe_free.csv
         (cd rust && cargo run --release --bin probes)

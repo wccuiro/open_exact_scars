@@ -70,11 +70,18 @@ mpl.rcParams.update({
 
 
 def m_perp(run):
+    """m_⊥ and its standard error. With the covariance of the means (column mxmy_cov, states_traj since 2026-11-15):
+    σ² = (m_x² σ_x² + m_y² σ_y² + 2 m_x m_y cov) / m_⊥². Without it the error is not determined (the fluctuations of
+    the jump unravelling are radial, those of the diffusive one mostly tangential), so the Cauchy–Schwarz bound
+    (|m_x| σ_x + |m_y| σ_y) / m_⊥ is used: an upper bound for any correlation, at most √2 × the value without the
+    covariance term (which underestimated the jump errors by up to that factor)."""
     m = np.hypot(run["mx"], run["my"]).to_numpy()
     if "mx_err" not in run:
         return m, np.zeros_like(m)
-    err = np.hypot(run["mx"] * run["mx_err"], run["my"] * run["my_err"]).to_numpy() / np.maximum(m, 1e-12)
-    return m, err
+    if "mxmy_cov" in run:
+        var = (run["mx"] * run["mx_err"]) ** 2 + (run["my"] * run["my_err"]) ** 2 + 2 * run["mx"] * run["my"] * run["mxmy_cov"]
+        return m, np.sqrt(np.maximum(var.to_numpy(), 0.0)) / np.maximum(m, 1e-12)
+    return m, ((run["mx"].abs() * run["mx_err"] + run["my"].abs() * run["my_err"]) / np.maximum(m, 1e-12)).to_numpy()
 
 
 def rate(run):
@@ -102,18 +109,20 @@ def rates_table(runs):
 
 
 def collapse_cost(table, nu):
-    """Mean squared log-spread of y = (Γ_e/γ)γ^ν between the curves of different γ at common x = Lγ^ν."""
+    """Mean squared log-spread of y = (Γ_e/γ)γ^ν between the curves of different γ at common x = Lγ^ν, compared in
+    both directions (each curve's points inside the other curve's x range)."""
     curves = []
     for g, d in table.groupby("gamma"):
         d = d.sort_values("L")
         curves.append((np.log(d["L"] * g ** nu), np.log(d["Gamma_e/gamma"] * g ** nu)))
     cost, n = 0.0, 0
-    for i, (xi, yi) in enumerate(curves):
-        for xj, yj in curves[i + 1:]:
-            sel = (xj >= xi.min()) & (xj <= xi.max())
-            if sel.any():
-                cost += np.sum((np.interp(xj[sel], xi, yi) - yj[sel]) ** 2)
-                n += sel.sum()
+    for i, ci in enumerate(curves):
+        for cj in curves[i + 1:]:
+            for (xa, ya), (xb, yb) in ((ci, cj), (cj, ci)):
+                sel = (xb >= xa.min()) & (xb <= xa.max())
+                if sel.any():
+                    cost += np.sum((np.interp(xb[sel], xa, ya) - yb[sel]) ** 2)
+                    n += sel.sum()
     return cost / n if n else np.inf
 
 

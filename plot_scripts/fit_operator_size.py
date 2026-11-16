@@ -4,7 +4,7 @@ Operator size of ρ(t) at the 1/e time t_e, extrapolated to the thermodynamic li
   size      mean number of non-identity sites of the Pauli strings of ρ = 2^−L Σ_P r_P P, with weights
             r_P² / Σ_Q r_Q² (identity included): column mean_size of the `states --obs-dt` output
   t_e       first time the envelope of the run's own signal (scar m_⊥, x-Néel s_⊥, z-Néel |s_z|) drops below 1/e
-            (fit_states.rates)
+            (fit_states.rates); for σᶻ from the complete run in data/used_data where it exists
   n(t_e)    size/L at t_e, linear interpolation on the observable grid
   n_∞       A of n(t_e) = A + B/L on L = 8, 10, 12 (exact runs; the only sizes with the operator observables);
             error: the change of A when L = 8 is dropped (the same rule as the other channels in fit_channels.py)
@@ -33,6 +33,7 @@ import pandas as pd
 from fit_states import rates
 from fit_states_inverse_L import MUTED, NAMES, STATES, SURFACE
 from notes_layout import keep_gamma
+from states_data import read
 
 DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "data" / "used_data"
 LEAN = DIR / "lean"
@@ -58,11 +59,14 @@ def collect():
         run_file = LEAN / f.name.replace("states_obs_", "states_")
         if not run_file.exists():
             continue
-        run = pd.read_csv(run_file)
+        # σᶻ: t_e from the complete older run where it exists (the lean runs stop at 1.5 × the first 1/e crossing,
+        # which misses later revivals: z-Néel L = 8, γ ≤ 0.02), as fit_channels.py does
+        full = DIR / run_file.name
+        run = read(full if ch == "z" and full.exists() else run_file)[0]
         gamma_e = rates(state, run)[0]
         if not np.isfinite(gamma_e) or gamma_e <= 0:
             continue  # never reaches 1/e within the run (Zeno-protected)
-        obs = pd.read_csv(f)
+        obs = read(f)[0]
         t_e = 1 / gamma_e
         if t_e > obs["t"].max():
             continue

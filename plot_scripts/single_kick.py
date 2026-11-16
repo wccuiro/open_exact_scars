@@ -12,7 +12,8 @@ continued with its mean over the last SAT_WINDOW units of τ (D_sat). L = 22, 24
 
 Comparison: Γ_e predicted (γ ∫₀^{t_e} D̄ = 1) against Γ_e measured (fit_small_gamma.rate on the run chosen by
 states_data.select), at every (L, γ) of the scar runs with γ ≤ GAMMA_MAX; and the thermodynamic rate Γ_∞ (from
-states_inverse_L.csv, γ ≥ 0.01) against the prediction from the largest size whose τ range covers t_e.
+states_inverse_L.csv, γ ≥ 0.01) against the prediction from D̄ of the largest size, L = 24 (NaN where t_e is beyond
+its τ range; no fallback to a smaller L).
 
 Input:  single_flip_L<L>*.csv, the scar run files, states_inverse_L.csv in data/used_data/ (or the first argument)
 Output: in the same directory

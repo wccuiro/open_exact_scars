@@ -23,7 +23,7 @@ from notes_layout import keep_gamma
 
 DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "data" / "used_data"
 NAME = re.compile(r"states_(traj_)?(minus-x|neel-x|neel)_L(\d+)_g([0-9.]+?)"
-                  r"(?:_ch(x|y|dep|decay|thermal)(?:_n1)?)?(?:_seed(\d+))?(_jump)?(?:_s\d+)?\.csv$")
+                  r"(_jump)?(?:_ch(x|y|dep|decay|thermal)(?:_n1)?)?(?:_seed(\d+))?(?:_s\d+)?\.csv$")
 STATE = {"minus-x": "scar", "neel-x": "$x$-N\\'eel", "neel": "$z$-N\\'eel"}
 CHANNEL = {"z": "$\\sigma^z$", "x": "$\\sigma^x$", "y": "$\\sigma^y$", "dep": "depol.", "decay": "decay",
            "thermal": "thermal"}
@@ -54,7 +54,7 @@ def main():
         m = NAME.match(f.name)
         if m is None or f.name.startswith(("states_obs", "states_traj_ent")):
             continue
-        traj, state, l, g, ch, seed, jump = m.groups()
+        traj, state, l, g, jump, ch, seed = m.groups()
         g = float(g)
         method = "jump" if jump else "traj" if traj else "exact"
         if not keep_gamma(g):

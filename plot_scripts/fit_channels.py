@@ -85,7 +85,7 @@ def extrapolate(rates_):
         x, y = 1 / np.array(lin), dg[lin].to_numpy()
         p1, s1 = fsi.fit(x, y, 1)
         quad = fsi.sizes_used(state, g, sorted(dg.index), fsi.QUAD_MIN)
-        if ch == "z" and state != "neel" and min(quad) < LIN_MIN and len(quad) >= 4:
+        if ch == "z" and state != "neel" and len(quad) >= 4:  # as fit_states_inverse_L (also when L = 6 is left out)
             spread = abs(p1[-1] - fsi.fit(1 / np.array(quad), dg[quad].to_numpy(), 2)[0][-1])
         elif ch == "z" and state == "neel":
             spread = abs(p1[-1] - dg[max(lin)])

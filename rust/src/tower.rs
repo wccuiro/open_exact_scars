@@ -4,6 +4,7 @@
 use rayon::prelude::*;
 
 use crate::pauli::Pauli;
+use crate::trajectory::Amp;
 
 fn binomial(l: usize, n: usize) -> f64 {
     (0..n).fold(1.0, |acc, i| acc * (l - i) as f64 / (i + 1) as f64)
@@ -42,4 +43,43 @@ pub fn traces(l: usize, weight: &[f64]) -> Vec<f64> {
             sum
         })
         .collect()
+}
+
+/// ⟨Φ_n|ψ⟩ = C(L, n)^{−1/2} Σ_{|s| = n} ψ(s) for n = 0 … L: one pass over the amplitudes, grouped by Hamming weight.
+pub fn overlaps(psi: &[Amp], l: usize) -> Vec<Amp> {
+    assert_eq!(psi.len(), 1usize << l);
+    let mut sums = vec![[0.0f64; 2]; l + 1];
+    for (s, a) in psi.iter().enumerate() {
+        let n = s.count_ones() as usize;
+        sums[n][0] += a[0];
+        sums[n][1] += a[1];
+    }
+    (0..=l).map(|n| {
+        let f = binomial(l, n).powf(-0.5);
+        [sums[n][0] * f, sums[n][1] * f]
+    })
+    .collect()
+}
+
+/// Tower weight Σ_n |⟨Φ_n|ψ⟩|² of a state vector.
+pub fn weight(psi: &[Amp], l: usize) -> f64 {
+    overlaps(psi, l).iter().map(|o| o[0] * o[0] + o[1] * o[1]).sum()
+}
+
+/// ψ ← Q ψ with Q = 1 − Σ_n |Φ_n⟩⟨Φ_n| (not renormalized): subtract ⟨Φ_n|ψ⟩ C(L, n)^{−1/2} from every amplitude
+/// with Hamming weight n.
+pub fn project_out(psi: &mut [Amp], l: usize) {
+    let shift: Vec<Amp> = overlaps(psi, l)
+        .iter()
+        .enumerate()
+        .map(|(n, o)| {
+            let f = binomial(l, n).powf(-0.5);
+            [o[0] * f, o[1] * f]
+        })
+        .collect();
+    for (s, a) in psi.iter_mut().enumerate() {
+        let d = shift[s.count_ones() as usize];
+        a[0] -= d[0];
+        a[1] -= d[1];
+    }
 }

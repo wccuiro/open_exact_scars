@@ -10,9 +10,10 @@
 //!                                         [--gammas 0,0.01,0.1] [--dt 0.1] [--t-max 1000] [--t-zero 50]
 //!                                         [--stop 1e-3] [--seed 1] [--stop-te 0]
 //!                                         [--channel z|x|y|dep|decay|thermal] [--nbar 1]
-//!                                         [--obs-dt 0] [--op-ent-dt 0]
+//!                                         [--obs-dt 0] [--op-ent-dt 0] [--noise depol]
 //!
 //! --channel: the single-site noise (noise.rs; default σᶻ dephasing; decay and thermal use --nbar for thermal).
+//! --noise depol (instead of --channel): jumps √(γ/3) σ^α_j, free-spin rate 4γ/3, file suffix _noisedepol.
 //! --stop-te F > 0: also stop at t = F · t₁, t₁ the start of the latest stretch with the signal below 1/e (a revival
 //! above 1/e before F · t₁ resets t₁; for a non-increasing envelope t₁ is its 1/e time; enough for Γ_e).
 //! --obs-dt Δ > 0 (full Pauli basis): every Δ also write purity, operator size, X/Y count and support distributions
@@ -68,9 +69,9 @@ enum State {
 fn main() {
     let args = Options::parse(&[
         "state", "L", "lmin", "lmax", "gammas", "dt", "t-max", "t-zero", "stop", "seed", "stop-te", "channel", "nbar",
-        "obs-dt", "op-ent-dt",
+        "obs-dt", "op-ent-dt", "noise",
     ]);
-    let channel = Channel::parse(args.str("channel").unwrap_or("z"), args.f64("nbar", 1.0));
+    let channel = Channel::from_options(args.str("channel"), args.str("noise"), args.f64("nbar", 1.0));
     let extra = Extra {
         stop_te: args.f64("stop-te", 0.0),
         obs_dt: args.f64("obs-dt", 0.0),

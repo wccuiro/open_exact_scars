@@ -458,7 +458,7 @@ fn channels_with_free_spins() {
     let mut rng = Rng::new(51);
     let n: Vec<[f64; 3]> = (0..p.l).map(|_| random_direction(&mut rng)).collect();
     let gamma = 0.2;
-    for channel in [Channel::X, Channel::Y, Channel::Depolarizing, Channel::Decay, Channel::Thermal { nbar: 0.5 }] {
+    for channel in [Channel::X, Channel::Y, Channel::Depolarizing, Channel::Depol, Channel::Decay, Channel::Thermal { nbar: 0.5 }] {
         let mut liou = Liouvillian::with_sector(&p, Sector::full(p.l));
         liou.set_channel(channel);
         let magnetization = Magnetization::new(&liou);
@@ -470,6 +470,7 @@ fn channels_with_free_spins() {
             Channel::X => vec![scale(&PAULI[0], gamma.sqrt())],
             Channel::Y => vec![scale(&PAULI[1], gamma.sqrt())],
             Channel::Depolarizing => PAULI.iter().map(|s| scale(s, (gamma / 2.0).sqrt())).collect(),
+            Channel::Depol => PAULI.iter().map(|s| scale(s, (gamma / 3.0).sqrt())).collect(),
             Channel::Decay => vec![scale(&LOWER, gamma.sqrt())],
             Channel::Thermal { nbar } => {
                 vec![scale(&LOWER, (gamma * (nbar + 1.0)).sqrt()), scale(&dagger(&LOWER), (gamma * nbar).sqrt())]

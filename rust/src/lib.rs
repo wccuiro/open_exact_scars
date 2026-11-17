@@ -3,6 +3,8 @@
 //!
 //! - [`parameters`]: the model coefficients h, a, b, c (edit there).
 //! - [`cli`]: command-line options shared by the binaries.
+//! - [`initial`]: coherent and bulk-product initial states, Pauli coordinates of a pure state, a(t).
+//! - [`dmatrix`]: exact evolution of ρ as a dense 2^L × 2^L matrix (Hermitian Pauli channels; `state_hist`).
 //! - [`entanglement`]: eigenvalues without LAPACK, block and operator entanglement, operator size and support.
 //! - [`pauli`]: Pauli strings as bit masks, products with exact phases.
 //! - [`model`]: parameters and the Hamiltonian as a real combination of Pauli strings.
@@ -12,7 +14,9 @@
 //! - [`trajectory`]: pure-state trajectories (diffusive unravelling of the dephasing).
 
 pub mod cli;
+pub mod dmatrix;
 pub mod entanglement;
+pub mod initial;
 pub mod liouville;
 pub mod model;
 pub mod noise;

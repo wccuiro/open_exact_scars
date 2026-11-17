@@ -4,6 +4,7 @@
 //!     z (default)   L_j = √γ σᶻ_j                         dephasing
 //!     x, y          L_j = √γ σˣ_j, √γ σʸ_j                 dephasing along x or y
 //!     dep           L_jα = √(γ/2) σ^α_j, α = x, y, z      depolarizing (every Pauli factor decays at 2γ)
+//!     depol         L_jα = √(γ/3) σ^α_j, α = x, y, z      depolarizing, `--noise depol` (free-spin rate 4γ/3)
 //!     decay         L_j = √γ σ⁻_j, σ⁻ = |↓⟩⟨↑|            amplitude damping towards |↓⟩
 //!     thermal       L_j⁻ = √(γ(n̄+1)) σ⁻_j, L_j⁺ = √(γ n̄) σ⁺_j
 //! ```
@@ -30,6 +31,8 @@ pub enum Channel {
     X,
     Y,
     Depolarizing,
+    /// `--noise depol`: L_jα = √(γ/3) σ^α_j; diffusive trajectories use one isotropic rotation per site and step.
+    Depol,
     Decay,
     Thermal { nbar: f64 },
 }
@@ -51,6 +54,24 @@ impl Channel {
         }
     }
 
+    /// `--noise` option (`--noise depol`, or `z` for the default σᶻ dephasing). Exclusive with `--channel`.
+    pub fn parse_noise(name: &str) -> Self {
+        match name {
+            "z" => Channel::Z,
+            "depol" => Channel::Depol,
+            _ => panic!("--noise z or depol, got {name}"),
+        }
+    }
+
+    /// The channel of a binary that takes both `--channel` and `--noise` (at most one of them).
+    pub fn from_options(channel: Option<&str>, noise: Option<&str>, nbar: f64) -> Self {
+        match (channel, noise) {
+            (Some(_), Some(_)) => panic!("give --channel or --noise, not both"),
+            (_, Some(n)) => Self::parse_noise(n),
+            (c, None) => Self::parse(c.unwrap_or("z"), nbar),
+        }
+    }
+
     /// Added to output file names: empty for the default z dephasing.
     pub fn suffix(&self) -> String {
         match self {
@@ -58,6 +79,7 @@ impl Channel {
             Channel::X => "_chx".into(),
             Channel::Y => "_chy".into(),
             Channel::Depolarizing => "_chdep".into(),
+            Channel::Depol => "_noisedepol".into(),
             Channel::Decay => "_chdecay".into(),
             Channel::Thermal { nbar } => format!("_chthermal_n{nbar}"),
         }
@@ -70,6 +92,7 @@ impl Channel {
             Channel::X => [0.0, -2.0, -2.0],
             Channel::Y => [-2.0, 0.0, -2.0],
             Channel::Depolarizing => [-2.0, -2.0, -2.0],
+            Channel::Depol => [-4.0 / 3.0; 3],
             Channel::Decay => [-0.5, -0.5, -1.0],
             Channel::Thermal { nbar } => [-(2.0 * nbar + 1.0) / 2.0, -(2.0 * nbar + 1.0) / 2.0, -(2.0 * nbar + 1.0)],
         }
@@ -98,7 +121,17 @@ impl Channel {
             Channel::X => Some(vec![(0, 1.0)]),
             Channel::Y => Some(vec![(1, 1.0)]),
             Channel::Depolarizing => Some(vec![(0, 0.5), (1, 0.5), (2, 0.5)]),
+            Channel::Depol => Some(vec![(0, 1.0 / 3.0), (1, 1.0 / 3.0), (2, 1.0 / 3.0)]),
             Channel::Decay | Channel::Thermal { .. } => None,
+        }
+    }
+
+    /// Rate per axis (per unit of γ) of a channel whose diffusive unravelling is one isotropic rotation
+    /// exp[−i √(rate γ) Σ_α ΔW_α σ^α] per site and step (`Trajectory::with_channel`); None: one rotation per axis.
+    pub fn isotropic_rate(&self) -> Option<f64> {
+        match self {
+            Channel::Depol => Some(1.0 / 3.0),
+            _ => None,
         }
     }
 }

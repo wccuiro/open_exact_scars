@@ -14,6 +14,7 @@
 //!                                              [--channel z|x|y|dep] [--ent-dt 0] [--stop-te 0]
 //!
 //! --channel: Hermitian single-site noise (noise.rs; default σᶻ dephasing), diffusive unravelling only.
+//! --noise depol (instead of --channel): jumps √(γ/3) σ^α_j, one isotropic rotation per site and step, suffix _noisedepol.
 //! --ent-dt Δ > 0: every Δ the half-chain entanglement of every trajectory (sites 0 … L/2 − 1 | rest; von Neumann
 //! S_A and Rényi-2), averaged over the trajectories ("diffusive-trajectory entanglement": it depends on the
 //! unravelling). One Hermitian 2^{L/2} eigenvalue problem per trajectory and time.
@@ -111,9 +112,9 @@ impl Traj<'_> {
 fn main() {
     let args = Options::parse(&[
         "state", "L", "lmin", "lmax", "gammas", "trajectories", "dt", "t-max", "t-zero", "stop", "seed", "unravel",
-        "traj-seed", "channel", "ent-dt", "stop-te",
+        "traj-seed", "channel", "ent-dt", "stop-te", "noise",
     ]);
-    let channel = Channel::parse(args.str("channel").unwrap_or("z"), 1.0);
+    let channel = Channel::from_options(args.str("channel"), args.str("noise"), 1.0);
     let jumps = channel.hermitian_jumps().expect("states_traj: --channel z, x, y or dep (Hermitian jump operators)");
     let (ent_dt, stop_te) = (args.f64("ent-dt", 0.0), args.f64("stop-te", 0.0));
     let unravel = match args.str("unravel") {
@@ -180,7 +181,7 @@ fn main() {
             let n = if g == 0.0 { 1 } else { n_traj };
             let t_run = if g == 0.0 { t_zero } else { t_max };
             let noise_seed = traj_seed.unwrap_or(seed);
-            let opts = Opts { jumps: jumps.clone(), ent_dt, stop_te, ent_file };
+            let opts = Opts { jumps: jumps.clone(), isotropic: channel.isotropic_rate(), ent_dt, stop_te, ent_file };
             let t_end = run(&ham, &params, state, &bloch, unravel, g, n, dt, t_run, stop, noise_seed, &file, &opts);
             println!("L = {l}, gamma = {g}: stopped at t = {t_end:.3}, {:.1?} since the start of L = {l}", start.elapsed());
         }
@@ -190,6 +191,8 @@ fn main() {
 /// Noise channel, entanglement output and early stop.
 struct Opts {
     jumps: Vec<(usize, f64)>,
+    /// --noise depol: one isotropic rotation per site and step instead of the per-axis jumps.
+    isotropic: Option<f64>,
     ent_dt: f64,
     stop_te: f64,
     ent_file: Option<PathBuf>,
@@ -224,7 +227,11 @@ fn run(
     let mut trajs: Vec<Traj> = (0..n)
         .map(|k| match unravel {
             Unravel::Diffusive => {
-                Traj::Diffusive(Trajectory::product(ham, bloch, base ^ k as u64).with_jumps(opts.jumps.clone()))
+                let traj = Trajectory::product(ham, bloch, base ^ k as u64).with_jumps(opts.jumps.clone());
+                Traj::Diffusive(match opts.isotropic {
+                    Some(rate) => traj.with_isotropic(rate),
+                    None => traj,
+                })
             }
             Unravel::Jump => Traj::Jump(JumpTrajectory::new(
                 ham,

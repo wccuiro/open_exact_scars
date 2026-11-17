@@ -21,6 +21,7 @@
 use rayon::prelude::*;
 
 use crate::model::{hamiltonian_terms, Params};
+use crate::noise::Channel;
 
 /// H psi is split over threads from this many amplitudes per chunk (only for large states).
 const APPLY_CHUNK: usize = 1 << 14;
@@ -134,6 +135,9 @@ pub struct Trajectory<'a> {
     /// Hermitian jump operators of the diffusive unravelling, (axis 0, 1, 2 = x, y, z; rate per unit of γ):
     /// σᶻ dephasing by default (noise::Channel::hermitian_jumps for the others).
     jumps: Vec<(usize, f64)>,
+    /// Some(rate): instead of `jumps`, one isotropic rotation exp[−i √(rate γ) Σ_α ΔW_α σ^α] per site and step
+    /// (three independent ΔW_α ~ N(0, dt)); the depolarizing channel `--noise depol` (rate 1/3).
+    isotropic: Option<f64>,
 }
 
 impl<'a> Trajectory<'a> {
@@ -149,6 +153,7 @@ impl<'a> Trajectory<'a> {
             tmp: vec![[0.0; 2]; dim],
             rng: Rng::new(seed),
             jumps: vec![(2, 1.0)],
+            isotropic: None,
         }
     }
 
@@ -158,26 +163,33 @@ impl<'a> Trajectory<'a> {
         self
     }
 
+    /// The diffusive unravelling of a Hermitian noise channel: one isotropic rotation per site and step for
+    /// `Channel::Depol`, one rotation per jump axis otherwise.
+    pub fn with_channel(mut self, channel: &Channel) -> Self {
+        self.isotropic = channel.isotropic_rate();
+        self.jumps = channel.hermitian_jumps().expect("diffusive unravelling: Hermitian jump operators only");
+        self
+    }
+
+    /// One isotropic rotation exp[−i √(rate γ) Σ_α ΔW_α σ^α] per site and step instead of the per-axis jumps.
+    pub fn with_isotropic(mut self, rate: f64) -> Self {
+        self.isotropic = Some(rate);
+        self
+    }
+
+    /// Starts in the given normalized state vector (2^L amplitudes).
+    pub fn from_state(ham: &'a Hamiltonian, psi: Vec<Amp>, seed: u64) -> Self {
+        assert_eq!(psi.len(), 1usize << ham.l);
+        let mut traj = Self::new(ham, seed);
+        traj.psi = psi;
+        traj
+    }
+
     /// Starts in the product state with spin j along the unit vector bloch[j]:
     /// cos(θ/2)|↑⟩ + e^{iφ} sin(θ/2)|↓⟩.
     pub fn product(ham: &'a Hamiltonian, bloch: &[[f64; 3]], seed: u64) -> Self {
         assert_eq!(bloch.len(), ham.l);
-        let spins: Vec<[Amp; 2]> = bloch
-            .iter()
-            .map(|&[x, y, z]| {
-                let (up, down) = (((1.0 + z) / 2.0).sqrt(), ((1.0 - z) / 2.0).sqrt());
-                let phi = y.atan2(x);
-                [[up, 0.0], [down * phi.cos(), down * phi.sin()]]
-            })
-            .collect();
-        let mut traj = Self::new(ham, seed);
-        for (s, a) in traj.psi.iter_mut().enumerate() {
-            *a = spins.iter().enumerate().fold([1.0, 0.0], |p, (j, spin)| {
-                let q = spin[(s >> j) & 1];
-                [p[0] * q[0] - p[1] * q[1], p[0] * q[1] + p[1] * q[0]]
-            });
-        }
-        traj
+        Self::from_state(ham, product_amplitudes(bloch), seed)
     }
 
     /// psi ← e^{−iH tau} psi, Taylor series summed to round-off in substeps of norm ≤ SUBSTEP_NORM.
@@ -209,6 +221,9 @@ impl<'a> Trajectory<'a> {
     /// e^{−iθσ^α} ρ e^{iθσ^α} over θ ~ N(0, rate γ dt) damps the coherences between the σ^α eigenstates by
     /// e^{−2 rate γ dt}, which is the Lindblad channel of √(rate γ) σ^α over dt.
     fn kick(&mut self, gamma: f64, dt: f64) {
+        if let Some(rate) = self.isotropic {
+            return self.kick_isotropic(rate * gamma * dt);
+        }
         for j in 0..self.ham.l {
             let bit = 1usize << j;
             for k in 0..self.jumps.len() {
@@ -249,6 +264,32 @@ impl<'a> Trajectory<'a> {
         }
     }
 
+    /// psi ← Π_j exp(−i θ_j·σ_j) psi with θ_jα = √variance · (independent standard normal): one rotation per site
+    /// about a random axis. exp(−i θ·σ) = cos|θ| − i (sin|θ| / |θ|) θ·σ, and θ·σ = [[θ_z, θ_x − iθ_y], [θ_x + iθ_y,
+    /// −θ_z]] on (|↑⟩, |↓⟩). Averaged over θ it shrinks every Bloch component by 1 − 4 var + (20/3) var² + …, the
+    /// depolarizing channel e^{−4 var} to O(var²) = O(dt²) per step.
+    fn kick_isotropic(&mut self, variance: f64) {
+        let sd = variance.sqrt();
+        for j in 0..self.ham.l {
+            let bit = 1usize << j;
+            let th = [0; 3].map(|_| sd * self.rng.gaussian());
+            let norm = (th[0] * th[0] + th[1] * th[1] + th[2] * th[2]).sqrt();
+            let (sin, cos) = norm.sin_cos();
+            let f = if norm > 0.0 { sin / norm } else { 1.0 };
+            let (ax, ay, az) = (f * th[0], f * th[1], f * th[2]);
+            // u00 = cos − i az, u01 = −ay − i ax, u10 = ay − i ax, u11 = cos + i az
+            let mul = |u: Amp, a: Amp| [u[0] * a[0] - u[1] * a[1], u[0] * a[1] + u[1] * a[0]];
+            let (u00, u01, u10, u11) = ([cos, -az], [-ay, -ax], [ay, -ax], [cos, az]);
+            for s in (0..self.psi.len()).filter(|s| s & bit == 0) {
+                let (up, down) = (self.psi[s], self.psi[s | bit]);
+                let (a, b) = (mul(u00, up), mul(u01, down));
+                let (c, d) = (mul(u10, up), mul(u11, down));
+                self.psi[s] = [a[0] + b[0], a[1] + b[1]];
+                self.psi[s | bit] = [c[0] + d[0], c[1] + d[1]];
+            }
+        }
+    }
+
     /// psi ← σᶻ_j psi.
     pub fn flip(&mut self, j: usize) {
         let bit = 1usize << j;
@@ -276,21 +317,45 @@ impl<'a> Trajectory<'a> {
 
     /// ⟨ψ|σ^α_j|ψ⟩ for α = x, y, z and every site j.
     pub fn per_site(&self) -> [Vec<f64>; 3] {
-        let l = self.ham.l;
-        let mut m = [vec![0.0; l], vec![0.0; l], vec![0.0; l]];
-        for j in 0..l {
-            let bit = 1usize << j;
-            for s in (0..self.psi.len()).filter(|s| s & bit == 0) {
-                let (up, down) = (self.psi[s], self.psi[s | bit]);
-                // conj(down) · up
-                let (re, im) = (down[0] * up[0] + down[1] * up[1], down[0] * up[1] - down[1] * up[0]);
-                m[0][j] += 2.0 * re;
-                m[1][j] -= 2.0 * im;
-                m[2][j] += up[0] * up[0] + up[1] * up[1] - down[0] * down[0] - down[1] * down[1];
-            }
-        }
-        m
+        per_site_expectations(&self.psi, self.ham.l)
     }
+}
+
+/// ⟨ψ|σ^α_j|ψ⟩ for α = x, y, z and every site j of a state vector of 2^l amplitudes.
+pub fn per_site_expectations(psi: &[Amp], l: usize) -> [Vec<f64>; 3] {
+    let mut m = [vec![0.0; l], vec![0.0; l], vec![0.0; l]];
+    for j in 0..l {
+        let bit = 1usize << j;
+        for s in (0..psi.len()).filter(|s| s & bit == 0) {
+            let (up, down) = (psi[s], psi[s | bit]);
+            // conj(down) · up
+            let (re, im) = (down[0] * up[0] + down[1] * up[1], down[0] * up[1] - down[1] * up[0]);
+            m[0][j] += 2.0 * re;
+            m[1][j] -= 2.0 * im;
+            m[2][j] += up[0] * up[0] + up[1] * up[1] - down[0] * down[0] - down[1] * down[1];
+        }
+    }
+    m
+}
+
+/// Amplitudes of the product state with spin j along the unit vector bloch[j]: cos(θ/2)|↑⟩ + e^{iφ} sin(θ/2)|↓⟩.
+pub fn product_amplitudes(bloch: &[[f64; 3]]) -> Vec<Amp> {
+    let spins: Vec<[Amp; 2]> = bloch
+        .iter()
+        .map(|&[x, y, z]| {
+            let (up, down) = (((1.0 + z) / 2.0).max(0.0).sqrt(), ((1.0 - z) / 2.0).max(0.0).sqrt());
+            let phi = y.atan2(x);
+            [[up, 0.0], [down * phi.cos(), down * phi.sin()]]
+        })
+        .collect();
+    (0..1usize << bloch.len())
+        .map(|s| {
+            spins.iter().enumerate().fold([1.0, 0.0], |p, (j, spin)| {
+                let q = spin[(s >> j) & 1];
+                [p[0] * q[0] - p[1] * q[1], p[0] * q[1] + p[1] * q[0]]
+            })
+        })
+        .collect()
 }
 
 /// Bloch vectors of the noiseless scar state at time t (exact reference 1): every spin along
@@ -298,6 +363,37 @@ impl<'a> Trajectory<'a> {
 pub fn reference_bloch(l: usize, h: f64, t: f64, flip: Option<usize>) -> Vec<[f64; 3]> {
     let (sin, cos) = (h * t).sin_cos();
     (0..l).map(|j| if flip == Some(j) { [cos, sin, 0.0] } else { [-cos, -sin, 0.0] }).collect()
+}
+
+/// Bloch vectors of the noiseless coherent state at time t: every spin along (sin θ cos(φ + ht), sin θ sin(φ + ht),
+/// cos θ) (θ = π/2, φ = π: reference 1); with `kick = Some((k, α))`, σ^α applied to spin k, i.e. its Bloch vector
+/// rotated by π about axis α (0, 1, 2 = x, y, z).
+pub fn coherent_reference(l: usize, h: f64, t: f64, theta: f64, phi: f64, kick: Option<(usize, usize)>) -> Vec<[f64; 3]> {
+    let (st, ct) = theta.sin_cos();
+    let (sp, cp) = (phi + h * t).sin_cos();
+    let n = [st * cp, st * sp, ct];
+    (0..l)
+        .map(|j| match kick {
+            Some((k, axis)) if k == j => match axis {
+                0 => [n[0], -n[1], -n[2]],
+                1 => [-n[0], n[1], -n[2]],
+                _ => [-n[0], -n[1], n[2]],
+            },
+            _ => n,
+        })
+        .collect()
+}
+
+/// c_j = (⟨σˣ_j⟩ + i⟨σʸ_j⟩) / (sin θ e^{i(φ + ht)}), the transverse Bloch vector relative to that of the noiseless
+/// coherent state at time t (1 on that state). θ = π/2, φ = π gives [`coherences`].
+pub fn coherences_theta(site: &[Vec<f64>; 3], h: f64, t: f64, theta: f64, phi: f64) -> Vec<Amp> {
+    let (sin, cos) = (phi + h * t).sin_cos();
+    let st = theta.sin();
+    site[0]
+        .iter()
+        .zip(&site[1])
+        .map(|(&x, &y)| [(x * cos + y * sin) / st, (y * cos - x * sin) / st])
+        .collect()
 }
 
 /// c_j = (⟨σˣ_j⟩ + i⟨σʸ_j⟩) / (reference-1 value at time t) = −(⟨σˣ_j⟩ + i⟨σʸ_j⟩) e^{−iht}, for every site,

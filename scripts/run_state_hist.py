@@ -8,6 +8,7 @@ benchmark, budget, then the runs, as single-threaded jobs in parallel on (physic
     ~/anaconda3/bin/python scripts/run_state_hist.py status   # finished and pending runs
     ~/anaconda3/bin/python scripts/run_state_hist.py kick     # step 5 (optional): single_flip kicks at L = 16
     ~/anaconda3/bin/python scripts/run_state_hist.py leonardo # the runs not finished here, as Leonardo jobs
+    ~/anaconda3/bin/python scripts/run_state_hist.py leonardo-thermo   # sizes L = 6 … 16 for every state (below)
     options: --workers N (default 9: 10 physical cores, 6P + 4E, of which WSL reports 8), --deadline-hours 24
 
 Restart: every run writes <name>.part and renames it to <name>.csv when it ends; a run whose .csv exists is skipped,
@@ -27,6 +28,14 @@ Grid (γ = 0.1, 0.05, 0.03; depolarizing noise; realization seed 1):
      then 0.1.
 Budget order of the drops (if the estimate exceeds 24 h): L = 16 runs; cos θ = ±0.2, ±0.6; bulk seeds 31 … 100;
 γ = 0.03.
+Per-state thermodynamic rates (`leonardo-thermo`, Leonardo jobs): every probe state at L = 6, 8, 10 (exact ρ) and
+12, 14, 16 (trajectories) for every γ, for Γ_∞ = A of A + B/L. Scar class: the 9 coherent states (fixed θ, so the
+same state and the same E/L at every L), 64 trajectories, t-max 60 with the adaptive stop. Bulk class: bulk product
+states 1 … 100 at every L (the generator is seeded with L: different states at different L, same energy window; the
+thermodynamic rate is taken per energy density, Γ_∞(ε)), 32 trajectories, t-max 10, γ = 0 runs at every L. n̄: ED
+for L ≤ 12 (L = 6, 8 computed on the laptop, in the tarball), late-time average t ≥ 5 of the γ = 0 run for L = 14
+(`state_hist --write-nbar 5`, first phase of the job that needs it) and L = 16 (written on the laptop from the
+existing γ = 0 runs, in the tarball).
 Step 5 (`kick`, only if it ends before the deadline): single_flip at L = 16, cos θ = 0, ±0.4, kicks x, y, z,
 4 phases × sites 0, 4, 8, 12, τ ≤ 16; one job per θ with 3 threads (prediction: plot_scripts/state_hist_kick.py).
 """
@@ -607,14 +616,13 @@ SUBMIT_SCRIPT = """#!/bin/bash
 #
 # laptop:   git push   (the state_hist code must be in the pushed commit)
 #           scp data/state_hist_to_leonardo.tar.gz <user>@login.leonardo.cineca.it:{repo}/data/
-# Leonardo: cd $REPO && git pull && cd rust && cargo build --release --bin state_hist --bin single_flip
+# Leonardo: cd $REPO && git pull && cd rust && cargo build --release --bin state_hist
 #           cd $REPO/data && tar xzf state_hist_to_leonardo.tar.gz --skip-old-files   # bashes/state_hist, n̄ files
 #           bash $REPO/data/bashes/state_hist/{submit}
-# back:     cd $REPO/data && tar czf state_hist_results.tar.gz state_hist/states_* state_hist/single_flip_* \\
+# back:     cd $REPO/data && tar czf state_hist_results.tar.gz state_hist/states_* \\
 #               state_hist/logs_leonardo bashes/state_hist/*.out bashes/state_hist/*.err
 #           laptop: mkdir -p data/state_hist_leonardo && tar xzf state_hist_results.tar.gz -C data/state_hist_leonardo
-#                   cp -n data/state_hist_leonardo/state_hist/states_* data/state_hist_leonardo/state_hist/single_flip_* \\
-#                       data/state_hist/   # -n: never overwrites a laptop file
+#                   cp -n data/state_hist_leonardo/state_hist/states_* data/state_hist/   # -n: never overwrites
 cd "$(dirname "$0")"
 {sbatch}
 """
@@ -697,9 +705,6 @@ def leonardo():
         if j.binary == "state_hist" and "traj" in j.args and run_size(j) >= 14:
             j.threads = MULTI_THREADS
         todo.append(j)
-    kicks = [j for j in kick_jobs(b, NODE_CORES // len(KICK_COS), LEO_OUT) if not (OUT / f"{j.name}.csv").exists()]
-    for j in kicks:
-        j.est *= j.threads  # kick_jobs gives wall seconds; here est is core-seconds as for the other runs
 
     date = time.strftime("%Y-%m-%d %H:%M")
     LEO_JOBS.mkdir(parents=True, exist_ok=True)
@@ -708,8 +713,6 @@ def leonardo():
          "single-threaded runs: bulk class (exact ρ L = 10, trajectories L = 12) and scar class at L ≤ 12"),
         ("state_hist_multi", [j for j in todo if j.threads > 1], NODE_CORES // MULTI_THREADS, "64G",
          f"trajectory runs at L ≥ 14 ({MULTI_THREADS} threads each): L = 16 size scan and scar class"),
-        ("state_hist_kick", kicks, len(KICK_COS), "64G",
-         "step 5 (optional): single_flip kicks x, y, z at L = 16, cos θ = 0, ±0.4"),
     ]
     print("\n".join(notes))
     print(f"\n{'job':20s} {'runs':>5s} {'est. wall h':>11s} {'limit':>8s}   (estimate: laptop speed under full load)")
@@ -729,11 +732,10 @@ def leonardo():
         for key, n in sorted(counts.items()):
             print(f"    {n:4d}  {key}")
     for submit, names, desc in [("submit_state_hist.sh", ["state_hist_single", "state_hist_multi"],
-                                 "Remaining state_hist runs (decay-rate histograms, depolarizing noise)"),
-                                ("submit_state_hist_kick.sh", ["state_hist_kick"], "Step 5 (optional): kick runs")]:
+                                 "Remaining state_hist runs (decay-rate histograms, depolarizing noise)")]:
         (LEO_JOBS / submit).write_text(SUBMIT_SCRIPT.format(
             desc=desc, date=date, repo=LEO_REPO, submit=submit, sbatch="\n".join(f"sbatch {n}.sh" for n in names)))
-    plan["leonardo"] = dict(generated=date, runs=len(todo), kick_runs=len(kicks), notes=notes)
+    plan["leonardo"] = dict(generated=date, runs=len(todo), notes=notes)
     PLAN.write_text(json.dumps(plan, indent=1))
     nbar = sorted(p.relative_to(REPO / "data") for p in OUT.glob("nbar_L*_initbulk-product_s*.csv"))
     subprocess.run(["tar", "czf", str(TARBALL), "-C", str(REPO / "data"),
@@ -741,6 +743,214 @@ def leonardo():
     for f in sorted(LEO_JOBS.glob("*.sh")):
         subprocess.run(["bash", "-n", str(f)], check=True)
     print(f"\nwritten: {LEO_JOBS}/ and {TARBALL} ({len(nbar)} n̄ files); bash -n passed")
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# per-state thermodynamic rates: every probe state at L = 6 … 16 (Leonardo)
+
+THERMO_SIZES = [6, 8, 10, 12, 14, 16]
+T_MAX_SCAR_THERMO = 60.0
+THERMO_TAR = REPO / "data" / "state_hist_thermo_to_leonardo.tar.gz"
+BULK_BIG_THREADS = 8  # bulk trajectory runs at L ≥ 14 (32 trajectories): 8 threads each, 14 at a time
+# Leonardo cost, core-s per unit t (exact, pure: per run; traj: per trajectory), from the batch of 2026-11-18 (jobs
+# 64711588, 64711589, a full node of runs): exact L = 10 87 (bulk, fine grid to t = 1.5); traj L = 12 1.0 (1 thread),
+# L = 14 3.7, L = 16 18.2 (16 threads); exact L = 6, 8 scaled from L = 10 by L·4^L; pure = one trajectory.
+LEO_COST = {("exact", 6): 0.3, ("exact", 8): 4.4, ("exact", 10): 87.0, ("traj", 12): 1.0, ("traj", 14): 3.7,
+            ("traj", 16): 18.2, ("pure", 6): 0.02, ("pure", 8): 0.1, ("pure", 10): 0.3, ("pure", 12): 1.0,
+            ("pure", 14): 3.7, ("pure", 16): 18.2}
+
+THERMO_JOB_SCRIPT = r"""#!/bin/bash
+# {desc}
+# Generated by scripts/run_state_hist.py leonardo-thermo ({date}). Run lists, one run per line,
+# name|output|threads|binary arguments, run one list after the other: {phase_doc}
+# A run whose output exists in $OUT is skipped (resubmitting never redoes data).
+# Per-run log (with /usr/bin/time -v) in $OUT/logs_leonardo_thermo/<name>.log.
+
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=112
+#SBATCH --mem={mem}
+#SBATCH --time={time}
+#SBATCH --job-name={name}
+#SBATCH --error={name}.err
+#SBATCH --output={name}.out
+#SBATCH --partition=dcgp_usr_prod
+#SBATCH --account=sis26_collura
+
+export LD_LIBRARY_PATH=$HOME/.local/lib:$LD_LIBRARY_PATH
+export REPO={repo}
+export OUT=$REPO/data/state_hist
+export LOGDIR=$OUT/logs_leonardo_thermo
+LISTS=$REPO/data/bashes/state_hist
+mkdir -p "$LOGDIR"
+
+echo "=== start $(date '+%F %T'), host $(hostname), job ${{SLURM_JOB_ID:-none}}, cpus ${{SLURM_CPUS_PER_TASK:-?}}"
+lscpu | grep -E '^(Model name|Socket\(s\)|Core\(s\) per socket|CPU\(s\)|NUMA node\(s\))'
+free -g
+export TIMEV=""
+[ -x /usr/bin/time ] && TIMEV="/usr/bin/time -v"
+
+run_line() {{
+    IFS='|' read -r name out threads cmd <<< "$1"
+    if [ -e "$OUT/$out" ]; then echo "=== skip $name (output exists)"; return 0; fi
+    echo "=== start $(date '+%F %T') $name ($threads threads)"
+    SCARS_DATA_DIR=$OUT RAYON_NUM_THREADS=$threads OMP_NUM_THREADS=$threads \
+        $TIMEV $REPO/rust/target/release/$cmd > "$LOGDIR/$name.log" 2>&1
+    local status=$?
+    echo "=== end $(date '+%F %T') $name exit $status"
+    return $status
+}}
+export -f run_line
+
+RUN_STATUS=0
+run_list() {{  # list file, runs at a time
+    echo "=== list $1 ($2 at a time) $(date '+%F %T')"
+    grep -v '^#' "$LISTS/$1" | xargs -d '\n' -n 1 -P "$2" bash -c 'run_line "$1"' _ || RUN_STATUS=$?  # 123: a run failed
+}}
+{phases}
+
+echo "=== end $(date '+%F %T'); runs without output:"
+for f in {lists}; do
+    grep -v '^#' "$LISTS/$f" | while IFS='|' read -r name out threads cmd; do [ -e "$OUT/$out" ] || echo "    $name"; done
+done
+if [ -n "$SLURM_JOB_ID" ]; then
+    sacct -j "$SLURM_JOB_ID" --format=JobID,Elapsed,TotalCPU,MaxRSS,State -P
+fi
+exit $RUN_STATUS
+"""
+
+THERMO_SUBMIT = """#!/bin/bash
+# Per-state thermodynamic rates: every probe state at L = 6 … 16 (decay-rate histograms, depolarizing noise)
+# Generated by scripts/run_state_hist.py leonardo-thermo ({date}). The three jobs are independent.
+#
+# laptop:   git push   (state_hist --write-nbar must be in the pushed commit)
+#           scp data/state_hist_thermo_to_leonardo.tar.gz <user>@login.leonardo.cineca.it:{repo}/data/
+# Leonardo: cd $REPO && git pull && cd rust && cargo build --release --bin state_hist
+#           cd $REPO/data && tar xzf state_hist_thermo_to_leonardo.tar.gz --skip-old-files   # job files, n̄ L = 6 … 16
+#           bash $REPO/data/bashes/state_hist/submit_thermo.sh
+# back:     cd $REPO/data/bashes/state_hist && sacct -u $USER -S <date> \\
+#               --format=JobID,JobName%30,Elapsed,TotalCPU,MaxRSS,State -P > sacct_thermo.txt
+#           cd $REPO/data && tar czf state_hist_thermo_results.tar.gz state_hist/states_* state_hist/nbar_L14_* \\
+#               state_hist/logs_leonardo_thermo bashes/state_hist/thermo_*.out bashes/state_hist/thermo_*.err \\
+#               bashes/state_hist/sacct_thermo.txt
+#           laptop: mkdir -p data/state_hist_leonardo_thermo
+#                   tar xzf data/state_hist_thermo_results.tar.gz -C data/state_hist_leonardo_thermo
+#                   cp -n data/state_hist_leonardo_thermo/state_hist/{{states_*,nbar_L14_*}} data/state_hist/
+cd "$(dirname "$0")"
+{sbatch}
+"""
+
+
+def leonardo_thermo():
+    """Writes the job files of the per-state thermodynamic rates (data/bashes/state_hist/thermo_*,
+    submit_thermo.sh) and data/state_hist_thermo_to_leonardo.tar.gz (those plus the n̄ files); runs finished here are
+    left out (see the module docs for the grid)."""
+    plan = json.loads(PLAN.read_text())
+    rates = scan_rates(GAMMAS)
+    method = lambda l: "exact" if l <= 10 else "traj"
+
+    def scar_t(g, l):
+        """Expected run length: adaptive stop at 1.5/Γ + hold, Γ from the cos θ = 0 scan at the nearest size, × 0.7
+        for the slower θ."""
+        near = min(rates[g], key=lambda m: abs(m - l))
+        return min(T_MAX_SCAR_THERMO, 1.5 / (0.7 * rates[g][near][0]) + HOLD)
+
+    def est(meth, l, t, n=1):
+        return t * LEO_COST[(meth, l)] * n
+
+    jobs = []
+    for g in GAMMAS:
+        for l in THERMO_SIZES:
+            n = TRAJ_SCAR if l > 10 else 1
+            for c in COS_ALL:
+                init_c, tag_c = coherent(c)
+                extra = ["--t-max", fmt(T_MAX_SCAR_THERMO), "--dt", "0.1"] + (["--trajectories", str(n)] if l > 10 else [])
+                jobs.append(state_job(method(l), l, g, init_c, tag_c, est(method(l), l, scar_t(g, l), n), extra,
+                                      data=LEO_OUT))
+    missing_nbar = []
+    for s in range(1, N_BULK + 1):
+        for l in THERMO_SIZES:
+            init = ["--init", "bulk-product", "--init-seed", str(s)]
+            tag = f"initbulk-product_s{s}"
+            nbar = LEO_OUT / f"nbar_L{l}_{tag}.csv"
+            if l != 14 and not shd.nbar_file(l, s).exists():
+                missing_nbar.append(f"L{l}_s{s}")
+            write = ["--write-nbar", fmt(shd.LATE)] if l == 14 else []
+            jobs.append(state_job("pure", l, 0.0, init, tag, est("pure", l, T_MAX_BULK),
+                                  ["--t-max", fmt(T_MAX_BULK)] + BULK_GRID + write, data=LEO_OUT))
+            n = TRAJ_BULK if l > 10 else 1
+            for g in GAMMAS:
+                extra = ["--t-max", fmt(T_MAX_BULK)] + BULK_GRID + (["--trajectories", str(n)] if l > 10 else [])
+                jobs.append(state_job(method(l), l, g, init + ["--nbar", str(nbar)], tag,
+                                      est(method(l), l, T_MAX_BULK, n), extra, data=LEO_OUT))
+    assert not missing_nbar, f"n̄ files missing here: {missing_nbar[:5]} …"
+    seen, todo = set(), []
+    for j in jobs:
+        if j.name in seen or (OUT / f"{j.name}.csv").exists():
+            continue
+        seen.add(j.name)
+        todo.append(j)
+
+    def kind(j):
+        big = "--method" in j.args and j.args[j.args.index("--method") + 1] == "traj" and run_size(j) >= 14
+        if not big:
+            return "pure14" if ("--write-nbar" in j.args) else "single"
+        return "scar_big" if "coherent" in j.args else "bulk_big"
+
+    for j in todo:
+        k = kind(j)
+        j.threads = {"scar_big": MULTI_THREADS, "bulk_big": BULK_BIG_THREADS}.get(k, 1)
+    groups = {k: sorted([j for j in todo if kind(j) == k], key=lambda j: -j.est)
+              for k in ["single", "pure14", "bulk_big", "scar_big"]}
+    date = time.strftime("%Y-%m-%d %H:%M")
+    LEO_JOBS.mkdir(parents=True, exist_ok=True)
+    specs = [  # job, [(list name, runs, runs at a time)], memory, description
+        ("thermo_single", [("thermo_single.txt", groups["single"], NODE_CORES)], "128G",
+         "single-threaded runs: exact ρ L = 6, 8, 10, scar trajectories L = 12, γ = 0 runs L = 6, 8"),
+        ("thermo_bulk_big", [("thermo_bulk_big_1.txt", groups["pure14"], NODE_CORES),
+                             ("thermo_bulk_big_2.txt", groups["bulk_big"], NODE_CORES // BULK_BIG_THREADS)], "64G",
+         f"bulk class at L = 14, 16: first the γ = 0 runs at L = 14 (they write n̄), then the trajectory runs "
+         f"({BULK_BIG_THREADS} threads each)"),
+        ("thermo_scar_big", [("thermo_scar_big.txt", groups["scar_big"], NODE_CORES // MULTI_THREADS)], "64G",
+         f"scar class, trajectory runs at L = 14, 16 ({MULTI_THREADS} threads each)"),
+    ]
+    print(f"{'job':18s} {'list':24s} {'runs':>5s} {'core-h':>8s} {'wall h':>7s} {'limit':>6s}")
+    total_core_h = 0.0
+    for name, phases, mem, desc in specs:
+        wall_h, lines_phases = 0.0, []
+        for list_name, pack, parallel in phases:
+            core = sum(j.est for j in pack)
+            w = max([core / NODE_CORES] + [j.est / j.threads for j in pack] + [0]) / 3600
+            wall_h += w
+            total_core_h += core / 3600
+            lines = [f"# {desc}"] + [f"{j.name}|{j.name}.csv|{j.threads}|{j.binary} {' '.join(j.args)}" for j in pack]
+            (LEO_JOBS / list_name).write_text("\n".join(lines) + "\n")
+            lines_phases.append(f"run_list {list_name} {parallel}")
+            counts = {}
+            for j in pack:
+                key = re.sub(r"_s\d+$|_cos-?[0-9.]+$", "", j.name)
+                counts[key] = counts.get(key, 0) + 1
+            print(f"{name:18s} {list_name:24s} {len(pack):5d} {core / 3600:8.1f} {w:7.2f}")
+            for key, n in sorted(counts.items()):
+                print(f"{'':18s}     {n:4d}  {key}")
+        limit_h = min(24, math.ceil(1.5 * wall_h + 1))
+        print(f"{name:18s} {'(job)':24s} {'':5s} {'':8s} {wall_h:7.2f} {limit_h:4d} h")
+        (LEO_JOBS / f"{name}.sh").write_text(THERMO_JOB_SCRIPT.format(
+            desc=desc, date=date, name=name, mem=mem, time=f"{limit_h:02d}:00:00", repo=LEO_REPO,
+            phase_doc=", then ".join(f"{l} ({p} at a time)" for l, _, p in phases),
+            phases="\n".join(lines_phases), lists=" ".join(l for l, _, _ in phases)))
+    (LEO_JOBS / "submit_thermo.sh").write_text(THERMO_SUBMIT.format(
+        date=date, repo=LEO_REPO, sbatch="\n".join(f"sbatch {n}.sh" for n, _, _, _ in specs)))
+    print(f"total {total_core_h:.0f} core-h = {total_core_h / NODE_CORES:.1f} node-h (Leonardo costs of 2026-11-18)")
+    plan["thermo"] = dict(generated=date, runs=len(todo), core_h=round(total_core_h, 1))
+    PLAN.write_text(json.dumps(plan, indent=1))
+    nbar = sorted(p.relative_to(REPO / "data") for p in OUT.glob("nbar_L*_initbulk-product_s*.csv"))
+    files = sorted(p.relative_to(REPO / "data") for p in LEO_JOBS.glob("thermo_*")) + \
+        [(LEO_JOBS / "submit_thermo.sh").relative_to(REPO / "data")]
+    subprocess.run(["tar", "czf", str(THERMO_TAR), "-C", str(REPO / "data")] + [str(p) for p in files + nbar],
+                   check=True)
+    for f in sorted(LEO_JOBS.glob("thermo_*.sh")) + [LEO_JOBS / "submit_thermo.sh"]:
+        subprocess.run(["bash", "-n", str(f)], check=True)
+    print(f"written: {LEO_JOBS}/thermo_*, submit_thermo.sh and {THERMO_TAR} ({len(nbar)} n̄ files); bash -n passed")
 
 
 def status():
@@ -753,7 +963,7 @@ def status():
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=["bench", "run", "status", "kick", "leonardo"])
+    ap.add_argument("command", choices=["bench", "run", "status", "kick", "leonardo", "leonardo-thermo"])
     ap.add_argument("--workers", type=int, default=9)
     ap.add_argument("--deadline-hours", type=float, default=BUDGET_H)
     args = ap.parse_args()
@@ -771,6 +981,8 @@ def main():
         kick(args.workers)
     elif args.command == "leonardo":
         leonardo()
+    elif args.command == "leonardo-thermo":
+        leonardo_thermo()
     else:
         status()
 

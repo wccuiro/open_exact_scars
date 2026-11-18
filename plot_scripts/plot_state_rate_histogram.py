@@ -122,8 +122,7 @@ def histogram(scar, bulk, out):
 
 
 def vs_gamma(df, scar, bulk, out):
-    fig, ax = plt.subplots(figsize=(5.2, 3.8))
-    gs = np.array(GAMMAS)
+    fig, ax = plt.subplots(figsize=(7.0, 3.8))
     for i, g in enumerate(GAMMAS):
         ok = [p for p in scar[g] if p["ok"]]
         if ok:
@@ -149,7 +148,7 @@ def vs_gamma(df, scar, bulk, out):
     ax.set_yscale("log")
     ax.set_xlabel("γ")
     ax.set_ylabel("Γ_e")
-    ax.legend(fontsize=7, frameon=False)
+    ax.legend(fontsize=7, frameon=False, loc="center left", bbox_to_anchor=(1.01, 0.5))
     fig.tight_layout()
     fig.savefig(out, dpi=160)
     plt.close(fig)

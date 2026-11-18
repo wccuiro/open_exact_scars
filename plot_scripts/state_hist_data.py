@@ -5,7 +5,9 @@ Files (in data/state_hist/, written by rust/src/bin/state_hist.rs and state_hist
   states_L<L>_g<γ>_noisedepol_<init>.csv        exact ρ
   states_traj_L<L>_g<γ>_noisedepol_<init>.csv   diffusive trajectories
   states_pure_L<L>_g0_<init>.csv                one state vector at γ = 0
-  nbar_L<L>_initbulk-product_s<N>.csv           n̄⊥_j from ED (γ = 0 diagonal ensemble)
+  nbar_L<L>_initbulk-product_s<N>.csv           n̄⊥_j: from ED (γ = 0 diagonal ensemble, L ≤ 12) or, with
+                                                `source=late` in its first line (L ≥ 14), the average over t ≥ LATE of
+                                                the γ = 0 run (`state_hist --write-nbar 5`)
 with <init> = initcoherent_cos<cos θ> (scar class) or initbulk-product_s<N> (bulk class). First line `# key=value …`,
 last line `# end t=… reason=… wall_s=… setup_s=…`.
 
@@ -80,6 +82,12 @@ def read_nbar(path):
     return df[["nx", "ny"]].to_numpy()
 
 
+def nbar_source(path):
+    """'late' if the n̄ file was written from a late-time average (first line `source=late`), else 'ed'."""
+    with open(path) as f:
+        return "late" if "source=late" in f.readline() else "ed"
+
+
 def nbar_file(l, seed, data=DATA):
     return Path(data) / f"nbar_L{l}_initbulk-product_s{seed}.csv"
 
@@ -142,16 +150,17 @@ def agree(g1, s1, g2, s2):
 
 
 def pure_reference(l, seed, data=DATA):
-    """(n̄ (L × 2), source, floor) for a bulk state from its γ = 0 run (None if missing): n̄ from ED for L ≤ 12, else
-    the late-time average of the γ = 0 run; floor = rms of a(t ≥ LATE) in that run with that n̄."""
+    """(n̄ (L × 2), source, floor) for a bulk state from its γ = 0 run (None if missing): n̄ from its n̄ file (ED, or
+    the late-time average written by `--write-nbar`), else the late-time average of the γ = 0 run; floor = rms of
+    a(t ≥ LATE) in that run with that n̄."""
     pure = Path(data) / f"states_pure_L{l}_g0_initbulk-product_s{seed}.csv"
     ed = nbar_file(l, seed, data)
     if not pure.exists():
-        return (read_nbar(ed) if ed.exists() else None), ("ed" if ed.exists() else None), float("nan")
+        return (read_nbar(ed) if ed.exists() else None), (nbar_source(ed) if ed.exists() else None), float("nan")
     _, df, _ = read_run(pure)
     late = df["t"].to_numpy() >= LATE - 1e-9
     if ed.exists():
-        nbar, source = read_nbar(ed), "ed"
+        nbar, source = read_nbar(ed), nbar_source(ed)
     else:
         x, y = sites(df[late], l)
         nbar, source = np.stack([x.mean(axis=0), y.mean(axis=0)], axis=1), "late"

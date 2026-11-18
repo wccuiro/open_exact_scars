@@ -3,7 +3,7 @@
 //!
 //!     cargo run --release --bin state_hist -- --method exact|traj|pure --L 10 [--gamma 0.1] [--noise depol|z]
 //!         --init coherent (--cos-theta c | --theta θ) [--phi π]  |  --init bulk-product --init-seed N
-//!         [--nbar FILE] [--trajectories 64] [--dt 0.1] [--dt-fine 0.02 --t-fine 0] [--t-max 10]
+//!         [--nbar FILE] [--write-nbar T] [--trajectories 64] [--dt 0.1] [--dt-fine 0.02 --t-fine 0] [--t-max 10]
 //!         [--stop-level 1.5] [--stop-hold 2] [--seed 1]
 //!
 //! Methods: exact = ρ as a dense 2^L × 2^L matrix (dmatrix.rs, Taylor steps summed to round-off; the same generator
@@ -21,6 +21,9 @@
 //! to be recomputed from the per-site columns). Trajectories: standard error of a by the delta method,
 //! (1/L) Σ_j u_j·δn⊥_j with u_j the unit vector of n⊥_j − n̄⊥_j, evaluated per trajectory. Also the tower weight
 //! W(t) = Σ_n ⟨Φ_n|ρ|Φ_n⟩.
+//! --write-nbar T (pure runs of bulk states only): when the run ends, also write n̄⊥_j = the average of the per-site
+//! ⟨σˣ_j⟩, ⟨σʸ_j⟩ over the output times t ≥ T (the late-time n̄ of the γ = 0 run, for sizes without ED) to
+//! nbar_L<L>[_seed<N>]_<init>.csv (columns j, nx, ny; the name `state_hist_ed` uses), unless that file exists.
 //!
 //! Output grid: step --dt-fine up to --t-fine, then --dt (each at most 0.05/γ). Run length: γ > 0 stops once
 //! a/a(0) has stayed below e^{−stop-level} for stop-hold + 2π/h, i.e. once the envelope (running maximum of a over the
@@ -64,7 +67,7 @@ enum Method {
 fn main() {
     let args = Options::parse(&[
         "method", "L", "gamma", "noise", "init", "theta", "cos-theta", "phi", "init-seed", "nbar", "trajectories", "dt",
-        "dt-fine", "t-fine", "t-max", "stop-level", "stop-hold", "seed",
+        "dt-fine", "t-fine", "t-max", "stop-level", "stop-hold", "seed", "write-nbar",
     ]);
     let method = match args.str("method") {
         Some("exact") => Method::Exact,
@@ -136,14 +139,19 @@ fn main() {
     let (nbar, nbar_source): (Vec<[f64; 2]>, String) = match (init, args.str("nbar")) {
         (Init::Coherent { .. }, None) => (vec![[0.0; 2]; l], "tower".into()),
         (Init::Coherent { .. }, Some(_)) => panic!("--nbar: n̄ = 0 exactly for coherent (tower) states"),
-        (Init::BulkProduct { .. }, None) => (vec![[0.0; 2]; l], "none".into()),
-        (Init::BulkProduct { .. }, Some(f)) => (read_nbar(Path::new(f), l), f.to_string()),
+        (_, None) => (vec![[0.0; 2]; l], "none".into()),
+        (_, Some(f)) => (read_nbar(Path::new(f), l), f.to_string()),
     };
     let nbar_norm = nbar.iter().map(|n| n[0].hypot(n[1])).sum::<f64>() / l as f64;
     let (theta, phi, init_seed) = match init {
         Init::Coherent { theta, phi } => (theta, phi, -1i64),
         Init::BulkProduct { seed } => (f64::NAN, f64::NAN, seed as i64),
     };
+    let write_nbar = args.has("write-nbar").then(|| args.f64("write-nbar", 0.0));
+    if write_nbar.is_some() {
+        assert!(method == Method::Pure && init_seed >= 0, "--write-nbar: pure runs of bulk states only");
+        assert!(write_nbar.unwrap() < run.t_max, "--write-nbar T needs T < --t-max");
+    }
     let meta = format!(
         "method={} L={l} gamma={gamma} noise={} init={} theta={theta} phi={phi} init_seed={init_seed} seed={seed} \
          E={energy:.12e} E_per_L={:.12e} attempts={attempts} nbar_norm={nbar_norm:.6e} nbar_source={nbar_source} \
@@ -162,7 +170,7 @@ fn main() {
     );
 
     let part = data.join(format!("{name}.part"));
-    let mut out = Output::new(&part, l, &meta);
+    let mut out = Output::new(&part, l, &meta, write_nbar);
     let setup = start.elapsed().as_secs_f64();
     let (t_end, reason, setup_more) = match method {
         Method::Exact => {
@@ -181,8 +189,29 @@ fn main() {
         }
     };
     let wall = start.elapsed().as_secs_f64() - setup - setup_more;
+    let late = out.late_average();
     out.finish(t_end, reason, wall, setup + setup_more);
     fs::rename(&part, &file).unwrap();
+    if let (Some(t_late), Some((nbar_late, rows))) = (write_nbar, late) {
+        let nbar_name = format!("nbar_L{l}{}_{}.csv", seed_suffix(seed), init.tag());
+        let nbar_file = data.join(&nbar_name);
+        if nbar_file.exists() {
+            println!("{nbar_name} exists: not written");
+        } else {
+            let tmp = data.join(format!("{nbar_name}.part.{}", std::process::id()));
+            let mut csv = BufWriter::new(File::create(&tmp).unwrap());
+            let norm = nbar_late.iter().map(|n| n[0].hypot(n[1])).sum::<f64>() / l as f64;
+            writeln!(csv, "# L={l} seed={seed} init_seed={init_seed} E={energy:.12e} source=late t_late={t_late} rows={rows} \
+                           nbar_norm={norm:.6e} from={name}").unwrap();
+            writeln!(csv, "j,nx,ny").unwrap();
+            for (j, n) in nbar_late.iter().enumerate() {
+                writeln!(csv, "{j},{:.15e},{:.15e}", n[0], n[1]).unwrap();
+            }
+            csv.into_inner().unwrap().sync_all().unwrap();
+            fs::rename(&tmp, &nbar_file).unwrap();
+            println!("{nbar_name}: late-time n̄ over {rows} output times t ≥ {t_late}, (1/L) Σ |n̄⊥_j| = {norm:.4}");
+        }
+    }
     println!("{name}: E/L = {:.4}, stopped at t = {t_end:.3} ({reason}), {wall:.1} s evolution, {:.1} s setup", energy / l as f64, setup + setup_more);
 }
 
@@ -216,15 +245,24 @@ fn read_nbar(path: &Path, l: usize) -> Vec<[f64; 2]> {
 /// The CSV being written (`.part`).
 struct Output {
     csv: BufWriter<File>,
+    /// (t from which per-site x, y are summed, Σx_j, Σy_j, number of rows) for --write-nbar
+    late: Option<(f64, Vec<f64>, Vec<f64>, usize)>,
 }
 
 impl Output {
-    fn new(path: &Path, l: usize, meta: &str) -> Self {
+    fn new(path: &Path, l: usize, meta: &str, late_from: Option<f64>) -> Self {
         let mut csv = BufWriter::new(File::create(path).unwrap());
         writeln!(csv, "# {meta}").unwrap();
         let cols = |p: &str| (0..l).map(|j| format!("{p}{j}")).collect::<Vec<_>>().join(",");
         writeln!(csv, "L,gamma,trajectories,t,a,a_err,W,W_err,mx,my,mz,{},{}", cols("x"), cols("y")).unwrap();
-        Output { csv }
+        Output { csv, late: late_from.map(|t| (t, vec![0.0; l], vec![0.0; l], 0)) }
+    }
+
+    /// Per-site average of (x, y) over the rows with t ≥ the --write-nbar time, and the number of those rows.
+    fn late_average(&self) -> Option<(Vec<[f64; 2]>, usize)> {
+        let (_, sx, sy, n) = self.late.as_ref()?;
+        assert!(*n > 0, "--write-nbar: no output time after it");
+        Some((sx.iter().zip(sy).map(|(x, y)| [x / *n as f64, y / *n as f64]).collect(), *n))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -241,6 +279,13 @@ impl Output {
         )
         .unwrap();
         self.csv.flush().unwrap();
+        if let Some((t_late, sx, sy, count)) = self.late.as_mut() {
+            if t >= *t_late - 1e-9 {
+                sx.iter_mut().zip(x).for_each(|(s, v)| *s += v);
+                sy.iter_mut().zip(y).for_each(|(s, v)| *s += v);
+                *count += 1;
+            }
+        }
     }
 
     fn finish(mut self, t: f64, reason: &str, wall: f64, setup: f64) {

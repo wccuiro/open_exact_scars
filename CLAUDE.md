@@ -298,13 +298,23 @@ Open:
 rust/src/parameters.rs   model coefficients h, a, b, c (full 3×3), random-c range, boundary condition: edit here
 rust/src/cli.rs          shared --key value options (--L or --lmin/--lmax; unknown or repeated options are an error)
 rust/src/pauli.rs        Pauli strings as bit masks (x, z), products with exact phases
-rust/src/model.rs        Params (baseline coefficients, optional random c per bond) and H as a real sum of Pauli strings
+rust/src/model.rs        Params (baseline coefficients, optional random c per bond) and H as a real sum of Pauli strings;
+                         bond_terms(p, j): the strings of the term of bond (j, j+1) alone (used by floquet.rs)
+rust/src/floquet.rs      Trotterized (Floquet) step F = e^{𝓗_1dt}…e^{𝓗_4dt}e^{(𝓩+𝓓)dt}: H_I in 4-site blocks (one bond term
+                         each, so every gate keeps the tower), 4 layers (more when 4 ∤ L: L = 6: 6, 10: 5, 14: 5, 18: 6, 26:
+                         7; a size scan uses L divisible by 4 only, the same F at every L), field + noise exact per site and
+                         folded into the gates (noise commuting with the field: z, dep, depol, xyz); periodic chain only.
+                         Floquet (ρ, full Pauli basis, L ≤ 16): L real 256×256 gates per step, F never formed. FloquetTraj
+                         (ψ): L complex 16×16 gates per step with the random rotations e^{−iθσ^α}, θ ~ N(0, r_α γ dt), of
+                         the folded sites multiplied in: the trajectory average is F^N ρ(0) for any dt (no extra step error).
+                         step_at(dt, γ) = dt · min(1, 0.5/γ): the Trotter (= output) step of both binaries
 rust/src/liouville.rs    Lindbladian in the Pauli basis (translation orbits, or the full basis without translation),
                          propagator, dense export for ED, magnetization (site averages and per site)
 rust/src/tower.rs        Dicke states |Φ_n⟩ and Tr(Σ_n w_n |Φ_n⟩⟨Φ_n| P) for every Pauli string P
 rust/src/main.rs         exact evolution of ρ (default binary); --init minus-x | random (random Bloch vectors)
 rust/src/trajectory.rs   state-vector trajectories (diffusive and jump unravelling), single-flip helpers
-rust/src/noise.rs        single-site noise channels: σᶻ (default), σˣ, σʸ dephasing, depolarizing, decay, thermal
+rust/src/noise.rs        single-site noise channels: σᶻ (default), σˣ, σʸ dephasing, depolarizing (dep √(γ/2), depol √(γ/3),
+                         xyz √γ σ^α), decay, thermal
 rust/src/entanglement.rs eigenvalues without LAPACK (Householder + implicit QL), block entanglement of pure states,
                          operator entanglement of ρ from Pauli coordinates, purity / operator size / support
 rust/src/bin/trajectories.rs
@@ -313,6 +323,8 @@ rust/src/bin/probes.rs   plan probes P1 (scar), P2 (energy H̃), P3 (thermal, k 
 rust/src/bin/states.rs   scar |−⟩^⊗L, z-Néel or x-Néel ρ₀, random c, a list of γ; stops once the signal has decayed
 rust/src/bin/states_traj.rs  the same runs with state-vector trajectories (all trajectories advance together), for L > 14;
                          --unravel diffusive (default) | jump, --traj-seed (noise only, to split a run over jobs)
+rust/src/bin/floquet.rs  the `states` runs (same states, realization, columns, stop rule) with F^N in place of e^{𝓛t}
+rust/src/bin/floquet_traj.rs  the same with Floquet trajectories (one per thread; columns and stop rule of `states_traj`)
 rust/src/bin/single_flip.rs  one σᶻ_k kick on the scar state at phase φ_m, evolved with H only: damage D(τ)
 rust/src/bin/ed.rs       full ED of 𝓛 (dense, LAPACK from Intel MKL); linked by rust/build.rs
 rust/src/bin/entanglement.rs  γ = 0: all eigenstates of H (dense zheevd, MKL), half-chain entropy S against E
@@ -320,7 +332,8 @@ rust/src/bin/lindblad_entanglement.rs  γ ≥ 0: right eigenmatrices X of 𝓛 (
                          of ρ_L = XX†/Tr, ρ_R = X†X/Tr against E_L,R = Tr(ρ_L,R H)
 rust/src/bin/hamiltonian.rs  H (random c) as a list of Pauli strings, hamiltonian[_open]_L<L>.csv, for julia/clik.jl
 rust/tests/checks.rs     exact references 1 and 2, random product states, full basis vs orbits, random c at γ = 0,
-                         single-flip identities, jump unravelling (analytic start, free spins)
+                         single-flip identities, jump unravelling (analytic start, free spins); Floquet: γ = 0 scar exact
+                         for any dt, free spins exact, first-order convergence to the Taylor evolution
 julia/lindblad_tdvp.jl   ITensor: ρ as an MPS, two-site TDVP (old coefficients; `lindbladian(L, γ; terms)` takes any H)
 julia/clik.jl            CLIK (Lindbladian eigenvalues from time-evolved states; guide data/docs/CLIK_MPS/IMPLEMENTATION.md):
                          dense backend (exact propagator, L ≤ 6, plus full ED of 𝓛) and MPS backend (two-site TDVP)
@@ -357,6 +370,8 @@ cargo run --release --bin disorder -- [--lmin 4] [--lmax 8] [--gamma 0.01] [--th
 cargo run --release --bin probes -- [--lmin 4] [--lmax 8] [--gamma 0.01 | --gammas 0.002,0.01] [--dt 0.1] [--t-max T] [--tag name] [--seed 1]
 cargo run --release --bin states -- --state minus-x|neel|neel-x [--lmin 4] [--lmax 8] [--gammas 0,0.01,0.1] [--dt 0.1] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1]
       [--stop-te F] [--channel z|x|y|dep|decay|thermal] [--nbar 1] [--obs-dt Δ] [--op-ent-dt Δ]
+cargo run --release --bin floquet -- --state minus-x|neel|neel-x [--L 8 | --lmin/--lmax] [--gammas 0,0.01] [--dt 0.1] [--channel z|xyz|dep] [--noise depol] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--stop-te 0] [--seed 1]   # step = dt · min(1, 0.5/γ)
+cargo run --release --bin floquet_traj -- (same options) [--trajectories 112] [--traj-seed N]
 cargo run --release --bin states_traj -- --state minus-x|neel|neel-x [--L 16] [--gammas 0,0.01,0.1] [--trajectories 112] [--dt 0.1] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1] [--unravel diffusive|jump] [--traj-seed N]
       [--channel z|x|y|dep] [--ent-dt Δ] [--stop-te F]
 cargo run --release --bin single_flip -- [--L 12 | --lmin/--lmax] [--phases 16] [--sites all|0,3,6] [--t-max 25] [--dt 0.1] [--seed 1] [--ent-dt Δ] [--ent-max L/2]
@@ -414,6 +429,20 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
   - `--stop-te F` (states, states_traj): also stop at F × t₁. Lean runs (before 2026-11-15): t₁ = the first time the
     raw signal drops below 1/e, which misses later revivals above 1/e (scar under decay; z-Néel L = 8 at small γ).
     Since 2026-11-15: t₁ = start of the latest stretch below 1/e (reset when the signal comes back above it).
+- `floquet_<state>_L<L>_g<γ>_dt<dt>[_seed<N>].csv` (from `floquet`): the columns of `states_*.csv`. First runs
+  (2026-11-24) in `data/floquet/`: L = 8, the three states, γ = 0, 0.01, 0.1, dt = 0.1 and 0.05. Against the exact
+  runs: γ = 0 scar 1e-13; scar m_⊥ max deviation 4e-3 (dt 0.1), 2e-3 (0.05), Γ_e within 0.2 % (γ = 0.01), 1.7 % /
+  0.8 % (γ = 0.1); Néel signals 2 % / 0.6 – 1 % for t ≤ 1, while the late L = 8 finite-size fluctuations (≈ 0.2)
+  dephase (z-Néel γ = 0.01 Γ_e +14 % / +10 %: its 1/e crossing is in the revival regime). Laptop, 8 threads:
+  0.006 (L = 8), 0.034 (10), 0.59 (12), 2.6 (13) s per step; L = 12 one thread 3.2 s (≈ 16 GFMA/s per core); L = 12
+  peak 0.14 GB. A --dt other than the default keeps its value in the name; the step itself is dt · min(1, 0.5/γ).
+  xyz noise (jumps √γ σ^α, every Pauli factor decays at 4γ), L = 8, stop at 2 t_e, against `states --channel xyz`
+  (same directory): Γ_e of the scar +0.7, +1.8, +0.7, 0.0 % at γ = 0.01, 0.1, 1, 10 (dt 0.1), half of that at dt 0.05;
+  Néel states (exact output step 0.01) ≤ 0.6 % (z) and −2.5 % (x) at dt 0.1, ≤ 0.4 % at dt 0.02, ≤ 0.2 % at 0.01.
+  Run lengths to 2 t_e (L = 8, xyz): scar t = 16.6, 3.2, 0.5, 0.05 at γ = 0.01, 0.1, 1, 10; Néel ≈ 0.4 – 0.6 (0.05 at γ = 10).
+- `floquet_traj_<state>_L<L>_g<γ>_dt<dt><ch>[_seed<N>][_s<traj-seed>].csv` (from `floquet_traj`): the columns of
+  `states_traj_*.csv`. Laptop, one trajectory per thread (8 threads; L = 24: 4), xyz, per trajectory and step: 0.013 s
+  (L = 16), 0.19 (20), 0.99 (22), 2.7 (24), plus ≈ 25 % for the observables; memory 16 B · 2^L per trajectory.
 - `single_flip_L<L>.csv` (all sites) or `single_flip_L<L>_sites<k1-k2-…>.csv` (from `single_flip`): L, m, phi, k,
   tau, D, then per site re_c0 … re_c{L−1}, im_c0 …, z0 …; one row per (m, k, τ). c_j = (⟨σˣ_j⟩ + i⟨σʸ_j⟩) /
   (reference-1 value at t′ + τ), t′ = φ_m/h, φ_m = 2πm/N; D = Σ_j [1 − Re c_j], D(0) = 2.
@@ -552,7 +581,12 @@ Repo on Leonardo: `/leonardo/home/userexternal/wccuirom/repos/open_exact_scars` 
 scripts live in `data/bashes/`, which is untracked like all of `data/`, so they are copied by hand.
 
 **`data/bashes/` now holds only what the next runs need** (since 2026-10-24): `jobs_common.sh`, `small_gamma_common.sh`,
-`make_lean_jobs.sh`, `summarize_jobs.py` and `obelix/`. The generators of the finished batches below, the bench
+`make_lean_jobs.sh`, `summarize_jobs.py`, `obelix/` and (2026-11-24) `floquet/`: `make_bench_floquet.sh` (bench of
+`floquet` L = 12, 16 and `floquet_traj` L = 20, 24, 28 on one node, a few steps each) and `make_floquet_jobs.sh`
+(thermodynamic-limit scan, xyz noise: scar, x-Néel, z-Néel; ρ L = 8, 12, 16 at γ = 0, 0.01 … 10, dt 0.1 scar / 0.02
+Néel, dt/2 at L = 8, 12 and optionally 16; trajectories L = 16, 20, 24, 224 each, γ = 0 (Néel) and ≤ 0.05; stop at
+2 t_e, cap 5 t_e(L = 8); RHO16_S, TRAJ24_CORE_S from the bench). With the default estimates: submit_floquet.sh
+≈ 8.7 node-h expected (18 at the caps), submit_floquet_halfdt16.sh ≈ 13.7 (29). Neither submitted yet. The generators of the finished batches below, the bench
 scripts (`make_bench_jobs.sh`, `summarize_bench.py`, `bench_machine.sh`, `bench_summary.py`) are in
 `data/non_used_data/bashes_old/`, and the per-job Slurm scripts they generated (old `states_*`, `exact_*`, `traj_*`,
 `bench_L*`, `submit_*`) in `data/non_used_data/bashes_old/generated_jobs/`. To rerun one, copy it back next to
@@ -792,7 +826,7 @@ cd $REPO/data && tar czf states_traj.tar.gz states/states_traj_* states/states_r
 - Noise channels (`noise.rs`, `--channel`): jump operators √γ σᶻ (default), √γ σˣ, √γ σʸ, √(γ/2) σ^α (depolarizing,
   every Pauli factor decays at 2γ), √γ σ⁻ (decay, σ⁻ = |↓⟩⟨↑|), √(γ(n̄+1)) σ⁻ and √(γ n̄) σ⁺ (thermal). In the Pauli
   basis the adjoint dissipator is diagonal (per unit γ on σˣ, σʸ, σᶻ: z −2, −2, 0; x 0, −2, −2; y −2, 0, −2;
-  dep −2, −2, −2; decay −1/2, −1/2, −1; thermal −(2n̄+1)/2, −(2n̄+1)/2, −(2n̄+1)) plus, for decay and thermal, the
+  dep −2, −2, −2; xyz (√γ σ^α, 2026-11-24) −4, −4, −4; decay −1/2, −1/2, −1; thermal −(2n̄+1)/2, −(2n̄+1)/2, −(2n̄+1)) plus, for decay and thermal, the
   feed 𝓓†(σᶻ) ∋ −𝟙 (full basis only). Exact ρ: all channels (`Liouvillian::set_channel`); diffusive trajectories:
   x, y, z, dep (random rotations e^{−iθσ^α}, θ ~ N(0, rate γ dt)); jump unravelling: σᶻ only. The σᶻ random-number
   sequence is unchanged, so earlier runs reproduce.
@@ -800,7 +834,7 @@ cd $REPO/data && tar czf states_traj.tar.gz states/states_traj_* states/states_r
   NaN) and implicit QL (relative and absolute deflation tests: rank-1 ρ_A once never converged); Hermitian via the real
   2n embedding. Sequential inside parallel loops (nested rayon updates made it 20× slower), parallel for single large
   problems (`sym_eigenvalues`, `block_spectrum_par`). ≈ 5 GFLOP/s single-thread (n = 2048 in 3.4 s).
-- Tests (`cargo test --release`, 17 + 1 unit test): also channels with free spins against single-spin Lindblad
+- Tests (`cargo test --release`, 21 + 1 unit test; the doctest of `dmatrix.rs` fails: indented formula): also channels with free spins against single-spin Lindblad
   equations built from the jump operators in the test itself (1e-10; until 2026-11-15 the reference used the rate
   tables of noise.rs, so it could not catch a wrong rate; a wrong decay rate now fails with 0.17), diffusive σˣ and depolarizing against exact ρ (5σ), purity identity d ln Tr ρ²/dt = −4γ⟨n_xy⟩,
   eigenvalues against traces of powers (n ≤ 600), Dicke, GHZ and product-state block entropies (sequential and

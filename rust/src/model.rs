@@ -67,6 +67,24 @@ impl Params {
 
 /// H = Σ_a coef_a P_a with real coefficients; identical strings are merged, the identity is dropped.
 pub fn hamiltonian_terms(p: &Params) -> Vec<(Pauli, f64)> {
+    let mut terms: BTreeMap<Pauli, f64> = BTreeMap::new();
+    for j in 0..p.l {
+        for (string, coef) in bond_terms(p, j) {
+            *terms.entry(string).or_insert(0.0) += coef;
+        }
+    }
+    for j in 0..p.l {
+        *terms.entry(Pauli::single(2, j)).or_insert(0.0) += p.h / 2.0;
+    }
+    terms.remove(&Pauli::IDENTITY);
+    terms.into_iter().filter(|&(_, coef)| coef != 0.0).collect()
+}
+
+/// The term of H_I on bond (j, j+1) (sites j − 1 … j + 2), Σ_α (a_α R σ^α_{j+2} + b_α σ^α_{j−1} R) + Σ c σ R σ,
+/// as Pauli strings, not merged: on a ring of L ≥ 4 the strings of one bond are all different. It annihilates
+/// the tower on its own. Empty if the bond does not exist (open chain); a dressing whose site does not exist is
+/// dropped. H_I is the sum over j = 0 … L − 1.
+pub fn bond_terms(p: &Params, j: usize) -> Vec<(Pauli, f64)> {
     let l = p.l as isize;
     assert!(p.l <= 32);
     assert!(!p.periodic || p.l >= 4, "periodic boundaries need L >= 4");
@@ -78,41 +96,36 @@ pub fn hamiltonian_terms(p: &Params) -> Vec<(Pauli, f64)> {
         }
     };
 
-    let mut terms: BTreeMap<Pauli, f64> = BTreeMap::new();
-    for j in 0..l {
-        let (Some(s1), Some(s2)) = (site(j), site(j + 1)) else { continue };
-        // coef · R_{s1,s2} · dressing = (coef / 4) (dressing − Σ_δ σ^δ_{s1} σ^δ_{s2} dressing)
-        let mut add_dressed = |coef: f64, dressing: Pauli| {
-            if coef == 0.0 {
-                return;
-            }
-            *terms.entry(dressing).or_insert(0.0) += coef / 4.0;
-            for delta in 0..3 {
-                let bond = Pauli::single(delta, s1).times_disjoint(Pauli::single(delta, s2));
-                *terms.entry(bond.times_disjoint(dressing)).or_insert(0.0) -= coef / 4.0;
-            }
-        };
-        let (left, right) = (site(j - 1), site(j + 2));
-        let c = p.c_bond.as_ref().map_or(&p.c, |c_bond| &c_bond[j as usize]);
-        for alpha in 0..3 {
-            if let Some(r) = right {
-                add_dressed(p.a[alpha], Pauli::single(alpha, r));
-            }
-            if let Some(lf) = left {
-                add_dressed(p.b[alpha], Pauli::single(alpha, lf));
-            }
-            if let (Some(lf), Some(r)) = (left, right) {
-                for beta in 0..3 {
-                    add_dressed(c[alpha][beta], Pauli::single(beta, lf).times_disjoint(Pauli::single(alpha, r)));
-                }
+    let j = j as isize;
+    let mut terms = Vec::new();
+    let (Some(s1), Some(s2)) = (site(j), site(j + 1)) else { return terms };
+    // coef · R_{s1,s2} · dressing = (coef / 4) (dressing − Σ_δ σ^δ_{s1} σ^δ_{s2} dressing)
+    let mut add_dressed = |coef: f64, dressing: Pauli| {
+        if coef == 0.0 {
+            return;
+        }
+        terms.push((dressing, coef / 4.0));
+        for delta in 0..3 {
+            let bond = Pauli::single(delta, s1).times_disjoint(Pauli::single(delta, s2));
+            terms.push((bond.times_disjoint(dressing), -(coef / 4.0)));
+        }
+    };
+    let (left, right) = (site(j - 1), site(j + 2));
+    let c = p.c_bond.as_ref().map_or(&p.c, |c_bond| &c_bond[j as usize]);
+    for alpha in 0..3 {
+        if let Some(r) = right {
+            add_dressed(p.a[alpha], Pauli::single(alpha, r));
+        }
+        if let Some(lf) = left {
+            add_dressed(p.b[alpha], Pauli::single(alpha, lf));
+        }
+        if let (Some(lf), Some(r)) = (left, right) {
+            for beta in 0..3 {
+                add_dressed(c[alpha][beta], Pauli::single(beta, lf).times_disjoint(Pauli::single(alpha, r)));
             }
         }
     }
-    for j in 0..p.l {
-        *terms.entry(Pauli::single(2, j)).or_insert(0.0) += p.h / 2.0;
-    }
-    terms.remove(&Pauli::IDENTITY);
-    terms.into_iter().filter(|&(_, coef)| coef != 0.0).collect()
+    terms
 }
 
 /// `_seed<N>` for a realization seed other than 1, empty for seed 1 (the files of the first realization keep their

@@ -458,7 +458,7 @@ fn channels_with_free_spins() {
     let mut rng = Rng::new(51);
     let n: Vec<[f64; 3]> = (0..p.l).map(|_| random_direction(&mut rng)).collect();
     let gamma = 0.2;
-    for channel in [Channel::X, Channel::Y, Channel::Depolarizing, Channel::Depol, Channel::Decay, Channel::Thermal { nbar: 0.5 }] {
+    for channel in [Channel::X, Channel::Y, Channel::Depolarizing, Channel::Depol, Channel::Xyz, Channel::Decay, Channel::Thermal { nbar: 0.5 }] {
         let mut liou = Liouvillian::with_sector(&p, Sector::full(p.l));
         liou.set_channel(channel);
         let magnetization = Magnetization::new(&liou);
@@ -471,6 +471,7 @@ fn channels_with_free_spins() {
             Channel::Y => vec![scale(&PAULI[1], gamma.sqrt())],
             Channel::Depolarizing => PAULI.iter().map(|s| scale(s, (gamma / 2.0).sqrt())).collect(),
             Channel::Depol => PAULI.iter().map(|s| scale(s, (gamma / 3.0).sqrt())).collect(),
+            Channel::Xyz => PAULI.iter().map(|s| scale(s, gamma.sqrt())).collect(),
             Channel::Decay => vec![scale(&LOWER, gamma.sqrt())],
             Channel::Thermal { nbar } => {
                 vec![scale(&LOWER, (gamma * (nbar + 1.0)).sqrt()), scale(&dagger(&LOWER), (gamma * nbar).sqrt())]
@@ -553,5 +554,145 @@ fn diffusive_channels_match_exact() {
                 assert!((mean - exact[a]).abs() < 5.0 * err + 2e-3, "{channel:?}, axis {a}: {mean} vs {} (σ = {err:.1e})", exact[a]);
             }
         }
+    }
+}
+
+/// Floquet (Trotter) step at γ = 0 from the scar state: every 4-site gate leaves the tower unchanged and the field
+/// acts exactly, so reference 1 holds to round-off for any dt (L = 8: 4 layers; L = 6: 6 layers), for ρ and for the
+/// state vector.
+#[test]
+fn floquet_scar_oscillations_are_exact() {
+    use open_exact_scars::floquet::{layer_count, per_site, product_state, Floquet, FloquetTraj};
+    use open_exact_scars::trajectory::{per_site_expectations, product_amplitudes};
+    assert_eq!([4, 6, 8, 10, 12, 14, 16, 20, 24].map(layer_count), [4, 6, 4, 5, 4, 5, 4, 4, 4]);
+    for l in [6, 8] {
+        let p = Params::random_c(l, &mut Rng::new(1000 + l as u64));
+        let dt = 0.3;
+        let f = Floquet::new(&p, &Channel::Z, 0.0, dt);
+        let ft = FloquetTraj::new(&p, &Channel::Xyz, 0.0, dt);
+        let mut r = product_state(&vec![[-1.0, 0.0, 0.0]; l]);
+        let mut psi = product_amplitudes(&vec![[-1.0, 0.0, 0.0]; l]);
+        let mut rng = Rng::new(1);
+        let mut worst = 0.0f64;
+        for step in 1..=100 {
+            f.step(&mut r);
+            ft.step(&mut psi, &mut rng);
+            let (sin, cos) = (p.h * step as f64 * dt).sin_cos();
+            for [x, y, z] in [per_site(&r, l), per_site_expectations(&psi, l)] {
+                for j in 0..l {
+                    worst = worst.max((x[j] + cos).abs()).max((y[j] + sin).abs()).max(z[j].abs());
+                }
+            }
+        }
+        assert!(worst < 1e-12, "L = {l}: deviation {worst:e}");
+    }
+}
+
+/// Floquet step with H_I = 0: only the exact single-site factor acts, so for any dt the transverse magnetization
+/// decays as e^(−2γt) (σᶻ) or e^(−4γt) (xyz, jumps √γ σ^α), and m_z as 1 or e^(−4γt).
+#[test]
+fn floquet_free_spins_are_exact() {
+    use open_exact_scars::floquet::{per_site, product_state, Floquet};
+    let p = Params::free_spins(8);
+    let (gamma, dt) = (0.1, 0.3);
+    let n0 = [-0.6, 0.0, 0.8];
+    for (channel, rate_xy, rate_z) in [(Channel::Z, 2.0, 0.0), (Channel::Xyz, 4.0, 4.0)] {
+        let f = Floquet::new(&p, &channel, gamma, dt);
+        let mut r = product_state(&vec![n0; p.l]);
+        let mut worst = 0.0f64;
+        for step in 1..=50 {
+            f.step(&mut r);
+            let t = step as f64 * dt;
+            let (sin, cos) = (p.h * t).sin_cos();
+            let (dxy, dz) = ((-rate_xy * gamma * t).exp(), (-rate_z * gamma * t).exp());
+            let [x, y, z] = per_site(&r, p.l);
+            for j in 0..p.l {
+                worst = worst
+                    .max((x[j] - n0[0] * cos * dxy).abs())
+                    .max((y[j] - n0[0] * sin * dxy).abs())
+                    .max((z[j] - n0[2] * dz).abs());
+            }
+        }
+        assert!(worst < 1e-13, "{channel:?}: deviation {worst:e}");
+    }
+}
+
+/// The Floquet evolution converges to the exact one (Taylor series of e^{𝓛t}) at first order in dt: random c, a
+/// random product state, γ = 0.1, t = 1, σᶻ and xyz noise; error over all 4^L Pauli coordinates.
+#[test]
+fn floquet_converges_at_first_order() {
+    use open_exact_scars::floquet::{product_state, Floquet};
+    for l in [6, 8] {
+        let p = Params::random_c(l, &mut Rng::new(1000 + l as u64));
+        let mut rng = Rng::new(11);
+        let bloch: Vec<[f64; 3]> = (0..l).map(|_| random_direction(&mut rng)).collect();
+        let gamma = 0.1;
+        for channel in [Channel::Z, Channel::Xyz] {
+            let mut liou = Liouvillian::with_sector(&p, Sector::full(l));
+            liou.set_channel(channel);
+            let mut exact = liou.product_state(&bloch);
+            let mut prop = Propagator::new(&liou, gamma, 0.1);
+            for _ in 0..10 {
+                prop.step(&mut exact);
+            }
+            let error = |dt: f64| {
+                let f = Floquet::new(&p, &channel, gamma, dt);
+                let mut r = product_state(&bloch);
+                for _ in 0..(1.0 / dt).round() as usize {
+                    f.step(&mut r);
+                }
+                r.iter().zip(&exact).map(|(a, b)| (a - b).abs()).fold(0.0, f64::max)
+            };
+            let (e1, e2) = (error(0.02), error(0.01));
+            assert!(e2 < 1e-2 && (0.45..0.55).contains(&(e2 / e1)), "L = {l}, {channel:?}: errors {e1:e}, {e2:e}");
+        }
+    }
+}
+
+/// Floquet trajectories average to the Floquet ρ of the same dt (no time-step error between them): L = 6 (6 layers)
+/// and 8, random product state, γ = 0.2, dt = 0.25, xyz and σᶻ noise, 2000 trajectories, t ≤ 2.5; per-site ⟨σ^α_j⟩
+/// against ρ in units of the standard error.
+#[test]
+fn floquet_trajectories_match_floquet_rho() {
+    use open_exact_scars::floquet::{per_site, product_state, Floquet, FloquetTraj};
+    use open_exact_scars::trajectory::{per_site_expectations, product_amplitudes};
+    for (l, channel) in [(6, Channel::Xyz), (8, Channel::Z)] {
+        let p = Params::random_c(l, &mut Rng::new(1000 + l as u64));
+        let mut rng = Rng::new(12);
+        let bloch: Vec<[f64; 3]> = (0..l).map(|_| random_direction(&mut rng)).collect();
+        let (gamma, dt, n) = (0.2, 0.25, 2000);
+        let f = Floquet::new(&p, &channel, gamma, dt);
+        let ft = FloquetTraj::new(&p, &channel, gamma, dt);
+        let mut r = product_state(&bloch);
+        let mut trajs: Vec<_> = (0..n).map(|k| (product_amplitudes(&bloch), Rng::new(500 + k as u64))).collect();
+        let (mut sq, mut worst, mut count) = (0.0, 0.0f64, 0);
+        for _ in 0..10 {
+            f.step(&mut r);
+            let exact = per_site(&r, l);
+            let mut sum = [vec![0.0; l], vec![0.0; l], vec![0.0; l]];
+            let mut sum2 = [vec![0.0; l], vec![0.0; l], vec![0.0; l]];
+            for (psi, rng) in trajs.iter_mut() {
+                ft.step(psi, rng);
+                let m = per_site_expectations(psi, l);
+                for a in 0..3 {
+                    for j in 0..l {
+                        sum[a][j] += m[a][j];
+                        sum2[a][j] += m[a][j] * m[a][j];
+                    }
+                }
+            }
+            for a in 0..3 {
+                for j in 0..l {
+                    let mean = sum[a][j] / n as f64;
+                    let se = ((sum2[a][j] / n as f64 - mean * mean) / (n - 1) as f64).sqrt();
+                    let z = (mean - exact[a][j]) / se;
+                    sq += z * z;
+                    worst = worst.max(z.abs());
+                    count += 1;
+                }
+            }
+        }
+        let rms = (sq / count as f64).sqrt();
+        assert!((0.7..1.3).contains(&rms) && worst < 5.0, "L = {l}, {channel:?}: rms {rms:.2}, max {worst:.2} standard errors");
     }
 }

@@ -6,6 +6,7 @@
 //! - [`initial`]: coherent and bulk-product initial states, Pauli coordinates of a pure state, a(t).
 //! - [`dmatrix`]: exact evolution of ρ as a dense 2^L × 2^L matrix (Hermitian Pauli channels; `state_hist`).
 //! - [`entanglement`]: eigenvalues without LAPACK, block and operator entanglement, operator size and support.
+//! - [`floquet`]: Trotterized evolution of ρ: 4-site gates in layers, then the exact single-site dephasing step.
 //! - [`pauli`]: Pauli strings as bit masks, products with exact phases.
 //! - [`model`]: parameters and the Hamiltonian as a real combination of Pauli strings.
 //! - [`liouville`]: the Lindbladian in the Pauli basis (translation orbits or full), propagation, observables.
@@ -16,6 +17,7 @@
 pub mod cli;
 pub mod dmatrix;
 pub mod entanglement;
+pub mod floquet;
 pub mod initial;
 pub mod liouville;
 pub mod model;

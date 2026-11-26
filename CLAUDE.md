@@ -292,7 +292,13 @@ Open:
 - Do only the computation that is asked for, simplest case first (γ = 0 as a check, then one parameter at a time). No extra observables, spectra or analyses unless requested.
 - The standard measurement is ⟨σˣ⟩, ⟨σʸ⟩, ⟨σᶻ⟩ (site averages) against time from |−⟩^⊗L, at a fixed small γ, comparing sizes L.
 - Rust computes and writes CSV to `data/`; Python in `plot_scripts/` reads the CSV and writes figures to `data/`. `data/` is not tracked by git; everything else is.
-- Plot scripts need numpy, pandas, matplotlib (on the WSL laptop: `~/anaconda3/bin/python`; the system `python3` has no numpy).
+- Plot scripts need numpy, pandas, matplotlib (on the WSL laptop: `~/anaconda3/bin/python`; the system `python3` has no numpy;
+  Windows: `python`, 3.13 with numpy, pandas, matplotlib).
+- Two checkouts on the laptop: Windows `C:\Users\wey09\Documents\repos\open_exact_scars` (work here: code, job scripts,
+  new data and outputs) and WSL `~/repos/open_exact_scars` (`\\wsl.localhost\Ubuntu\home\wccuirom\repos\open_exact_scars`),
+  which holds the original `data/` (used_data, non_used_data, earlier runs). Use WSL only where needed: to read data
+  that exists only there, or to run something that needs Linux. The Windows `data/` (since 2026-11-26) has only
+  `bashes/` (jobs_common.sh, floquet/) and `floquet_dep/`.
 
 ## Layout and commands
 
@@ -621,7 +627,11 @@ the Floquet circuit; analysis `plot_scripts/floquet_dep_rates.py`): ρ L = 8, 12
 stop at 2 t₁, cap 3.5 t_e; output `$REPO/data/floquet_dep`. Default cost model (not benchmarked): submit_floquet_dep.sh
 ≈ 8.3 node-h expected (12.9 at the caps; ρ L = 16 6.4, trajectories L = 24 1.6), submit_floquet_dep_halfdt16.sh
 ≈ 12.3 (19.3); without ρ L = 16 and with trajectories for γ ≤ 2 ≈ 3.0 (4.7). Laptop runs of the same plan
-(2026-11-26, stopped): L = 8 complete and the L = 16 scar trajectories in WSL `data/floquet_dep/`. Not submitted. The generators of the finished batches below, the bench
+(2026-11-26, stopped): ρ L = 8 complete (dt and dt/2) and L = 16 trajectories (scar every γ ≤ 0.1, x-Néel
+γ ≤ 0.05), in the Windows `data/floquet_dep/` (first made in WSL; the copies there are the same). The generator,
+`jobs_common.sh` and the generated scripts are in the Windows `data/bashes/` (Git Bash reproduces the WSL output byte
+for byte); `floquet_dep_rates.py` runs on Windows and takes the exact references from the WSL `used_data/` (second
+argument, default WSL_USED when the checkout has no used_data). Not submitted. The generators of the finished batches below, the bench
 scripts (`make_bench_jobs.sh`, `summarize_bench.py`, `bench_machine.sh`, `bench_summary.py`) are in
 `data/non_used_data/bashes_old/`, and the per-job Slurm scripts they generated (old `states_*`, `exact_*`, `traj_*`,
 `bench_L*`, `submit_*`) in `data/non_used_data/bashes_old/generated_jobs/`. To rerun one, copy it back next to

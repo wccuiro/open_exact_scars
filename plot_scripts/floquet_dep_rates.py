@@ -2,7 +2,11 @@
 Thermodynamic decay rates under depolarizing noise from the Floquet circuit: the depolarizing panel of
 channels_thermodynamic_rate.png (fit_channels.py, notes Fig. `fig:chinf`) with F^N in place of e^{𝓛t}.
 
-    python plot_scripts/floquet_dep_rates.py [data_dir]          default: data/ of the repo
+    python plot_scripts/floquet_dep_rates.py [data_dir [used_dir]]
+
+data_dir (default: data/ of the repo) holds floquet_dep/; used_dir (default: <data_dir>/used_data, or, where that
+does not exist, the used_data/ of the WSL repo, WSL_USED) holds the exact references. The Windows checkout has no
+used_data/: the exact runs stay in the WSL repo.
 
 Runs (<data>/floquet_dep/; Leonardo jobs from data/bashes/floquet/make_floquet_dep_jobs.sh): channel dep (jumps
 √(γ/2) σ^α, every Pauli factor decays at 2γ, as the exact dep runs), γ = 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10,
@@ -46,7 +50,12 @@ from fit_states import crossing
 from states_data import SIGNALS, read
 
 DATA = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "data"
-RUNS, USED = DATA / "floquet_dep", DATA / "used_data"
+WSL_USED = Path(r"\\wsl.localhost\Ubuntu\home\wccuirom\repos\open_exact_scars\data\used_data")
+RUNS = DATA / "floquet_dep"
+if len(sys.argv) > 2:
+    USED = Path(sys.argv[2])
+else:
+    USED = DATA / "used_data" if (DATA / "used_data").is_dir() or not WSL_USED.is_dir() else WSL_USED
 NAME = re.compile(r"floquet_(traj_)?(minus-x|neel-x|neel)_L(\d+)_g([0-9.]+?)_dt([0-9.]+)_chdep\.csv$")
 LIN_MIN, MIN_SIZES = 8, 3
 SHORT = {"minus-x": "scar, $m_\\perp$", "neel-x": "x-Néel, $s_\\perp$", "neel": "z-Néel, $|s_z|$"}

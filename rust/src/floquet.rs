@@ -1,37 +1,43 @@
-//! Trotterized (Floquet) evolution: one step is
+//! Trotterized (Floquet) evolution: the circuit of floquet-circuit.md (notes, Sec. "Floquet circuit"). One step is
 //!
 //! ```text
-//! F = e^{𝓗_1 dt} e^{𝓗_2 dt} ⋯ e^{𝓗_n dt} e^{(𝓩 + 𝓓) dt},      ρ(N dt) = F^N ρ(0),
+//! F = 𝓔 ∘ 𝓑 ∘ 𝓤_1 ∘ 𝓤_2 ∘ ⋯ ∘ 𝓤_d,      𝓤_ℓ(ρ) = U_ℓ ρ U_ℓ†,  𝓑(ρ) = U_B ρ U_B†,      ρ(N dt) = F^N ρ(0),
 //! ```
 //!
-//! 𝓗_ℓ = −i[H_ℓ, ·], 𝓩 = −i[h Sᶻ_tot, ·], 𝓓 the single-site noise; the rightmost factor acts first.
+//! the rightmost factor acts first: U_d, U_{d−1}, …, U_1, then the field U_B = e^{−i h dt Sᶻ_tot} on every site, then
+//! the noise 𝓔 = e^{𝓓 dt} on every site.
 //!
-//! - Blocks: H_I = Σ_k h_k, h_k the term of bond (k+1, k+2) (`model::bond_terms`), on sites k … k+3 (mod L). Each
-//!   h_k annihilates the tower on its own.
-//! - Layers: H_ℓ = Σ_{k ≡ ℓ−1 (mod n)} h_k. The blocks of one layer are disjoint, so e^{𝓗_ℓ dt} is exact: conjugation
-//!   by Π_k e^{−i h_k dt}. n = 4 when 4 divides L; otherwise no 4 layers of disjoint blocks exist on the ring, and n
-//!   is the smallest number for which the blocks k ≡ ℓ−1 (mod n) are disjoint (L = 6: 6, 10: 5, 14: 5). The Trotter
-//!   error depends on the layering, so a size scan should use L divisible by 4 only (the same F at every L).
-//! - Noise: a Hermitian Pauli channel with equal σˣ and σʸ rates (σᶻ dephasing, dep, depol, xyz; noise.rs). Then 𝓓
-//!   commutes with 𝓩 (it is covariant under rotations about z), both act site by site, and e^{(𝓩 + 𝓓)dt} is exact:
-//!   on each site a rotation by h dt about z and the damping e^{d_α γ dt} of the factor σ^α (d_α from
-//!   `Channel::site_diag`).
-//! - Only the splitting is approximate: error O(dt²) per step from the commutators of the layers with each other and
-//!   with 𝓓. At γ = 0 the scar state stays exact for any dt (every gate leaves the tower unchanged).
+//! - Blocks: H_I = Σ_k h_k, h_k the term of bond (k+1, k+2) (`model::bond_terms`: RA, AR and ARA of that bond), on
+//!   sites k … k+3 (mod L). Each h_k annihilates the tower on its own.
+//! - Layers: d = the smallest divisor of L that is at least 4 (4 if 4 | L; L = 6: 6, 10: 5, 14: 7, 18: 6; L prime:
+//!   d = L). Layer ℓ = 1 … d holds the blocks starting at k ≡ ℓ − 1 (mod d): L/d disjoint blocks, d − 4 idle sites
+//!   after each. Every layer is the previous one shifted by one site; every bond is the middle bond of exactly one
+//!   block per step. U_ℓ = Π_{k ∈ ℓ} e^{−i h_k dt} is exact (the blocks of a layer are disjoint).
+//! - Field: one uniform layer after U_1, U_B = Π_s e^{−i (h/2) dt σᶻ_s}. It maps the tower onto itself and every
+//!   e^{−i h_k dt} is the identity on the tower, so at γ = 0 the scar state evolves exactly (reference 1) for any dt.
+//! - Noise: one layer after the field, 𝓔 = ⊗_s e^{𝓓_s dt}, any Hermitian Pauli channel (noise.rs: σᶻ, σˣ, σʸ, dep,
+//!   depol, xyz; diagonal in the Pauli basis, d_α from `Channel::site_diag`).
+//! - Error: first order, O(dt²) per step, from the commutators of the layers with each other, with the field and with
+//!   𝓓 (outside the tower, and for the tower once the noise has moved weight out of it).
 //!
-//! The single-site factor of site s is folded into the first gate applied that contains s (layer n first, then
-//! n − 1, …); it commutes with every gate applied before. One step is then L gates, with the unitary part
-//! w_k = e^{−i h_k dt} e^{−i (h/2) dt Σ_{s∈S_k} σᶻ_s} (S_k the sites folded into block k).
+//! Implementation: the field and the noise of site s are folded into the last gate applied that contains s (layer 1
+//! first, then 2, …), applied after its interaction: they commute with every gate applied later (none touches s), so
+//! the product is F exactly. One step is L gates, with the unitary part w_k = e^{−i (h/2) dt Σ_{s∈S_k} σᶻ_s} e^{−i h_k dt}
+//! (S_k the sites folded into block k).
 //!
 //! - ρ (`Floquet`), full Pauli basis (r_P = Tr ρP, index x | z << L as `Sector::full`): gate k is the real 256 × 256
-//!   matrix G_k[P', P] = Tr(P' w_k P w_k†)/16 · Π_{s∈S_k} e^{d(P_s) γ dt} on the Pauli labels of sites k … k+3. F itself
+//!   matrix G_k[P', P] = Π_{s∈S_k} e^{d(P'_s) γ dt} · Tr(P' w_k P w_k†)/16 on the Pauli labels of sites k … k+3. F itself
 //!   is never formed (dense, 4^L × 4^L). Cost per step: L · 256 · 4^L multiply-adds; memory 8 B · 4^L (L = 16: 34 GB).
-//! - Trajectories (`FloquetTraj`), state vector ψ: gate k is the 16 × 16 unitary w_k · Π_{s∈S_k} κ_s with κ_s a random
+//! - Trajectories (`FloquetTraj`), state vector ψ: gate k is the 16 × 16 unitary Π_{s∈S_k} κ_s · w_k with κ_s a random
 //!   rotation e^{−iθ_x σˣ_s} e^{−iθ_y σʸ_s} e^{−iθ_z σᶻ_s}, θ_α ~ N(0, r_α γ dt) (r_α the rate of the jump √(r_α γ) σ^α).
 //!   Averaged, e^{−iθσ^α} ρ e^{iθσ^α} damps the two Pauli factors that anticommute with σ^α by E[cos 2θ] = e^{−2 r_α γ dt},
 //!   which is e^{𝓓 dt} of that jump exactly; the three averaged maps are diagonal in the Pauli basis and commute. So
 //!   the trajectory average is F^N ρ(0) for any dt, up to statistical error only. Cost per step and trajectory:
 //!   L · 16 complex multiply-adds per amplitude (64 L 2^L real), memory 16 B · 2^L.
+//!
+//! Before 2026-11-25 (commit f223cc3, "old protocol", data in data/non_used_data/floquet_old_protocol/): n = the
+//! smallest disjoint spacing (L = 14: 5 layers, not a shift pattern), field and noise first, folded into the first gate
+//! of every site. Both protocols keep the γ = 0 scar exact; they differ at O(dt) elsewhere.
 
 use rayon::prelude::*;
 
@@ -52,43 +58,52 @@ pub fn step_at(dt: f64, gamma: f64) -> f64 {
     dt * (0.5 / gamma).min(1.0)
 }
 
-/// Number of layers: 4 if 4 divides L, otherwise the smallest n for which the blocks k ≡ ℓ (mod n) are disjoint.
+/// Number of layers d: the smallest divisor of L that is at least 4.
 pub fn layer_count(l: usize) -> usize {
-    let dist = |a: usize, b: usize| (a + l - b) % l;
-    (4..=l)
-        .find(|&n| (0..l).all(|k| (k + 1..l).filter(|&k2| k2 % n == k % n).all(|k2| dist(k2, k).min(dist(k, k2)) >= 4)))
-        .unwrap()
+    assert!(l >= 4, "floquet: L ≥ 4");
+    (4..=l).find(|&d| l % d == 0).unwrap()
 }
 
-/// One block of the schedule: sites k … k+3, which of them carry the single-site factor, and w = e^{−i h_k dt} ·
-/// e^{−i (h/2) dt Σ_{folded} σᶻ} on the local qubits (qubit q = sites[q]).
+/// Block starts of layer ℓ = 1 … d (0-based sites): k ≡ ℓ − 1 (mod d).
+pub fn layer_starts(l: usize, layer: usize) -> Vec<usize> {
+    let d = layer_count(l);
+    assert!((1..=d).contains(&layer));
+    (layer - 1..l).step_by(d).collect()
+}
+
+/// One block of the schedule: sites k … k+3, which of them carry the field and the noise of the step (applied after
+/// the interaction), and w = e^{−i (h/2) dt Σ_{folded} σᶻ} e^{−i h_k dt} on the local qubits (qubit q = sites[q]).
 struct Block {
     sites: [usize; 4],
     fold: [bool; 4],
     w: M16,
 }
 
-/// The blocks in the order of application (layer n first) and the number of layers.
+/// The blocks in the order of application (layer d first, layer 1 last) and the number of layers d.
 fn schedule(params: &Params, dt: f64) -> (usize, Vec<Block>) {
     let l = params.l;
     assert!(params.periodic, "floquet: periodic chain only");
     let layers = layer_count(l);
-    let order: Vec<usize> = (0..layers).rev().flat_map(|r| (0..l).filter(move |k| k % layers == r)).collect();
+    let order: Vec<usize> = (1..=layers).rev().flat_map(|layer| layer_starts(l, layer)).collect();
+    // field and noise last: those of site s go into the last gate applied that contains s
     let mut folded = vec![false; l];
+    let mut fold = vec![[false; 4]; order.len()];
+    for (i, &k) in order.iter().enumerate().rev() {
+        fold[i] = std::array::from_fn(|q| !std::mem::replace(&mut folded[(k + q) % l], true));
+    }
+    assert!(folded.iter().all(|&f| f));
     let blocks = order
-        .into_iter()
-        .map(|k| {
+        .iter()
+        .zip(fold)
+        .map(|(&k, fold)| {
             let sites: [usize; 4] = std::array::from_fn(|q| (k + q) % l);
-            let fold: [bool; 4] = std::array::from_fn(|q| !std::mem::replace(&mut folded[sites[q]], true));
-            let w = block_unitary(params, k, sites, fold, dt);
-            Block { sites, fold, w }
+            Block { sites, fold, w: block_unitary(params, k, sites, fold, dt) }
         })
         .collect();
-    assert!(folded.iter().all(|&f| f));
     (layers, blocks)
 }
 
-/// w = e^{−i h_k dt} · e^{−i (h/2) dt Σ_{q folded} σᶻ_q} on the 4 local qubits.
+/// w = e^{−i (h/2) dt Σ_{q folded} σᶻ_q} · e^{−i h_k dt} on the 4 local qubits (the field after the interaction).
 fn block_unitary(params: &Params, k: usize, sites: [usize; 4], fold: [bool; 4], dt: f64) -> M16 {
     let l = params.l;
     let mut h = [[[0.0; 2]; 16]; 16];
@@ -110,22 +125,22 @@ fn block_unitary(params: &Params, k: usize, sites: [usize; 4], fold: [bool; 4], 
     }
     let a: M16 = h.map(|row| row.map(|z| [z[1] * dt, -z[0] * dt])); // −i h dt
     let mut w = expm16(&a);
-    for b in 0..16 {
+    // left multiplication by the diagonal field rotation: row b (output basis state) gets its phase
+    for (b, row) in w.iter_mut().enumerate() {
         let field: f64 = (0..4).filter(|&q| fold[q]).map(|q| if (b >> q) & 1 == 0 { 1.0 } else { -1.0 }).sum();
         let (sin, cos) = (-params.h / 2.0 * dt * field).sin_cos();
-        for row in w.iter_mut() {
-            row[b] = cmul(row[b], [cos, sin]);
+        for z in row.iter_mut() {
+            *z = cmul(*z, [cos, sin]);
         }
     }
     w
 }
 
-/// The noise channels the splitting is written for: Hermitian Pauli channels with equal σˣ and σʸ rates.
+/// The noise channels the splitting is written for: Hermitian Pauli channels (diagonal in the Pauli basis, no feed).
 fn check_channel(channel: &Channel) {
-    let d = channel.site_diag();
     assert!(
-        channel.hermitian_jumps().is_some() && channel.feed() == 0.0 && d[0] == d[1],
-        "floquet: the noise must commute with the field (σᶻ, dep, depol or xyz), got {channel:?}"
+        channel.hermitian_jumps().is_some() && channel.feed() == 0.0,
+        "floquet: the noise must be a Hermitian Pauli channel (σᶻ, σˣ, σʸ, dep, depol or xyz), got {channel:?}"
     );
 }
 
@@ -193,9 +208,23 @@ impl Floquet {
     }
 }
 
-/// G[P'][P] = Re Tr(P' w P w†) / 16 · damping(P), damping = Π over the folded qubits of e^{d_α γ dt} for the factor
-/// σ^α of P there.
+/// G[P'][P] = damping(P') · Re Tr(P' w P w†) / 16, damping = Π over the noisy qubits of e^{d_α γ dt} for the factor
+/// σ^α of P' there (noise after the unitary w, which already contains the field).
 fn pauli_gate(w: &M16, fold: [bool; 4], d: [f64; 3], gamma: f64, dt: f64) -> Vec<f64> {
+    let damping: Vec<f64> = (0..256u32)
+        .map(|label| {
+            let rate: f64 = (0..4)
+                .filter(|&q| fold[q])
+                .map(|q| match ((label >> q) & 1, (label >> (4 + q)) & 1) {
+                    (0, 0) => 0.0,
+                    (1, 0) => d[0],
+                    (1, 1) => d[1],
+                    _ => d[2],
+                })
+                .sum();
+            (rate * gamma * dt).exp()
+        })
+        .collect();
     let mut g = vec![0.0; 256 * 256];
     for label in 0..256u32 {
         let p = Pauli { x: label & 15, z: label >> 4 };
@@ -210,16 +239,6 @@ fn pauli_gate(w: &M16, fold: [bool; 4], d: [f64; 3], gamma: f64, dt: f64) -> Vec
             }
         }
         let m = matmul16(w, &pw);
-        let rate: f64 = (0..4)
-            .filter(|&q| fold[q])
-            .map(|q| match ((p.x >> q) & 1, (p.z >> q) & 1) {
-                (0, 0) => 0.0,
-                (1, 0) => d[0],
-                (1, 1) => d[1],
-                _ => d[2],
-            })
-            .sum();
-        let damping = (rate * gamma * dt).exp();
         for label2 in 0..256u32 {
             let p2 = Pauli { x: label2 & 15, z: label2 >> 4 };
             // Tr(P' M) = Σ_u i^{k'(u)} M[u][u ⊕ x']
@@ -231,7 +250,7 @@ fn pauli_gate(w: &M16, fold: [bool; 4], d: [f64; 3], gamma: f64, dt: f64) -> Vec
                 tr[1] += z[1];
             }
             assert!(tr[1].abs() < 1e-10, "Tr(P' w P w†) not real: {}", tr[1]);
-            g[label2 as usize * 256 + label as usize] = tr[0] / 16.0 * damping;
+            g[label2 as usize * 256 + label as usize] = tr[0] / 16.0 * damping[label2 as usize];
         }
     }
     g
@@ -320,7 +339,7 @@ pub fn per_site(r: &[f64], l: usize) -> [Vec<f64>; 3] {
 
 /// One 4-site gate on ψ.
 struct PsiGate {
-    fold: [bool; 4],
+    noise: [bool; 4],
     w: M16,
     offsets: [usize; 16],
     free: Vec<u32>,
@@ -344,7 +363,7 @@ impl FloquetTraj {
             .into_iter()
             .map(|b| {
                 let (offsets, free) = layout::<16>(b.sites, l, 1);
-                PsiGate { fold: b.fold, w: b.w, offsets, free }
+                PsiGate { noise: b.fold, w: b.w, offsets, free }
             })
             .collect();
         let kicks = if gamma > 0.0 {
@@ -355,12 +374,12 @@ impl FloquetTraj {
         FloquetTraj { l, layers, gates, kicks }
     }
 
-    /// One step of one trajectory: ψ → (Π gates, each with its random rotations) ψ.
+    /// One step of one trajectory: ψ → (Π gates, each followed by its random rotations) ψ.
     pub fn step(&self, psi: &mut [Amp], rng: &mut Rng) {
         assert_eq!(psi.len(), 1usize << self.l);
         for gate in &self.gates {
             let mut w = gate.w;
-            for q in (0..4).filter(|&q| gate.fold[q]) {
+            for q in (0..4).filter(|&q| gate.noise[q]) {
                 for &(axis, sd) in &self.kicks {
                     let (sin, cos) = (sd * rng.gaussian()).sin_cos();
                     // e^{−iθσ^α} on (|↑⟩, |↓⟩)
@@ -369,7 +388,7 @@ impl FloquetTraj {
                         1 => [[[cos, 0.0], [-sin, 0.0]], [[sin, 0.0], [cos, 0.0]]],
                         _ => [[[cos, -sin], [0.0, 0.0]], [[0.0, 0.0], [cos, sin]]],
                     };
-                    right_multiply_qubit(&mut w, q, &k);
+                    left_multiply_qubit(&mut w, q, &k);
                 }
             }
             apply16(&w, &gate.offsets, &gate.free, psi);
@@ -377,17 +396,15 @@ impl FloquetTraj {
     }
 }
 
-/// w ← w · (k on qubit q).
-fn right_multiply_qubit(w: &mut M16, q: usize, k: &[[C; 2]; 2]) {
+/// w ← (k on qubit q) · w.
+fn left_multiply_qubit(w: &mut M16, q: usize, k: &[[C; 2]; 2]) {
     let bit = 1usize << q;
-    for row in w.iter_mut() {
-        for b0 in (0..16).filter(|b| b & bit == 0) {
-            let (c0, c1) = (row[b0], row[b0 | bit]);
-            // new[b] = Σ_c w[c] k[c_q][b_q]
-            let n0 = cadd(cmul(c0, k[0][0]), cmul(c1, k[1][0]));
-            let n1 = cadd(cmul(c0, k[0][1]), cmul(c1, k[1][1]));
-            row[b0] = n0;
-            row[b0 | bit] = n1;
+    for r0 in (0..16).filter(|r| r & bit == 0) {
+        for col in 0..16 {
+            let (c0, c1) = (w[r0][col], w[r0 | bit][col]);
+            // new[a] = Σ_c k[a_q][c_q] w[c]
+            w[r0][col] = cadd(cmul(k[0][0], c0), cmul(k[0][1], c1));
+            w[r0 | bit][col] = cadd(cmul(k[1][0], c0), cmul(k[1][1], c1));
         }
     }
 }

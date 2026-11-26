@@ -1,0 +1,152 @@
+\section{Floquet (Trotterized) dynamics}
+\label{sec:floquet}
+
+The exact evolution $e^{\Lv t}$ (Sec.~\ref{sec:dissipation}) sums a Taylor series of the generator (sparse, or matrix-free for $L \ge 11$) at every step, and the trajectories a Taylor series of $e^{-iH\tau}$. A Trotterized step replaces both by a fixed circuit of 4-site gates: one step of $\rho$ costs $L\cdot 256\cdot 4^L$ multiply-adds (no generator is stored), one step of a trajectory $64\,L\,2^L$. This chapter defines the circuit (the same as \texttt{floquet-circuit.md} in the repository), shows it for $L = 8, 12$ (four layers) and $L = 10, 14$ (five and seven layers), and checks it against the exact evolution. Code: \texttt{rust/src/floquet.rs}, binaries \texttt{floquet} ($\rho$, $L \le 16$) and \texttt{floquet\_traj} (trajectories).
+
+\subsection{Splitting of the Hamiltonian into blocks}
+\label{sec:floquet-blocks}
+
+Group the terms of $H_I$ by their singlet projector. The block of bond $(j+1, j+2)$ lives on the four sites $j, \dots, j+3$:
+\begin{equation}
+h_j = \underbrace{\sum_\alpha a_\alpha\, R_{j+1,j+2}\,\sigma^\alpha_{j+3}}_{\mathrm{RA}}
+ + \underbrace{\sum_\alpha b_\alpha\, \sigma^\alpha_{j}\,R_{j+1,j+2}}_{\mathrm{AR}}
+ + \underbrace{\sum_{\alpha\beta} c^{(j+1)}_{\alpha\beta}\, \sigma^\beta_{j}\,R_{j+1,j+2}\,\sigma^\alpha_{j+3}}_{\mathrm{ARA}},
+\qquad H_I = \sum_{j=1}^{L} h_j ,
+\label{eq:floquet-block}
+\end{equation}
+with the coefficients of Sec.~\ref{sec:model} (the random $c$ stays attached to its physical bond). The three families occupy the sites
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+term & site $j$ & $j+1$ & $j+2$ & $j+3$ \\
+\midrule
+RA  & $\mathds 1$ & $R$ & $R$ & $A$ \\
+AR  & $A$ & $R$ & $R$ & $\mathds 1$ \\
+ARA & $A$ & $R$ & $R$ & $A$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+where the two entries $R$ are the two ends of one projector $R_{j+1,j+2} = (\mathds 1 - \sigma^x\sigma^x - \sigma^y\sigma^y - \sigma^z\sigma^z)/4$ and $A$ a single-site Pauli factor. Every term of $h_j$ is $R_{j+1,j+2}$ times an operator on the outer sites $j, j+3$, which commutes with it, so $h_j\ket{\Phi_n} = 0$ for every tower state: each block annihilates the tower on its own, and so does each block gate $e^{-i\Delta t\, h_j}$ act as the identity on it.
+
+\subsection{Layers}
+\label{sec:floquet-layers}
+
+Blocks that share a site do not commute, so the $L$ blocks are distributed over $d$ layers of disjoint blocks:
+\begin{equation}
+\begin{gathered}
+d = \min\{\, d' \ge 4 : d' \text{ divides } L \,\}, \\
+\text{layer } U_\ell \ (\ell = 1, \dots, d):\ \text{blocks starting at } j = \ell,\ \ell + d,\ \dots,\ \ell + (L/d - 1)\,d .
+\end{gathered}
+\label{eq:floquet-layers}
+\end{equation}
+The spacing $d \ge 4$ keeps the blocks of a layer disjoint, and since $d$ divides $L$ the pattern closes around the ring: every layer is the previous one shifted by one site, each layer has $L/d$ blocks and $d - 4$ idle sites after every block, and every site starts exactly one block per step, so every bond is the middle bond of exactly one block and every term of $H_I$ appears once with its full coefficient. $d = 4$ whenever $4 \mid L$; otherwise $d$ is the smallest divisor above 4 ($L = 6$: 6, $L = 10$: 5, $L = 14$: 7, $L = 18$: 6, $L$ prime: $L$). The block starts of the four examples (idle sites in parentheses):
+\begin{center}
+\small\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lllll}
+\toprule
+layer & $L = 8$ & $L = 10$ & $L = 12$ & $L = 14$ \\
+\midrule
+$U_1$ & 1, 5 & 1, 6 \ (5, 10) & 1, 5, 9 & 1, 8 \ (5, 6, 7, 12, 13, 14) \\
+$U_2$ & 2, 6 & 2, 7 \ (1, 6) & 2, 6, 10 & 2, 9 \ (6, 7, 8, 13, 14, 1) \\
+$U_3$ & 3, 7 & 3, 8 \ (2, 7) & 3, 7, 11 & 3, 10 \ (7, 8, 9, 14, 1, 2) \\
+$U_4$ & 4, 8 & 4, 9 \ (3, 8) & 4, 8, 12 & 4, 11 \ (8, 9, 10, 1, 2, 3) \\
+$U_5$ & -- & 5, 10 \ (4, 9) & -- & 5, 12 \ (9, 10, 11, 2, 3, 4) \\
+$U_6$ & -- & -- & -- & 6, 13 \ (10, 11, 12, 3, 4, 5) \\
+$U_7$ & -- & -- & -- & 7, 14 \ (11, 12, 13, 4, 5, 6) \\
+\bottomrule
+\end{tabular}
+\end{center}
+Since the Trotter error depends on the layering, a scan in $L$ should use sizes divisible by 4 (the same circuit at every $L$).
+
+\subsection{One step}
+\label{sec:floquet-step}
+
+One step of length $\Delta t$ applies the interaction layers (from $U_d$ to $U_1$), then the field on every site, then the noise on every site:
+\begin{equation}
+F = \mathcal E \circ \mathcal B \circ \mathcal U_1 \circ \mathcal U_2 \circ \dots \circ \mathcal U_d, \qquad
+\mathcal U_\ell(\rho) = U_\ell\,\rho\,U_\ell^\dagger, \quad U_\ell = \prod_{j \in \ell} e^{-i\Delta t\, h_j}, \qquad
+\rho(N\Delta t) = F^N \rho(0),
+\label{eq:floquet-step}
+\end{equation}
+(the rightmost map acts first) with the uniform field and the noise
+\begin{equation}
+\mathcal B(\rho) = U_B\,\rho\,U_B^\dagger, \quad U_B = \prod_{j=1}^{L} e^{-i\frac h2 \Delta t\, \sigma^z_j} = e^{-ih\Delta t\, S^z_{\mathrm{tot}}}, \qquad
+\mathcal E = \bigotimes_{j=1}^{L} e^{\Delta t\, \D_j} .
+\label{eq:floquet-field-noise}
+\end{equation}
+$U_\ell$ is exact because the blocks of a layer commute. The noise is \emph{one} layer for any $L$ and any $d$: the dissipators $\D_j$ of different sites act on different sites and commute, so $e^{\Delta t \sum_j \D_j} = \bigotimes_j e^{\Delta t\, \D_j}$ exactly. For a Hermitian Pauli channel (\texttt{floquet.rs} accepts $\sigma^z$, $\sigma^x$, $\sigma^y$, dep, depol and xyz) $e^{\Delta t\, \D_j}$ is diagonal in the Pauli basis: for $\sigma^z$ dephasing it multiplies the $\sigma^x_j$ and $\sigma^y_j$ components of $\rho$ by $e^{-2\gamma\Delta t}$ and leaves $\mathds 1$, $\sigma^z_j$ unchanged. The circuit has depth $d + 2$ ($d$ interaction layers, one field layer, one noise layer). The only approximation is the splitting: $F = e^{\Delta t\, \Lv} + O(\Delta t^2)$ per step, from the commutators of the layers with each other, with $S^z_{\mathrm{tot}}$ and with $\D$, so an error $O(\Delta t)$ at fixed $t$ (first order). The output step of the binaries is the Trotter step $\Delta t \cdot \min(1, 0.5/\gamma)$.
+
+\paragraph{The tower is exact at $\gamma = 0$.} Every block gate is the identity on the tower (Sec.~\ref{sec:floquet-blocks}) and $U_B\ket{\Phi_n} = e^{-ih\Delta t(L/2 - n)}\ket{\Phi_n}$, so $F^N$ reproduces reference~1 (the precessing product state, $\langle\sigma^x_j\rangle = -\cos ht$, $\langle\sigma^y_j\rangle = -\sin ht$) exactly for any $\Delta t$; the Trotter error acts only outside the tower, and on the scar only after the noise has moved weight out of it. Test \texttt{floquet\_scar\_oscillations\_are\_exact}: deviation $< 10^{-12}$ over 100 steps of $\Delta t = 0.3$ for $\rho$ at $L = 6, 8$ and for the state vector at $L = 6, 8, 10, 14$.
+
+\paragraph{Why the field is a separate layer.} A first version applied the field inside the blocks, $e^{-i\Delta t\, h_j}e^{-i\frac h2\Delta t\,\sigma^z_j}$ on the start site of every block (also one rotation per site per step). Then the spins precess at different times: when a block of layer $d - 1$ acts, its middle site $j + 1$ has already been rotated (in layer $d$) and $j + 2$ not yet (layer 1), so the two ends of $R_{j+1,j+2}$ differ by the angle $h\Delta t$ and $R$ no longer annihilates the product state (singlet overlap $\approx h\Delta t/2\sqrt2$). With one rotation per site distributed over the layers some layer always sits at this seam, because the layer order is linear and the ring is cyclic. The error is first order and vanishes as $\Delta t \to 0$ (at $L = 8$, $\gamma = 0$: largest deviation from reference~1 over $t \le 6$ $0.100$, $0.049$, $0.024$ at $\Delta t = 0.2, 0.1, 0.05$, mostly a shift of the precession phase; $m_\perp(t = 50) = 0.9953$ at $\Delta t = 0.1$), but it breaks the scar at every finite $\Delta t$, while the uniform field layer keeps it exact. That version was not kept.
+
+\subsection{Implementation}
+\label{sec:floquet-impl}
+
+The field and the noise of site $s$ commute with every gate that does not contain $s$. They are therefore folded into the \emph{last} gate applied that contains $s$ (layer 1 first, then 2, \dots; an idle site of $U_1$ goes into a gate of a lower layer), after its interaction, and the product of the $L$ gates is $F$ exactly. With $S_j$ the sites folded into block $j$, the unitary part of gate $j$ is $w_j = e^{-i\frac h2\Delta t\sum_{s\in S_j}\sigma^z_s}\,e^{-i\Delta t\, h_j}$ (a $16\times16$ matrix, exponentiated once).
+\begin{itemize}
+\item $\rho$ (\texttt{Floquet}, full Pauli basis $r_P = \Tr\rho P$): gate $j$ is the real $256\times256$ matrix
+\[
+G_j[P', P] = \prod_{s\in S_j} e^{\gamma\Delta t\, d(P'_s)}\ \Tr(P' w_j P w_j^\dagger)/16
+\]
+on the Pauli labels $P, P'$ of sites $j \dots j+3$, with $d(P'_s)$ the damping rate of the factor of $P'$ on site $s$ (noise after the unitary). $F$ ($4^L\times 4^L$) is never formed. Cost $L\cdot256\cdot4^L$ multiply-adds per step, memory $8\,\mathrm B\cdot4^L$ ($L = 16$: 34 GB); laptop (8 threads): 0.006, 0.034, 0.59 s per step at $L = 8, 10, 12$.
+\item Trajectories (\texttt{FloquetTraj}): gate $j$ is the $16\times16$ unitary $\prod_{s\in S_j}\kappa_s\, w_j$, with $\kappa_s = e^{-i\theta_x\sigma^x_s}e^{-i\theta_y\sigma^y_s}e^{-i\theta_z\sigma^z_s}$, $\theta_\alpha \sim N(0, r_\alpha\gamma\Delta t)$ for a jump $\sqrt{r_\alpha\gamma}\,\sigma^\alpha$. On average $e^{-i\theta\sigma^\alpha}\rho\, e^{i\theta\sigma^\alpha}$ damps the two Pauli factors that anticommute with $\sigma^\alpha$ by $E[\cos2\theta] = e^{-2r_\alpha\gamma\Delta t}$, which is $e^{\Delta t\,\D}$ of that jump exactly, so the trajectory average is $F^N\rho(0)$ for any $\Delta t$ with statistical error only (test \texttt{floquet\_trajectories\_match\_floquet\_rho}). Cost $64\,L\,2^L$ real multiply-adds per step and trajectory, memory $16\,\mathrm B\cdot 2^L$.
+\end{itemize}
+The earlier protocol (commit \texttt{f223cc3}; its runs of 2026-11-24 are now in \texttt{data/non\_used\_data/}\allowbreak\texttt{floquet\_old\_protocol/}) used the smallest disjoint spacing (not a shift pattern, e.g.\ 5 layers at $L = 14$) and applied field and noise \emph{first}, folded into the first gate of every site. It keeps the scar exact as well; both protocols are first order and differ at $O(\Delta t)$ (Fig.~\ref{fig:floquet-checks}\,d).
+
+\subsection{The circuits for $L = 8, 12$ and $L = 10, 14$}
+\label{sec:floquet-circuits}
+
+Figures~\ref{fig:floquet-circuit-8}--\ref{fig:floquet-circuit-14} show one step. Sites are fixed vertical wires, time runs upward: $U_d$ at the bottom acts first, $U_1$ last among the interaction layers, then the field row $U_B$ (one $B = e^{-i\frac h2\Delta t\,\sigma^z}$ on every wire) and the noise row $\mathcal E$ (one $\mathcal E_j$ on every wire). Inside each layer the rows RA, AR, ARA show the three summands of each block exponential $e^{-i\Delta t\, h_j}$ (one gate, not three), each capsule spanning the wires its term touches. A block that crosses the boundary between sites $L$ and 1 is cut at the two edges of the drawing (dashed ends, label repeated); idle sites of a layer are marked by dashed outlines. Each layer contains $L/d$ capsules of each family and every wire is idle in exactly $d - 4$ layers. The drawings are generated from the same rule as the code (\texttt{plot\_scripts/floquet\_circuit\_tikz.py}).
+
+\begin{figure}[H]
+\centering
+\resizebox{0.62\textwidth}{!}{\input{figures/floquet_circuit_N8.tex}}
+\caption{One Floquet step for $L = 8$: $d = 4$ layers, two blocks per layer and no idle sites; $U_4$ (blocks $(4,5,6,7)$ and $(8,1,2,3)$) acts first. Then the uniform field and the noise.}
+\label{fig:floquet-circuit-8}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\resizebox{0.95\textwidth}{!}{\input{figures/floquet_circuit_N12.tex}}
+\caption{One Floquet step for $L = 12$: $d = 4$ layers, three blocks per layer, no idle sites. The same layer pattern as $L = 8$, so $L = 8$ and $12$ have the same circuit per site.}
+\label{fig:floquet-circuit-12}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\resizebox{0.85\textwidth}{!}{\input{figures/floquet_circuit_N10.tex}}
+\caption{One Floquet step for $L = 10$: $4 \nmid 10$, so $d = 5$ layers of two blocks with one idle site after each block (dashed). In $U_5$ the blocks are $(5,6,7,8)$ and $(10,1,2,3)$ (RA on $1,2,3$, AR on $10,1,2$, ARA on all four), and sites 4, 9 are idle; they receive their field rotation in the field row like every other site.}
+\label{fig:floquet-circuit-10}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\resizebox{0.95\textwidth}{!}{\input{figures/floquet_circuit_N14.tex}}
+\caption{One Floquet step for $L = 14$: the smallest divisor of 14 above 4 is 7, so $d = 7$ layers of two blocks with three idle sites after each block. The circuit is deeper ($d + 2 = 9$) than for $L = 12$ (6), with a different Trotter error.}
+\label{fig:floquet-circuit-14}
+\end{figure}
+
+\subsection{Checks against the exact evolution}
+\label{sec:floquet-checks}
+
+Runs of \texttt{floquet} ($\rho$, $\sigma^z$ noise, random $c$ of seed 1) against \texttt{states} (same states, realization and channel): the scar, the x-Néel and the z-Néel state at $\gamma = 0, 0.01, 0.1$, at $L = 8$ ($d = 4$) with $\Delta t = 0.1, 0.05, 0.025$ and at $L = 10$ ($d = 5$, idle sites) with $\Delta t = 0.1, 0.05$. The exact runs have output step 0.1 (scar) and 0.01 (Néel states; to $t = 5$ at $L = 8$, $t = 2.5$ at $L = 10$, the x-Néel at $L = 8$ to its stop criterion). Signals and $\Gamma_e$ as in App.~\ref{sec:rates}, each run on its own output grid (the Trotter step); the deviation is the largest $|S_{\mathrm{Floquet}} - S_{\mathrm{exact}}|$ over the common output times $t \le 3t_e$ (exact $t_e$; the whole run for the $\gamma = 0$ scar). Figure~\ref{fig:floquet-checks}.
+
+\paragraph{Scar at $\gamma = 0$.} Deviation from the exact run $1.4$ -- $2.2\times10^{-13}$ at $L = 8$ and $3$ -- $6\times10^{-13}$ at $L = 10$ over $t \le 50$, for every $\Delta t$ (Fig.~\ref{fig:floquet-checks}\,a, dotted): the tower is exact, as it should be.
+
+\paragraph{First order.} Every deviation falls as $\Delta t$ (Fig.~\ref{fig:floquet-checks}\,c): halving $\Delta t$ divides it by 1.9 -- 2.3 for the scar and the x-Néel state. Scar $m_\perp$ at $L = 8$: $3.6\times10^{-3}$, $1.5\times10^{-3}$, $8.2\times10^{-4}$ ($\gamma = 0.01$) and $9.6\times10^{-3}$, $4.7\times10^{-3}$, $2.4\times10^{-3}$ ($\gamma = 0.1$) at $\Delta t = 0.1, 0.05, 0.025$; x-Néel $s_\perp$ 7.6 -- $8.9\times10^{-3}$ at $\Delta t = 0.1$ for all three $\gamma$, 1.9 -- $2.3\times10^{-3}$ at 0.025. The z-Néel $|s_z|$ converges faster than $\Delta t$ ($\gamma = 0.1$: $1.3\times10^{-2}$, $4.3\times10^{-3}$, $1.6\times10^{-3}$). The decay rate (Fig.~\ref{fig:floquet-checks}\,d) is within 1.7\,\% of the exact one at $\Delta t = 0.1$ and within 0.4\,\% at $\Delta t = 0.025$: scar $-0.62$, $-0.36$, $-0.14$\,\% ($\gamma = 0.01$) and $-1.45$, $-0.76$, $-0.39$\,\% ($\gamma = 0.1$), so the Trotterized scar decays slightly slower; x-Néel $+0.78$ to $+1.66$\,\% at $\Delta t = 0.1$, $+0.24$ to $+0.37$\,\% at 0.025; z-Néel ($\gamma = 0.1$) $+1.0$, $+0.22$, $+0.06$\,\%.
+
+\paragraph{$L = 10$.} The five-layer circuit with idle sites behaves like $L = 8$ (open symbols in Fig.~\ref{fig:floquet-checks}\,c, d). Deviations at $\Delta t = 0.1$: scar $3.1\times10^{-3}$ ($\gamma = 0.01$) and $1.1\times10^{-2}$ ($\gamma = 0.1$), x-Néel 1.3 -- $1.4\times10^{-2}$ (1.6 times $L = 8$), z-Néel 0.9 -- $1.0\times10^{-2}$; at $\Delta t = 0.05$ half of that (a third for the z-Néel state). $\Gamma_e$: scar $-1.62$, $-0.83$\,\% ($\gamma = 0.1$); x-Néel $+0.81$ to $+1.99$\,\% at $\Delta t = 0.1$ and $+0.47$ to $+0.89$\,\% at 0.05; z-Néel $+1.0$ to $+1.3$\,\% at $\Delta t = 0.1$ and $+0.33$\,\% at 0.05 for all three $\gamma$ (at $L = 10$ no revival reaches the threshold, so the z-Néel $\Gamma_e$ is a test at $\gamma \le 0.01$ as well). The scar at $\gamma = 0.01$ has $+0.05$, $-0.04$\,\%: the error changes sign there, and its two points in panel d are no trend.
+
+\paragraph{Finite-size revivals.} At $L = 8$ the exact z-Néel $|s_z|$ has a revival at $t \approx 1.8$ right at the threshold (Fig.~\ref{fig:floquet-checks}\,b: 0.36 at $\gamma = 0.01$, just below $1/e$; above it at $\gamma = 0$, where the exact $t_e = 1.88$). Then $\Gamma_e$ jumps between the early decay and the revival under small changes of the signal ($\gamma = 0$, $\Delta t = 0.1$: the Floquet revival stays below $1/e$ and $\Gamma_e = 4.39$ against $0.53$), so these $\Gamma_e$ are left out of panel d; their deviations are in panel c ($\gamma = 0$, over the whole exact run $t \le 5$: $6.8\times10^{-2}$, $2.4\times10^{-2}$, $9.6\times10^{-3}$, the largest of all, at the revivals). The late-time finite-size fluctuations of the Néel states at $L = 8$ ($\approx 0.2$) are not reproduced over long times: x-Néel at $\gamma = 0$ over $t \le 50$ deviates by 0.18, 0.11, 0.05 at $\Delta t = 0.1, 0.05, 0.025$. They are sums of many frequencies, and the $O(\Delta t)$ shift of the Floquet quasi-energies dephases them; the noise damps them ($\gamma = 0.1$: 0.016 at $\Delta t = 0.1$ over the whole run). This is not an error of the decay rate.
+
+\paragraph{Old protocol.} At $L = 8$ both protocols have the same interaction layers in the same order ($U_4$ first) and differ only in the position of $\mathcal C = \mathcal E\circ\mathcal B$: $F_{\mathrm{old}} = \mathcal A\circ\mathcal C$ and $F = \mathcal C\circ\mathcal A$, with $\mathcal A = \mathcal U_1\circ\dots\circ\mathcal U_d$. In the error of one step the commutator of $\mathcal A$ with $\mathcal C$ changes sign and the commutators of the layers with each other do not. The errors of $\Gamma_e$ have opposite signs (Fig.~\ref{fig:floquet-checks}\,d, crosses): x-Néel $+0.78$\,\% (current) and $-2.58$\,\% (old) at $\gamma = 0$, $\Delta t = 0.1$; scar at $\gamma = 0.1$ $-1.45$ and $+1.74$\,\%. At $\gamma = 0.01$ the old protocol is closer for the scar ($-0.17$ against $-0.62$\,\%), farther for the x-Néel state ($-2.5$ against $+1.04$\,\%). Half the sum ($\approx -0.9$\,\% for the x-Néel state, $+0.15$\,\% for the scar at $\gamma = 0.1$) estimates the part from the layers alone, the error that a symmetric placement (half of $\mathcal C$ before $\mathcal A$, half after) would leave at this $\Delta t$. For the z-Néel state the two protocols give the same $s_z$ exactly: $\rho(0)$ is diagonal in $z$, so $\mathcal C\rho(0) = \rho(0)$ and $\mathcal C^\dagger(\sigma^z_j) = \sigma^z_j$, and $F^N\rho(0) = \mathcal C\,F_{\mathrm{old}}^N\rho(0)$.
+
+So $\Delta t = 0.1$ gives $\Gamma_e$ to $\lesssim 2$\,\% and $\Delta t = 0.05$ to $\lesssim 1$\,\% for $\gamma \le 0.1$ at $L = 8, 10$, with the scar exact at $\gamma = 0$.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/floquet_checks.png}
+\caption{Floquet circuit against the exact evolution ($\sigma^z$ noise). (a) Scar $m_\perp$ at $L = 8$: exact (black) and Floquet $\Delta t = 0.1$, $0.025$ (blue) at $\gamma = 0$ (dotted, $t \le 50$), $0.01$ (solid) and $0.1$ (dashed), each to $3t_e$. (b) x-Néel $s_\perp$ and z-Néel $|s_z|$ at $L = 8$, $\gamma = 0.01$, $t \le 2$; Floquet $\Delta t = 0.1$ with points at its output times. (c) Largest deviation of the signal over $t \le 3t_e$ (z-Néel at $L = 8$, $\gamma = 0$: the whole exact run, $t \le 5$) against $\Delta t$; filled $L = 8$, open $L = 10$; the $\gamma = 0$ scar ($\le 6\times10^{-13}$) is not shown. (d) Relative error of $\Gamma_e$, with the old protocol (crosses, $L = 8$); without the z-Néel state at $L = 8$, $\gamma \le 0.01$ (revival at the threshold, see text). Dash-dotted: $\propto\Delta t$. \texttt{plot\_scripts/floquet\_checks.py}, runs in \texttt{data/floquet/}.}
+\label{fig:floquet-checks}
+\end{figure}

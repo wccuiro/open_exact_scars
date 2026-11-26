@@ -199,14 +199,16 @@ chapters in `latex/sections/`: `model` (Hamiltonian, eigenstate entanglement, Di
 methods and their limits), `theory` (generator and adjoint, spectral decomposition incl. Jordan form, meeting in the
 middle for ρ only, scars and entanglement incl. Liouvillian modes, exact results, weak dissipation, channels at
 H_I = 0, operator observables), `results` (scar vs thermal, channels, single kick, damage spreading, operator size at
-t_e, Mori), `summary` (γ exponent), `data` (run inventory from `plot_scripts/report_runs.py`), appendices
+t_e, Mori), `summary` (γ exponent), `floquet` (2026-11-25: the Trotter circuit of `floquet-circuit.md`, TikZ
+circuits for L = 8, 12, 10, 14, checks against the exact evolution), `data` (run inventory from `plot_scripts/report_runs.py`), appendices
 `app_methods`, `app_rates` (incl. the Néel envelope example), `app_other` (tensor networks, CLIK, forward/backward,
 eigenvalues without LAPACK). **Notes rules (from the user's review, 2026-11-03):** nothing below γ = 0.01 (no L ≤ 22
 reaches the thermodynamic rate there; the γ < 0.01 runs stay on disk but are not mentioned), no data with the previous
 coefficients, at most 4 panels per figure (`plot_scripts/notes_layout.py`: `MAX_PANELS`, `GAMMA_MIN`, page helpers;
 paged outputs `<name>_1.png`, ...), every claim backed by a figure. The annotated pre-review files (red notes) and the
 committed notes.tex are in `data/non_used_data/notes_annotated_2026-11-03/`. `latex/parts/<case>.tex` compiles only
-the chapters one code path uses (cases `exact_rho`, `trajectories`, `single_kick`, `spectra`, `tensor_networks`):
+the chapters one code path uses (cases `exact_rho`, `trajectories`, `single_kick`, `spectra`, `tensor_networks`,
+`floquet`):
 `latex/build_parts.sh [case …]` builds `notes.tex` first, then `latex/parts/pdf/<case>.pdf`. A part keeps the
 numbering of the full notes (the full build writes the counters at the start of every file to `notes.sec`), and a
 `\ref` outside the part prints its number in the full notes (read from `notes.aux`, no link). A new chapter: a file in
@@ -300,14 +302,19 @@ rust/src/cli.rs          shared --key value options (--L or --lmin/--lmax; unkno
 rust/src/pauli.rs        Pauli strings as bit masks (x, z), products with exact phases
 rust/src/model.rs        Params (baseline coefficients, optional random c per bond) and H as a real sum of Pauli strings;
                          bond_terms(p, j): the strings of the term of bond (j, j+1) alone (used by floquet.rs)
-rust/src/floquet.rs      Trotterized (Floquet) step F = e^{𝓗_1dt}…e^{𝓗_4dt}e^{(𝓩+𝓓)dt}: H_I in 4-site blocks (one bond term
-                         each, so every gate keeps the tower), 4 layers (more when 4 ∤ L: L = 6: 6, 10: 5, 14: 5, 18: 6, 26:
-                         7; a size scan uses L divisible by 4 only, the same F at every L), field + noise exact per site and
-                         folded into the gates (noise commuting with the field: z, dep, depol, xyz); periodic chain only.
-                         Floquet (ρ, full Pauli basis, L ≤ 16): L real 256×256 gates per step, F never formed. FloquetTraj
-                         (ψ): L complex 16×16 gates per step with the random rotations e^{−iθσ^α}, θ ~ N(0, r_α γ dt), of
-                         the folded sites multiplied in: the trajectory average is F^N ρ(0) for any dt (no extra step error).
-                         step_at(dt, γ) = dt · min(1, 0.5/γ): the Trotter (= output) step of both binaries
+rust/src/floquet.rs      Trotterized (Floquet) step, circuit of floquet-circuit.md (since 2026-11-25; notes Sec. "Floquet
+                         (Trotterized) dynamics"): F = 𝓔 ∘ 𝓑 ∘ 𝓤_1 ∘ … ∘ 𝓤_d, U_d first. H_I in 4-site blocks (bond term
+                         RA + AR + ARA of the middle bond, one exponential each, every gate keeps the tower); d = smallest
+                         divisor of L that is ≥ 4 (L = 6: 6, 10: 5, 14: 7, 18: 6, 26: 13), layer ℓ = blocks starting at
+                         k ≡ ℓ − 1 (mod d), each layer the previous shifted by one site; then the uniform field
+                         e^{−ih dt Sᶻ_tot} on every site, then the noise on every site (any Hermitian Pauli channel: z, x, y,
+                         dep, depol, xyz). Field and noise of a site are folded into the last gate containing it (exact).
+                         γ = 0 scar exact for any dt. Size scans: L divisible by 4 (same circuit). Periodic chain only.
+                         layer_count, layer_starts (pub). Floquet (ρ, full Pauli basis, L ≤ 16): L real 256×256 gates per
+                         step, F never formed. FloquetTraj (ψ): L complex 16×16 gates per step, each followed by the random
+                         rotations e^{−iθσ^α}, θ ~ N(0, r_α γ dt), of its folded sites: the trajectory average is F^N ρ(0)
+                         for any dt. step_at(dt, γ) = dt · min(1, 0.5/γ): the Trotter (= output) step of both binaries.
+                         Old protocol (commit f223cc3): smallest disjoint spacing (L = 14: 5 layers), field and noise first.
 rust/src/liouville.rs    Lindbladian in the Pauli basis (translation orbits, or the full basis without translation),
                          propagator, dense export for ED, magnetization (site averages and per site)
 rust/src/tower.rs        Dicke states |Φ_n⟩ and Tr(Σ_n w_n |Φ_n⟩⟨Φ_n| P) for every Pauli string P
@@ -332,8 +339,10 @@ rust/src/bin/lindblad_entanglement.rs  γ ≥ 0: right eigenmatrices X of 𝓛 (
                          of ρ_L = XX†/Tr, ρ_R = X†X/Tr against E_L,R = Tr(ρ_L,R H)
 rust/src/bin/hamiltonian.rs  H (random c) as a list of Pauli strings, hamiltonian[_open]_L<L>.csv, for julia/clik.jl
 rust/tests/checks.rs     exact references 1 and 2, random product states, full basis vs orbits, random c at γ = 0,
-                         single-flip identities, jump unravelling (analytic start, free spins); Floquet: γ = 0 scar exact
-                         for any dt, free spins exact, first-order convergence to the Taylor evolution
+                         single-flip identities, jump unravelling (analytic start, free spins); Floquet: layer schedule
+                         (d per L, block starts, every site starts one block), γ = 0 scar exact for any dt (ρ L = 6, 8;
+                         ψ L = 6, 8, 10, 14), free spins exact, first-order convergence to the Taylor evolution,
+                         trajectory average = Floquet ρ
 julia/lindblad_tdvp.jl   ITensor: ρ as an MPS, two-site TDVP (old coefficients; `lindbladian(L, γ; terms)` takes any H)
 julia/clik.jl            CLIK (Lindbladian eigenvalues from time-evolved states; guide data/docs/CLIK_MPS/IMPLEMENTATION.md):
                          dense backend (exact propagator, L ≤ 6, plus full ED of 𝓛) and MPS backend (two-site TDVP)
@@ -357,6 +366,9 @@ plot_scripts/            notes_layout.py (MAX_PANELS = 4, GAMMA_MIN = 0.01, page
                          fit_states.py, fit_states_inverse_L.py, plot_states.py, fit_small_gamma.py, single_kick.py, plot_entanglement.py,
                          plot_operator_entanglement.py, plot_lindblad_entanglement.py, plot_clik.py, fit_channels.py, spreading.py, plot_operator_spreading.py,
                          damage_fourier.py,
+                         floquet_circuit_tikz.py (standard library: the circuit drawings
+                         latex/figures/floquet_circuit_N<L>.tex, L = 8, 10, 12, 14, same layer rule as floquet.rs),
+                         floquet_checks.py [data_dir] (Floquet against exact: floquet_checks.csv/.png in data/floquet),
                          states_data.py (reads `states` and `states_traj` CSV, diffusive and jump, pools the
                          traj-seeds, picks one run per (state, L, γ))
 ```
@@ -370,7 +382,7 @@ cargo run --release --bin disorder -- [--lmin 4] [--lmax 8] [--gamma 0.01] [--th
 cargo run --release --bin probes -- [--lmin 4] [--lmax 8] [--gamma 0.01 | --gammas 0.002,0.01] [--dt 0.1] [--t-max T] [--tag name] [--seed 1]
 cargo run --release --bin states -- --state minus-x|neel|neel-x [--lmin 4] [--lmax 8] [--gammas 0,0.01,0.1] [--dt 0.1] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1]
       [--stop-te F] [--channel z|x|y|dep|decay|thermal] [--nbar 1] [--obs-dt Δ] [--op-ent-dt Δ]
-cargo run --release --bin floquet -- --state minus-x|neel|neel-x [--L 8 | --lmin/--lmax] [--gammas 0,0.01] [--dt 0.1] [--channel z|xyz|dep] [--noise depol] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--stop-te 0] [--seed 1]   # step = dt · min(1, 0.5/γ)
+cargo run --release --bin floquet -- --state minus-x|neel|neel-x [--L 8 | --lmin/--lmax] [--gammas 0,0.01] [--dt 0.1] [--channel z|x|y|xyz|dep] [--noise depol] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--stop-te 0] [--seed 1]   # step = dt · min(1, 0.5/γ)
 cargo run --release --bin floquet_traj -- (same options) [--trajectories 112] [--traj-seed N]
 cargo run --release --bin states_traj -- --state minus-x|neel|neel-x [--L 16] [--gammas 0,0.01,0.1] [--trajectories 112] [--dt 0.1] [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--seed 1] [--unravel diffusive|jump] [--traj-seed N]
       [--channel z|x|y|dep] [--ent-dt Δ] [--stop-te F]
@@ -429,17 +441,33 @@ Output files (all in `data/`, or in `$SCARS_DATA_DIR` for the Rust binaries):
   - `--stop-te F` (states, states_traj): also stop at F × t₁. Lean runs (before 2026-11-15): t₁ = the first time the
     raw signal drops below 1/e, which misses later revivals above 1/e (scar under decay; z-Néel L = 8 at small γ).
     Since 2026-11-15: t₁ = start of the latest stretch below 1/e (reset when the signal comes back above it).
-- `floquet_<state>_L<L>_g<γ>_dt<dt>[_seed<N>].csv` (from `floquet`): the columns of `states_*.csv`. First runs
-  (2026-11-24) in `data/floquet/`: L = 8, the three states, γ = 0, 0.01, 0.1, dt = 0.1 and 0.05. Against the exact
-  runs: γ = 0 scar 1e-13; scar m_⊥ max deviation 4e-3 (dt 0.1), 2e-3 (0.05), Γ_e within 0.2 % (γ = 0.01), 1.7 % /
-  0.8 % (γ = 0.1); Néel signals 2 % / 0.6 – 1 % for t ≤ 1, while the late L = 8 finite-size fluctuations (≈ 0.2)
-  dephase (z-Néel γ = 0.01 Γ_e +14 % / +10 %: its 1/e crossing is in the revival regime). Laptop, 8 threads:
-  0.006 (L = 8), 0.034 (10), 0.59 (12), 2.6 (13) s per step; L = 12 one thread 3.2 s (≈ 16 GFMA/s per core); L = 12
-  peak 0.14 GB. A --dt other than the default keeps its value in the name; the step itself is dt · min(1, 0.5/γ).
+- `floquet_<state>_L<L>_g<γ>_dt<dt>[_seed<N>].csv` (from `floquet`): the columns of `states_*.csv`. A --dt other
+  than the default keeps its value in the name; the step itself is dt · min(1, 0.5/γ). Laptop, 8 threads: 0.006
+  (L = 8), 0.034 (10), 0.59 (12), 2.6 (13) s per step; L = 12 one thread 3.2 s (≈ 16 GFMA/s per core); L = 12 peak
+  0.14 GB (measured with the old protocol; same number of gates per step).
+  **Current circuit (2026-11-25), `data/floquet/`:** σᶻ noise, the three states, γ = 0, 0.01, 0.1, L = 8 (dt 0.1,
+  0.05, 0.025) and L = 10 (dt 0.1, 0.05). Exact references: scar `used_data/states_minus-x_L<L>_g<γ>.csv` (output
+  step 0.1); Néel states `data/floquet/states_<state>_L<L>_g<γ>.csv` at output step 0.01 (x-Néel L = 8 to the stop
+  criterion, z-Néel L = 8 to t = 5, both Néel at L = 10 to t = 2.5; `--t-max --t-zero`). `floquet_checks.py` →
+  `floquet_checks.csv`, `floquet_checks.png` (notes Fig. `fig:floquet-checks`). Results (dt = 0.1 / 0.05 / 0.025,
+  L = 8): γ = 0 scar 1.4 – 2.2e-13 (L = 10: 3 – 6e-13) over t ≤ 50; every deviation ∝ dt; scar m_⊥ max deviation
+  (t ≤ 3 t_e) 3.6e-3 / 1.5e-3 / 8.2e-4 (γ = 0.01), 9.6e-3 / 4.7e-3 / 2.4e-3 (0.1); Γ_e −0.62 / −0.36 / −0.14 %,
+  −1.45 / −0.76 / −0.39 %; x-Néel Γ_e +0.78 … +1.66 % at dt 0.1, +0.24 … +0.37 % at 0.025; z-Néel γ = 0.1 +1.0 /
+  +0.22 / +0.06 %. L = 10 (d = 5) like L = 8: deviations at dt 0.1 scar 3.1e-3 / 1.1e-2 (γ = 0.01 / 0.1), x-Néel
+  1.3 – 1.4e-2, z-Néel 0.9 – 1.0e-2; Γ_e scar −1.62 / −0.83 % (γ = 0.1), x-Néel +0.81 … +1.99 % (dt 0.1), +0.47 …
+  +0.89 % (0.05), z-Néel +1.0 … +1.3 %, +0.33 % (every γ; no revival at 1/e at L = 10). z-Néel L = 8, γ ≤ 0.01: an exact
+  revival at t ≈ 1.8 sits at 1/e (0.36 at γ = 0.01; above at γ = 0, exact t_e = 1.88), so Γ_e is not a Trotter test
+  there (column `revival`, left out of panel d). x-Néel γ = 0 over t ≤ 50: 0.18 / 0.11 / 0.05 (late finite-size
+  fluctuations dephase). At L = 8 old and current protocol have the same layers in the same order and differ only in
+  the place of 𝓒 = 𝓔∘𝓑 (before or after the interaction): Γ_e errors of opposite sign (x-Néel γ = 0: +0.78 against
+  −2.58 %; scar γ = 0.1: −1.45 against +1.74 %), and the z-Néel s_z is identical in both (𝓒ρ₀ = ρ₀, 𝓒†σᶻ = σᶻ).
+  **Old protocol (2026-11-24, commit f223cc3): moved to `data/non_used_data/floquet_old_protocol/`** (README.txt):
+  σᶻ L = 8, dt 0.1, 0.05 (scar Γ_e −0.17 / −0.14 % at γ = 0.01, +1.74 / +0.83 % at 0.1; x-Néel −2.6 / −1.1 %) and
   xyz noise (jumps √γ σ^α, every Pauli factor decays at 4γ), L = 8, stop at 2 t_e, against `states --channel xyz`
-  (same directory): Γ_e of the scar +0.7, +1.8, +0.7, 0.0 % at γ = 0.01, 0.1, 1, 10 (dt 0.1), half of that at dt 0.05;
-  Néel states (exact output step 0.01) ≤ 0.6 % (z) and −2.5 % (x) at dt 0.1, ≤ 0.4 % at dt 0.02, ≤ 0.2 % at 0.01.
-  Run lengths to 2 t_e (L = 8, xyz): scar t = 16.6, 3.2, 0.5, 0.05 at γ = 0.01, 0.1, 1, 10; Néel ≈ 0.4 – 0.6 (0.05 at γ = 10).
+  (these exact `states_*_chxyz.csv` stay in `data/floquet/`): Γ_e of the scar +0.7, +1.8, +0.7, 0.0 % at γ = 0.01,
+  0.1, 1, 10 (dt 0.1), half of that at dt 0.05; Néel states (exact output step 0.01) ≤ 0.6 % (z) and −2.5 % (x) at
+  dt 0.1, ≤ 0.4 % at dt 0.02, ≤ 0.2 % at 0.01. Run lengths to 2 t_e (L = 8, xyz): scar t = 16.6, 3.2, 0.5, 0.05 at
+  γ = 0.01, 0.1, 1, 10; Néel ≈ 0.4 – 0.6 (0.05 at γ = 10). Not rerun with the current circuit.
 - `floquet_traj_<state>_L<L>_g<γ>_dt<dt><ch>[_seed<N>][_s<traj-seed>].csv` (from `floquet_traj`): the columns of
   `states_traj_*.csv`. Laptop, one trajectory per thread (8 threads; L = 24: 4), xyz, per trajectory and step: 0.013 s
   (L = 16), 0.19 (20), 0.99 (22), 2.7 (24), plus ≈ 25 % for the observables; memory 16 B · 2^L per trajectory.
@@ -586,7 +614,14 @@ scripts live in `data/bashes/`, which is untracked like all of `data/`, so they 
 (thermodynamic-limit scan, xyz noise: scar, x-Néel, z-Néel; ρ L = 8, 12, 16 at γ = 0, 0.01 … 10, dt 0.1 scar / 0.02
 Néel, dt/2 at L = 8, 12 and optionally 16; trajectories L = 16, 20, 24, 224 each, γ = 0 (Néel) and ≤ 0.05; stop at
 2 t_e, cap 5 t_e(L = 8); RHO16_S, TRAJ24_CORE_S from the bench). With the default estimates: submit_floquet.sh
-≈ 8.7 node-h expected (18 at the caps), submit_floquet_halfdt16.sh ≈ 13.7 (29). Neither submitted yet. The generators of the finished batches below, the bench
+≈ 8.7 node-h expected (18 at the caps), submit_floquet_halfdt16.sh ≈ 13.7 (29). Neither submitted yet.
+(2026-11-26) `make_floquet_dep_jobs.sh`: the same for depolarizing noise (`--channel dep`, Fig. 19 of the notes with
+the Floquet circuit; analysis `plot_scripts/floquet_dep_rates.py`): ρ L = 8, 12 every γ = 0.01 … 20 at dt and dt/2,
+ρ L = 16 γ ≤ 2, trajectories L = 16, 20, 24 (224) γ ≤ 0.1; run lengths from the exact dep t_e per (state, L, γ),
+stop at 2 t₁, cap 3.5 t_e; output `$REPO/data/floquet_dep`. Default cost model (not benchmarked): submit_floquet_dep.sh
+≈ 8.3 node-h expected (12.9 at the caps; ρ L = 16 6.4, trajectories L = 24 1.6), submit_floquet_dep_halfdt16.sh
+≈ 12.3 (19.3); without ρ L = 16 and with trajectories for γ ≤ 2 ≈ 3.0 (4.7). Laptop runs of the same plan
+(2026-11-26, stopped): L = 8 complete and the L = 16 scar trajectories in WSL `data/floquet_dep/`. Not submitted. The generators of the finished batches below, the bench
 scripts (`make_bench_jobs.sh`, `summarize_bench.py`, `bench_machine.sh`, `bench_summary.py`) are in
 `data/non_used_data/bashes_old/`, and the per-job Slurm scripts they generated (old `states_*`, `exact_*`, `traj_*`,
 `bench_L*`, `submit_*`) in `data/non_used_data/bashes_old/generated_jobs/`. To rerun one, copy it back next to

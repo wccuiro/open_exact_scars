@@ -28,6 +28,8 @@ python plot_states.py                        # time series of the scar and Néel
 # every script and the full run order: CLAUDE.md, "Output files"
 ```
 
+For the Floquet circuit with shifted interactions and a uniform field layer, see the [construction and figure guide](floquet-circuit.md).
+
 Options are listed at the top of each program. The Rust binaries write to `data/`, or to
 `$SCARS_DATA_DIR` if it is set.
 

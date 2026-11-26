@@ -557,28 +557,48 @@ fn diffusive_channels_match_exact() {
     }
 }
 
-/// Floquet (Trotter) step at γ = 0 from the scar state: every 4-site gate leaves the tower unchanged and the field
-/// acts exactly, so reference 1 holds to round-off for any dt (L = 8: 4 layers; L = 6: 6 layers), for ρ and for the
-/// state vector.
+/// Floquet schedule: d = smallest divisor of L that is ≥ 4, layer ℓ starts blocks at k ≡ ℓ − 1 (mod d), every site
+/// starts exactly one block per step (so it gets one field rotation).
+#[test]
+fn floquet_schedule() {
+    use open_exact_scars::floquet::{layer_count, layer_starts};
+    let sizes = [4, 5, 6, 7, 8, 10, 12, 14, 16, 18, 20, 24, 26];
+    assert_eq!(sizes.map(layer_count), [4, 5, 6, 7, 4, 5, 4, 7, 4, 6, 4, 4, 13]);
+    assert_eq!(layer_starts(10, 5), [4, 9]);
+    assert_eq!(layer_starts(14, 3), [2, 9]);
+    for l in sizes {
+        let d = layer_count(l);
+        let mut starts: Vec<usize> = (1..=d).flat_map(|layer| layer_starts(l, layer)).collect();
+        starts.sort();
+        assert_eq!(starts, (0..l).collect::<Vec<_>>(), "L = {l}");
+    }
+}
+
+/// Floquet step at γ = 0 from the scar state: every interaction gate is the identity on the tower and the uniform
+/// field layer maps the tower onto itself, so reference 1 holds to round-off for any dt. ρ at L = 6 (6 layers) and
+/// 8 (4); the state vector also at L = 10 (5 layers, 2 idle sites per layer) and 14 (7 layers, 3 idle sites).
 #[test]
 fn floquet_scar_oscillations_are_exact() {
-    use open_exact_scars::floquet::{layer_count, per_site, product_state, Floquet, FloquetTraj};
+    use open_exact_scars::floquet::{per_site, product_state, Floquet, FloquetTraj};
     use open_exact_scars::trajectory::{per_site_expectations, product_amplitudes};
-    assert_eq!([4, 6, 8, 10, 12, 14, 16, 20, 24].map(layer_count), [4, 6, 4, 5, 4, 5, 4, 4, 4]);
-    for l in [6, 8] {
+    for l in [6, 8, 10, 14] {
         let p = Params::random_c(l, &mut Rng::new(1000 + l as u64));
         let dt = 0.3;
-        let f = Floquet::new(&p, &Channel::Z, 0.0, dt);
+        let f = (l <= 8).then(|| Floquet::new(&p, &Channel::Z, 0.0, dt));
         let ft = FloquetTraj::new(&p, &Channel::Xyz, 0.0, dt);
-        let mut r = product_state(&vec![[-1.0, 0.0, 0.0]; l]);
+        let mut r = f.as_ref().map(|_| product_state(&vec![[-1.0, 0.0, 0.0]; l]));
         let mut psi = product_amplitudes(&vec![[-1.0, 0.0, 0.0]; l]);
         let mut rng = Rng::new(1);
         let mut worst = 0.0f64;
         for step in 1..=100 {
-            f.step(&mut r);
             ft.step(&mut psi, &mut rng);
+            let mut sets = vec![per_site_expectations(&psi, l)];
+            if let (Some(f), Some(r)) = (&f, &mut r) {
+                f.step(r);
+                sets.push(per_site(r, l));
+            }
             let (sin, cos) = (p.h * step as f64 * dt).sin_cos();
-            for [x, y, z] in [per_site(&r, l), per_site_expectations(&psi, l)] {
+            for [x, y, z] in sets {
                 for j in 0..l {
                     worst = worst.max((x[j] + cos).abs()).max((y[j] + sin).abs()).max(z[j].abs());
                 }
@@ -684,7 +704,13 @@ fn floquet_trajectories_match_floquet_rho() {
             for a in 0..3 {
                 for j in 0..l {
                     let mean = sum[a][j] / n as f64;
-                    let se = ((sum2[a][j] / n as f64 - mean * mean) / (n - 1) as f64).sqrt();
+                    let var = sum2[a][j] / n as f64 - mean * mean;
+                    if var < 1e-20 {
+                        // the same in every trajectory (σᶻ after the first step: the noise is applied last)
+                        assert!((mean - exact[a][j]).abs() < 1e-10, "L = {l}, {channel:?}: deterministic component off");
+                        continue;
+                    }
+                    let se = (var / (n - 1) as f64).sqrt();
                     let z = (mean - exact[a][j]) / se;
                     sq += z * z;
                     worst = worst.max(z.abs());

@@ -1,15 +1,17 @@
 //! Trotterized (Floquet) evolution of ρ: the runs of `states` (same states, random-c realization, observables and
 //! stop rule) with e^{𝓛 dt} replaced by one Floquet step
 //!
-//!     F = e^{𝓗_1 dt} e^{𝓗_2 dt} e^{𝓗_3 dt} e^{𝓗_4 dt} e^{(𝓩 + 𝓓) dt},     r(N dt) = F^N r(0)
+//!     F = 𝓔 ∘ 𝓑 ∘ 𝓤_1 ∘ 𝓤_2 ∘ ⋯ ∘ 𝓤_d,     r(N dt) = F^N r(0)
 //!
-//! (src/floquet.rs: 4-site gates in 4 layers, 5 or 6 layers when 4 does not divide L).
+//! (src/floquet.rs, floquet-circuit.md: d layers of 4-site interaction gates, d = smallest divisor of L that is ≥ 4,
+//! each layer the previous one shifted by one site, U_d first; then the uniform field 𝓑 = e^{−i h dt [Sᶻ_tot, ·]} and
+//! the noise 𝓔 on every site). The γ = 0 scar is exact for any dt.
 //!
 //!     cargo run --release --bin floquet -- --state minus-x|neel|neel-x [--L 8 | --lmin 8 --lmax 12]
-//!                                          [--gammas 0,0.01] [--dt 0.1] [--channel z|xyz|dep] [--noise depol]
+//!                                          [--gammas 0,0.01] [--dt 0.1] [--channel z|x|y|xyz|dep] [--noise depol]
 //!                                          [--t-max 1000] [--t-zero 50] [--stop 1e-3] [--stop-te 0] [--seed 1]
 //!
-//! --channel: noise commuting with the field (noise.rs): z (default, √γ σᶻ), xyz (√γ σ^α, α = x, y, z: every Pauli
+//! --channel: a Hermitian Pauli channel (noise.rs): z (default, √γ σᶻ), x, y, xyz (√γ σ^α, α = x, y, z: every Pauli
 //! factor decays at 4γ), dep (√(γ/2) σ^α); --noise depol (√(γ/3) σ^α).
 //! Trotter step = output step: dt · min(1, 0.5/γ) (= dt up to γ = 0.5, then ∝ 1/γ so that the decay stays resolved;
 //! a run with half the --dt halves it at every γ). γ = 0 runs to --t-zero; γ > 0 until the signal (m_⊥ for minus-x,

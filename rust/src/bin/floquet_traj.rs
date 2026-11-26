@@ -1,12 +1,12 @@
 //! Trajectory counterpart of `floquet`: the same Floquet step F (src/floquet.rs), unravelled on state vectors. One
-//! step of a trajectory is the L gates of F, each with the random single-site rotations of the sites folded into it
-//! (θ_α ~ N(0, r_α γ dt) per jump √(r_α γ) σ^α), so the average over trajectories is F^N ρ(0) for any dt, with
+//! step of a trajectory is the L gates of F, each followed by the random single-site rotations of the sites whose
+//! field and noise are folded into it (θ_α ~ N(0, r_α γ dt) per jump √(r_α γ) σ^α), so the average over trajectories is F^N ρ(0) for any dt, with
 //! statistical error only. Same states, random-c realization, observables, output columns and stop rule as
 //! `states_traj`.
 //!
 //!     cargo run --release --bin floquet_traj -- --state minus-x|neel|neel-x [--L 16 | --lmin 8 --lmax 12]
 //!                                               [--gammas 0,0.01] [--trajectories 112] [--dt 0.1]
-//!                                               [--channel z|xyz|dep] [--noise depol] [--t-max 1000] [--t-zero 50]
+//!                                               [--channel z|x|y|xyz|dep] [--noise depol] [--t-max 1000] [--t-zero 50]
 //!                                               [--stop 1e-3] [--stop-te 0] [--seed 1] [--traj-seed N]
 //!
 //! Trotter step = output step: dt · min(1, 0.5/γ), as `floquet`. γ = 0 is one trajectory (deterministic), run to

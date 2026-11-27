@@ -10,6 +10,9 @@
 //!   > ../data/floquet_traj_bond.csv
 //! parallel = 1 (default): gates, kicks and measurement split over threads (one large trajectory); 0: sequential.
 //! Both give the same numbers (same operations per amplitude; the bond sums are added in a different order).
+//! Leonardo comparison: --quench L gamma dt cycles seed, or
+//! --single L 0 dt cycles seed site axis phase_radians. These write a wide row per cycle.
+//! The isolated seed acts at age zero on the scar at the specified precession phase.
 use std::io::{self, BufWriter, Write};
 use std::time::Instant;
 
@@ -18,7 +21,7 @@ use rayon::prelude::*;
 use open_exact_scars::floquet::FloquetTraj;
 use open_exact_scars::model::Params;
 use open_exact_scars::noise::Channel;
-use open_exact_scars::trajectory::{product_amplitudes, Amp, Rng};
+use open_exact_scars::trajectory::{per_site_expectations, product_amplitudes, Amp, Rng};
 
 /// psi ← σ^axis_site psi, up to a global phase (Y = iXZ).
 fn kick(psi: &mut [Amp], site: usize, axis: usize) {
@@ -52,27 +55,55 @@ fn singlet_weight(psi: &[Amp], l: usize, j: usize) -> f64 {
 }
 
 fn main() -> io::Result<()> {
-    let args: Vec<f64> = std::env::args().skip(1).map(|a| a.parse().expect("numbers")).collect();
+    let mut argv = std::env::args().skip(1).peekable();
+    let mode = argv.next_if(|arg| arg == "--quench" || arg == "--single");
+    let sweep = mode.is_some();
+    let args: Vec<f64> = argv.map(|a| a.parse().expect("numbers")).collect();
+    let single = mode.as_deref() == Some("--single");
+    if sweep { assert_eq!(args.len(), if single { 8 } else { 5 }); }
     let get = |i: usize, d: f64| args.get(i).copied().unwrap_or(d);
-    let (l, per_cycle, dt) = (get(0, 12.0) as usize, get(1, 0.5), get(2, 0.1));
+    let (l, noise_arg, dt) = (get(0, 12.0) as usize, get(1, 0.5), get(2, 0.1));
     let (cycles, seed, parallel) = (get(3, 300.0) as usize, get(4, 1.0) as u64, get(5, 1.0) != 0.0);
-    let p = per_cycle / l as f64;
-    let gamma = -(1.0 - 4.0 * p / 3.0).ln() / (4.0 * dt);
+    let (p, gamma) = if sweep {
+        assert!(noise_arg.is_finite() && noise_arg >= 0.0 && dt.is_finite() && dt > 0.0);
+        (-0.75 * (-4.0 * noise_arg * dt).exp_m1(), noise_arg)
+    } else {
+        let p = noise_arg / l as f64;
+        (p, -(1.0 - 4.0 * p / 3.0).ln() / (4.0 * dt))
+    };
     let params = Params::random_c(l, &mut Rng::new(1000 + l as u64));
     // γ = 0: the gates without noise; the kicks are applied below.
     let floquet = FloquetTraj::new(&params, &Channel::from_options(Some("xyz"), None, 1.0), 0.0, dt);
     let mut rng = Rng::new(seed);
-    let mut psi = product_amplitudes(&vec![[-1.0, 0.0, 0.0]; l]);
+    let phase = if single { args[7] } else { 0.0 };
+    let spin = if phase == 0.0 { [-1.0, 0.0, 0.0] } else { [-phase.cos(), -phase.sin(), 0.0] };
+    let mut psi = product_amplitudes(&vec![spin; l]);
+    if single {
+        assert!(gamma == 0.0 && args[5] >= 0.0 && args[5] < l as f64 && args[5].fract() == 0.0);
+        assert!([0.0, 1.0, 2.0].contains(&args[6]) && phase.is_finite());
+    }
     eprintln!("L = {l}, dt = {dt}, p = {p:.6} per site per cycle, gamma = {gamma:.6}, {cycles} cycles, seed {seed}");
     let mut csv = BufWriter::new(io::stdout().lock());
-    writeln!(csv, "L,gamma,dt,cycle,t,bond,singlet,kick_axis,channel")?;
+    if sweep {
+        write!(csv, "L,gamma,dt,seed,phase,cycle,t,mx,my")?;
+        for j in 0..l { write!(csv, ",r{j},kick{j}")?; }
+        writeln!(csv)?;
+    } else {
+        writeln!(csv, "L,gamma,dt,cycle,t,bond,singlet,kick_axis,channel")?;
+    }
     let mut n_kicks = 0;
     let start = Instant::now();
     for n in 0..=cycles {
         // kick_axis[j] = axis of the kick on site j in this cycle (-1: none)
         let mut kicked = vec![-1i32; l];
+        if single && n == 0 {
+            let (site, axis) = (args[5] as usize, args[6] as usize);
+            kick(&mut psi, site, axis);
+            kicked[site] = axis as i32;
+            n_kicks += 1;
+        }
         if n > 0 {
-            if parallel {
+            if parallel && !sweep {
                 floquet.step_parallel(&mut psi, &mut rng);
             } else {
                 floquet.step(&mut psi, &mut rng);
@@ -86,9 +117,19 @@ fn main() -> io::Result<()> {
                 }
             }
         }
-        for j in 0..l {
-            let r = singlet_weight(&psi, l, j);
-            writeln!(csv, "{l},{gamma},{dt},{n},{:.4},{j},{r:.12e},{},xyz", n as f64 * dt, kicked[j])?;
+        let t = n as f64 * dt;
+        if sweep {
+            let [mx, my, _] = per_site_expectations(&psi, l).map(|x| x.iter().sum::<f64>() / l as f64);
+            write!(csv, "{l},{gamma},{dt},{seed},{phase:.12},{n},{t:.8},{mx:.12e},{my:.12e}")?;
+            for (j, axis) in kicked.iter().enumerate() {
+                write!(csv, ",{:.12e},{axis}", singlet_weight(&psi, l, j))?;
+            }
+            writeln!(csv)?;
+        } else {
+            for j in 0..l {
+                let r = singlet_weight(&psi, l, j);
+                writeln!(csv, "{l},{gamma},{dt},{n},{t:.4},{j},{r:.12e},{},xyz", kicked[j])?;
+            }
         }
         if n % 50 == 0 {
             csv.flush()?;

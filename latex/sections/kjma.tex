@@ -1,0 +1,282 @@
+\section{Understanding the KJMA mechanism}
+\label{sec:kjma}
+
+The single-kick picture of Sec.~\ref{sec:kick} treats every noise kick as the seed of a damaged region that grows and does not heal, and the decay of a local signal as the probability that no kick has happened in its past. This is the Kolmogorov--Johnson--Mehl--Avrami (KJMA) picture of a transformation by nucleation and growth. This chapter looks at the mechanism in real space, one ingredient at a time: what one kick does (Sec.~\ref{sec:kjma-one}), whether two damaged regions grow independently (Sec.~\ref{sec:kjma-two}), what is left of the regions in the averaged density matrix and in one trajectory (Sec.~\ref{sec:kjma-rho}), what single jumps placed by hand do at $L = 24$ (Sec.~\ref{sec:kjma-jumps}), why the fidelity does not see the growth (Sec.~\ref{sec:kjma-fidelity}) and how the bond dimension does (Sec.~\ref{sec:kjma-bonddim}). Code: \texttt{rust/examples/} (\texttt{kjma\_bond}, \texttt{kjma\_collision}, \texttt{floquet\_bond}, \texttt{floquet\_traj\_bond}, \texttt{floquet\_kicks\_bond}, \texttt{floquet\_kick\_bonddim}); data in \texttt{data/} and \texttt{data/kjma\_jumps/}.
+
+\paragraph{Observable.} The singlet weight of a bond, $\langle R_{j,j+1}\rangle$ with $R_{j,j+1} = \dyad{s}{s}_{j,j+1}$ (Sec.~\ref{sec:model}). Every tower state has $R_{j,j+1}\ket{\Phi_n} = 0$ on every bond, so without noise $\langle R_{j,j+1}\rangle = 0$ at all times, whatever the precession phase; at infinite temperature $\langle R_{j,j+1}\rangle = 1/4$. Any singlet weight is damage the scar cannot carry, and unlike $c_j$ of Sec.~\ref{sec:kick} it needs no reference state.
+
+\paragraph{Noise convention in this chapter.} Depolarizing noise with $\gamma$ the prefactor of the dissipator,
+\begin{equation}
+\D(\rho) = \gamma \sum_j \sum_{\alpha = x,y,z} \big(\sigma^\alpha_j\,\rho\,\sigma^\alpha_j - \rho\big),
+\label{eq:kjma-dep}
+\end{equation}
+i.e.\ jump operators $\sqrt\gamma\,\sigma^\alpha_j$ (channel \texttt{xyz} in the code): every Pauli factor decays at $4\gamma$, and every site jumps at rate $3\gamma$, each jump a random $\sigma^x$, $\sigma^y$ or $\sigma^z$. The depolarizing channel of Sec.~\ref{sec:dissipation} (\texttt{dep}, $\sqrt{\gamma/2}\,\sigma^\alpha$) is the same channel with $\gamma_{\mathrm{dep}} = 2\gamma$; runs made with \texttt{dep} are quoted here with $\gamma = \gamma_{\mathrm{dep}}/2$. In a Floquet cycle of length $\Delta t$ (Sec.~\ref{sec:floquet}) the channel on one site is $(1 - q)\rho + (q/3)\sum_\alpha\sigma^\alpha\rho\,\sigma^\alpha$ with
+\begin{equation}
+q = \tfrac34\big(1 - e^{-4\gamma\Delta t}\big) \approx 3\gamma\,\Delta t ,
+\label{eq:kjma-q}
+\end{equation}
+the probability that the site is kicked in that cycle.
+
+%----------------------------------------------------------------------
+\subsection{KJMA in one dimension}
+\label{sec:kjma-theory}
+
+Nuclei appear at random, at rate $I$ per site and unit time; each grows at speed $v$ in both directions; a transformed site never reverts; and different regions grow independently. A site $x$ is still untransformed at time $t$ if and only if no nucleus appeared in its past cone $\{(x', t') : \lvert x - x'\rvert \le v(t - t')\}$, of space-time volume $\int_0^t [1 + 2v(t - t')]\,dt' = t + vt^2$. For Poisson nucleation
+\begin{equation}
+X_u(t) = \exp\!\big[-I\,(t + v t^2)\big].
+\label{eq:kjma}
+\end{equation}
+Overlapping regions need no correction: Eq.~\eqref{eq:kjma} only asks whether there is a nucleus in the cone. The single-kick prediction~\eqref{eq:kick} has the same structure, with the damage profile of one kick in place of the indicator of the cone; with a ballistic $\Db \approx c\tau$ it gives the $\gamma^{1/2}$ law of Sec.~\ref{sec:spread}.
+
+For the scar under the noise~\eqref{eq:kjma-dep} a jump leaves the state undamaged with probability $1/3$ (Sec.~\ref{sec:kjma-fidelity}), so damaging jumps arrive at $I = 3\gamma \cdot \tfrac23 = 2\gamma$ per site. Equation~\eqref{eq:kjma} has the length $\ell^* = (v/I)^{1/2}$, the typical distance between regions that start while the others grow: with $v \approx 1.6$ (Sec.~\ref{sec:spread}), $\ell^* \approx 9$ sites at $\gamma = 0.01$ and $\approx 28$ at $\gamma = 0.001$. Several regions growing at the same time on a ring of $L$ sites need $\ell^*$ well below $L$.
+
+The sections below test the ingredients: the damage stays (one kick), regions grow independently (two kicks), the counting of overlaps (averaged $\rho$, jumps on damaged bonds).
+
+%----------------------------------------------------------------------
+\subsection{One kick}
+\label{sec:kjma-one}
+
+Fig.~\ref{fig:kjma-one}: $\ket{-}^{\otimes 16}$, one kick on site $0$ at $t = 0$, evolved with $H$ (exact state vector, random $c$), $\langle R_{j,j+1}\rangle$ for each kick axis; the depolarizing kick is the mean over the three. $\sigma^x\ket{-} = -\ket{-}$ leaves the state unchanged, so it never produces singlet weight. $\sigma^y_k\ket{-}$ and $\sigma^z_k\ket{-}$ are both $\ket{+}_k$ up to a phase, so their curves coincide. On each bond of the kicked site the pair is then $\ket{+-}$, with singlet weight $\lvert\langle s\vert{+-}\rangle\rvert^2 = 1/2$, so the depolarizing kick puts $1/3$ on each of the two bonds, $2/3$ in total.
+
+The singlet weight leaves the kicked bonds within $t \approx 1$, spreads in a light cone, and reaches the opposite side of the ring at $t \approx 3$--$4$. Behind the front the bonds keep $0.05$--$0.1$ and do not return to zero. The total is $0.667$, $0.726$, $0.945$, $1.115$, $1.253$ at $t = 0, 1, 2, 3, 4$ and $1.79$ at $t = 12$ ($\sigma^z$ alone: $1 \to 2.68$), against $L/4 = 4$ at infinite temperature. One kick nucleates a region that grows and stays damaged.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{kjma_single_kick.png}
+\caption{One kick on site $0$ of $\ket{-}^{\otimes 16}$ at $t = 0$, exact evolution with $H$, no further noise. Left: $\langle R_{j,j+1}\rangle$ averaged over the kick axes $x, y, z$, against the bond centre measured from the kicked site. Right: $\sum_j\langle R_{j,j+1}\rangle$ for each axis and their mean; dotted: $2/3$ (\texttt{rust/examples/kjma\_bond.rs}, \texttt{plot\_kjma\_bond.py}, \texttt{data/kjma\_bond.csv}).}
+\label{fig:kjma-one}
+\end{figure}
+
+%----------------------------------------------------------------------
+\subsection{Two kicks: do the regions grow independently?}
+\label{sec:kjma-two}
+
+$L = 14$, exact evolution with $H$, kicks on site $3$ at $t = 0.2$ and on site $10$ at $t = 0.8$, and the two single-kick runs as controls in the same realization. The local damage is $d_j = 1 - \operatorname{Re}c_j$ (Sec.~\ref{sec:kick}). If the regions grow independently, the damage of the double run is the larger of the two single-kick damages; the front is the first time $d_j \ge 0.35$, the level of Sec.~\ref{sec:spread}.
+
+\emph{$\sigma^z$ kicks} (Fig.~\ref{fig:kjma-two-z}). The measured and predicted first arrivals are equal, or one output step ($0.05$) apart, at every site except the two where the fronts meet. There the damage arrives earlier than either front alone: $1.60$ against $1.80$ at site $7$, and $1.65$ against $2.05$ at site $13$.
+
+\emph{Depolarizing kicks} (Fig.~\ref{fig:kjma-two-dep}; mean over the nine pairs of axes; $P_j = d_j/2$ is the probability of finding spin $j$ opposite to its noiseless direction, threshold $17.5\% = 0.35/2$). The arrivals are equal within one step at sites $1$--$5$ and $9$--$11$, and $0.1$ earlier at sites $8$ and $12$. Where the fronts overlap the arrival is much earlier: $1.75$ against $2.25$ (site $6$), $1.80$ against $2.50$ (site $7$), $1.90$ against $2.85$ (site $0$); site $13$ crosses at $1.90$, while neither single kick takes it there by $t = 3$.
+
+So the two fronts move through each other without slowing down; where only one has arrived, the double run is the single run. Where they overlap, two damages below the threshold add up to one above it: the damage is additive rather than capped at the level of one front. This is also why the independent-kick formula~\eqref{eq:kick} counts overlapping damage twice and predicts a slightly fast decay (Sec.~\ref{sec:kick}).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{kjma_collision_z.png}
+\caption{Two $\sigma^z$ kicks (stars) on the scar state, $L = 14$, exact evolution with $H$. Colour: local damage $d_j = 1 - \operatorname{Re}c_j$. Left: kick on site $3$ only. Right: kicks on sites $3$ ($t = 0.2$) and $10$ ($t = 0.8$); first time $d_j \ge 0.35$ measured (solid) and predicted from the two single-kick runs (dashed) (\texttt{rust/examples/kjma\_collision.rs}, \texttt{plot\_kjma\_collision.py}, \texttt{data/kjma\_collision.csv}).}
+\label{fig:kjma-two-z}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{kjma_collision_depol.png}
+\caption{As Fig.~\ref{fig:kjma-two-z} with depolarizing kicks (mean over the axes of both kicks). Top: probability of finding the spin opposite to its noiseless direction, for the kick on site $3$, the kick on site $10$, and both. Bottom: first time it reaches $17.5\%$, with both kicks (solid) and the earlier of the two single-kick times (dashed); triangle: neither single kick reaches it by $t = 3$ (\texttt{kjma\_collision.rs depol}, \texttt{data/kjma\_collision\_depol.csv}).}
+\label{fig:kjma-two-dep}
+\end{figure}
+
+%----------------------------------------------------------------------
+\subsection{The averaged density matrix and one trajectory}
+\label{sec:kjma-rho}
+
+\paragraph{Averaged $\rho$.} Floquet circuit for $\rho$ (Sec.~\ref{sec:floquet}), $L = 12$, $\Delta t = 0.1$, 1500 cycles, $\langle R_{j,j+1}\rangle$ after every cycle, at $\gamma = 5\times10^{-4}$ and $5\times10^{-6}$ ($\gamma_{\mathrm{dep}} = 10^{-3}$, $10^{-5}$; Fig.~\ref{fig:kjma-rho}). The map is uniform: $\rho$ averages over where the kicks land, and at $t = 150$ the bonds differ only by the random $c$ ($0.188$--$0.191$ at $\gamma = 5\times10^{-4}$). Lowering $\gamma$ only scales the map down: at $t = 10$ the totals differ by a factor $96$ for a factor $100$ in $\gamma$. Every site jumps at rate $3\gamma$ and a jump adds $2/3$ on average (Sec.~\ref{sec:kjma-one}), so the initial slope is $d\sum_j\langle R_{j,j+1}\rangle/dt = 2\gamma L = 0.012$ at $\gamma = 5\times10^{-4}$; measured $0.0134$ up to $t = 1$, since the singlet weight of each kick grows after it lands. At $\gamma = 5\times10^{-6}$ the kicks are isolated ($3\gamma L t \approx 0.03$ kicks in the whole run), and the total grows linearly at $2.9\times10^{-4} \approx 58\gamma$ per unit time.
+
+\paragraph{Avrami counting.} Take $X = \sum_j\langle R_{j,j+1}\rangle/(L/4)$, the fraction of the infinite-temperature singlet weight. The run at $\gamma = 5\times10^{-6}$, multiplied by $100$, is the extended (no-overlap) fraction $X_{\mathrm{ext}}$ at $\gamma = 5\times10^{-4}$, and Avrami's rule predicts $X = 1 - e^{-X_{\mathrm{ext}}}$:
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+$t$ & $10$ & $50$ & $100$ & $150$ \\
+\midrule
+$X_{\mathrm{ext}}$ & $0.075$ & $0.452$ & $0.944$ & $1.439$ \\
+$1 - e^{-X_{\mathrm{ext}}}$ & $0.072$ & $0.364$ & $0.611$ & $0.763$ \\
+$X$ measured & $0.072$ & $0.363$ & $0.609$ & $0.760$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+They agree to $0.003$. At $L = 12$, however, one region fills the ring in $\approx 4$ time units, while kicks arrive every $1/(3\gamma L) \approx 56$. An overlap here is the whole ring being hit again, so this tests the counting of overlaps, not regions meeting in space ($\ell^* \approx 40$ at $\gamma = 5\times10^{-4}$).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{kjma_rho_g5e-4.png}\\[1ex]
+\includegraphics[width=0.9\textwidth]{kjma_rho_g5e-6.png}
+\caption{Floquet evolution of $\rho$ from $\ket{-}^{\otimes 12}$ with depolarizing noise, no kicks by hand, $\Delta t = 0.1$: $\langle R_{j,j+1}\rangle$ after every cycle (left) and the sum over bonds (right). Top: $\gamma = 5\times10^{-4}$. Bottom: $\gamma = 5\times10^{-6}$ ($\gamma_{\mathrm{dep}} = 10^{-3}$, $10^{-5}$; \texttt{rust/examples/floquet\_bond.rs}, \texttt{plot\_floquet\_bond.py}, \texttt{data/floquet\_bond.csv}, \texttt{floquet\_bond\_g1e-5.csv}).}
+\label{fig:kjma-rho}
+\end{figure}
+
+\paragraph{One trajectory.} Inside a single noise history the regions are visible (Fig.~\ref{fig:kjma-traj}). Poisson jump trajectory of the Floquet circuit, $L = 12$, $\Delta t = 0.1$, half a kick per cycle on the chain: $q = 1/24$ in Eq.~\eqref{eq:kjma-q}, $\gamma = 0.143$. Each cycle applies the noiseless gates, then kicks every site with probability $q$ by a random Pauli; the average over trajectories is the circuit's channel. This trajectory has 144 kicks in 300 cycles.
+\begin{itemize}
+\item Before the first kick (cycle $10$) the state is the scar state to $10^{-28}$ and every bond is $0$.
+\item A kick lights the two bonds of its site, by an amount set by the precession phase: at cycle $14$ a $\sigma^y$ kick on site $7$, while the spins point almost along $-y$, has almost no effect.
+\item At cycles $17$--$18$ kicks on sites $1$, $2$ and $4$ make one bright region, which merges with the region of the kick on site $0$. Every bond is lit by cycle $\approx 25$, and from $t \approx 3$ the total stays at $L/4 = 3$.
+\end{itemize}
+At this rate (a kick every $0.2$ on 12 sites) the regions merge within $\approx 1.5$ time units, too fast to watch them grow separately.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{kjma_traj_n60.png}\\[1ex]
+\includegraphics[width=0.9\textwidth]{kjma_traj.png}
+\caption{One Poisson jump trajectory of the Floquet circuit, $L = 12$, $\Delta t = 0.1$, $\gamma = 0.143$ ($0.5$ kicks per cycle): $\langle R_{j,j+1}\rangle$ after every cycle with the kicks marked on the kicked site (left), and the sum over bonds with the kick times (right). Top: the first 60 cycles. Bottom: all 300 (\texttt{rust/examples/floquet\_traj\_bond.rs}, \texttt{plot\_floquet\_traj\_bond.py}, \texttt{data/floquet\_traj\_bond.csv}).}
+\label{fig:kjma-traj}
+\end{figure}
+
+%----------------------------------------------------------------------
+\subsection{Jumps placed by hand at $L = 24$}
+\label{sec:kjma-jumps}
+
+\paragraph{Protocol.} Noiseless Floquet circuit ($\gamma = 0$ between jumps), with full depolarizing jumps $\rho \to \tfrac13\sum_\alpha\sigma^\alpha_k\rho\,\sigma^\alpha_k$ at chosen sites and cycles. Each jump is done exactly: every state is replaced by its three Pauli images with weight $1/3$ (images equal up to a phase are merged), and $\langle R_{j,j+1}\rangle$ is the weighted average, i.e.\ $\Tr(\rho R_{j,j+1})$ of the density matrix with exactly those jumps. On $\ket{-}^{\otimes L}$ the $\sigma^x$ image is the state itself and the $\sigma^y$, $\sigma^z$ images coincide, so a first jump gives 2 branches (weights $1/3$, $2/3$) and a second one 6. A jump acts right after its cycle (cycle $0$: before the first cycle). Code: \texttt{rust/examples/floquet\_kicks\_bond.rs}.
+
+\paragraph{A jump on a damaged bond.} For a jump on site $j$ of the bond $(j, j+1)$, the average over $\alpha$ maps $\boldsymbol\sigma_j\cdot\boldsymbol\sigma_{j+1} \to -\tfrac13\,\boldsymbol\sigma_j\cdot\boldsymbol\sigma_{j+1}$ (each component changes sign under two of the three Paulis). With $R = (1 - \boldsymbol\sigma_j\cdot\boldsymbol\sigma_{j+1})/4$, the singlet weight $r$ of the bond becomes
+\begin{equation}
+r \;\to\; \frac{1 - r}{3} = r + \frac13\,(1 - 4r).
+\label{eq:kjma-bond}
+\end{equation}
+A clean bond gets $1/3$, and the infinite-temperature value $1/4$ is a fixed point. The gain is proportional to the part still undamaged, $1 - 4r$: this is Avrami's rule $dX = (1 - X)\,dX_{\mathrm{ext}}$, here exact for one bond.
+
+\paragraph{Second jump after the first region has filled the ring} (Fig.~\ref{fig:kjma-jumps-30}). Jumps on site $6$ at $t = 0$ and on site $18$ at $t = 30$ ($\Delta t = 0.1$, 1100 cycles). The total is $0.667$, $0.78$, $0.95$, $1.51$, $2.21$, $2.84$, $3.04$ at $t = 0, 1, 2, 5, 10, 20, 29.9$, i.e.\ $r \approx 0.127$ per bond when the second jump arrives. That jump lands on damaged bonds and adds $2[(1 - r)/3 - r] = 0.33$ instead of $2/3$ (total $3.04 \to 3.37$, Eq.~\eqref{eq:kjma-bond}). After it the total grows to $4.10$, $4.40$, $4.59$, $4.80$ at $t = 35, 40, 50, 110$, towards $L/4 = 6$. With this delay the two regions never grow at the same time.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{kjma_jumps_0_30.png}\\[1ex]
+\includegraphics[width=0.9\textwidth]{kjma_jumps_0_30_zoom.png}
+\caption{Depolarizing jumps (stars) on site $6$ at $t = 0$ and site $18$ at $t = 30$, noiseless Floquet circuit, $L = 24$, $\Delta t = 0.1$: $\langle R_{j,j+1}\rangle$ after every cycle, exact average over the jumps (left), and the sum over bonds with the jump times (right). Top: the whole run, $t \le 110$. Bottom: $25 \le t \le 45$, around the second jump (\texttt{floquet\_kicks\_bond.rs}, \texttt{plot\_floquet\_traj\_bond.py}, \texttt{data/kjma\_jumps/floquet\_kicks\_bond\_L24.csv}).}
+\label{fig:kjma-jumps-30}
+\end{figure}
+
+\paragraph{Second jump while the first region grows} (Figs.~\ref{fig:kjma-jumps-15} and~\ref{fig:kjma-jumps-1.5}). Jumps on site $6$ at $t = 0$ and on site $18$, 12 sites away, at $t = 1.5$. The second region starts while the first is still growing; the two grow at the same time and meet at $t \approx 3$, near bonds $11$--$13$ and across the link $23|0$. The second jump lands on clean bonds ($r \approx 3\times10^{-4}$) and adds the full $2/3$. With $\Delta t = 0.025$ the total is $0.667$, $0.824$, $0.771$, $0.787$ at $t = 0, 0.5, 1, 1.475$, then $1.457$, $1.857$, $2.069$, $2.160$, $2.289$, $2.423$ at $t = 1.5, 2, 2.5, 3, 3.5, 4$. With $\Delta t = 0.1$ it is $0.780$ at $t = 1$ and $1.858$ at $t = 2$ (against $0.771$, $1.857$): the Trotter error is $\lesssim 1\%$.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{kjma_jumps_0_1.5_dt0.1.png}
+\caption{As Fig.~\ref{fig:kjma-jumps-30}, second jump at $t = 1.5$, $\Delta t = 0.1$, $t \le 8$ (\texttt{data/kjma\_jumps/floquet\_kicks\_bond\_L24\_jump15.csv}).}
+\label{fig:kjma-jumps-15}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{kjma_jumps_0_1.5.png}
+\caption{As Fig.~\ref{fig:kjma-jumps-15} with $\Delta t = 0.025$, $t \le 4$, and the fidelity $F = \langle\psi_0(t)\vert\rho(t)\vert\psi_0(t)\rangle$ (bottom right; Sec.~\ref{sec:kjma-fidelity}) (\texttt{data/kjma\_jumps/floquet\_kicks\_bond\_L24\_dt0.025\_jump1.5.csv}, \texttt{floquet\_kicks\_fidelity\_L24\_dt0.025\_jump1.5.csv}).}
+\label{fig:kjma-jumps-1.5}
+\end{figure}
+
+\paragraph{One jump on different sites} (Fig.~\ref{fig:kjma-fidelity}, right). A single jump at $t = 0$ on sites $0$, $6$, $12$ or $18$ ($\Delta t = 0.025$, $t \le 4$). The growth depends on the site only through the random $c$: the totals at $t = 4$ are $1.31$, $1.31$, $1.39$, $1.31$.
+
+%----------------------------------------------------------------------
+\subsection{The fidelity counts jumps, not growth}
+\label{sec:kjma-fidelity}
+
+$F(t) = \langle\psi_0(t)\vert\rho(t)\vert\psi_0(t)\rangle$, with $\ket{\psi_0(t)} = \bigotimes_j \big(e^{-iht/2}\ket{\uparrow} - e^{iht/2}\ket{\downarrow}\big)/\sqrt2$ the noiseless scar state. The circuit acts on the tower only through the field, so $\psi_0(t) = U^n\psi_0$ exactly after $n$ cycles, with $U$ one cycle.
+
+\paragraph{One jump.} $\psi_0$ is a product state, and spin $k$ has a unit Bloch vector $\boldsymbol n_k$. A jump on site $k$ gives
+\begin{equation}
+F = \frac13\sum_{\alpha}\langle\psi_0\vert\sigma^\alpha_k\vert\psi_0\rangle^2 = \frac13\,\lvert\boldsymbol n_k\rvert^2 = \frac13
+\end{equation}
+for every site, every time and every $L$. Between jumps $\rho$ and $\psi_0(t)$ are moved by the same unitary, so $F$ stays constant. The damaged branch is orthogonal to $\psi_0$ from the moment of the jump and stays orthogonal: its growth changes what it looks like (Figs.~\ref{fig:kjma-one}, \ref{fig:kjma-bonddim}), not its overlap with $\psi_0(t)$.
+
+\paragraph{Second jump.} Before it, $\rho = \tfrac13\dyad{\psi_0}{\psi_0} + \tfrac23\dyad{\phi}{\phi}$ with $\langle\psi_0\vert\phi\rangle = 0$. With $\sum_\alpha\sigma^\alpha X\sigma^\alpha = 2\Tr(X)\,\mathds 1 - X$ on site $k$,
+\begin{equation}
+F = \frac19 + \frac49\,p, \qquad p = \langle\phi\vert\,\mathds 1_k \otimes \dyad{\psi_0^{(\bar k)}}{\psi_0^{(\bar k)}}\,\vert\phi\rangle ,
+\label{eq:kjma-F2}
+\end{equation}
+where $\psi_0^{(\bar k)}$ is $\psi_0$ on all sites but $k$: $p$ is the probability that $\phi$ equals the scar state everywhere except on site $k$. If the second jump hits the site of the first right away, $p = 1$ and $F$ rises to $5/9$ (the second Pauli can undo the first); when it lands away from the damage, or after the damage has spread, $p \approx 0$ and $F \approx 1/9$.
+
+\paragraph{Data.} For one jump on sites $0$, $6$, $12$, $18$, $F = 1/3$ at every cycle to $7\times10^{-14}$, with branch overlaps $1$ and $\approx 10^{-30}$ (Fig.~\ref{fig:kjma-fidelity}, left). After the second jump on site $18$ at $t = 1.5$ (Fig.~\ref{fig:kjma-jumps-1.5}), $F = 0.1111113$. The field has turned the spins by $\varphi = 1.5$, so the $\sigma^x_{18}$ and $\sigma^y_{18}$ images of the clean branch give $\cos^2\varphi = 0.0050$ and $\sin^2\varphi = 0.9950$, together $1/9$; the rest is $p = 3.4\times10^{-7}$, the tail of the first damage at site $18$.
+
+\paragraph{Consequence.} With jumps at rate $3\gamma$ per site, each multiplying $F$ by $\approx 1/3$, $F(t) \approx \exp(-\tfrac23\cdot 3\gamma L t) = e^{-2\gamma L t}$, the extensive decay of the free spins ($[(1 + e^{-4\gamma t})/2]^L$ in the convention~\eqref{eq:kjma-dep}). The growth of the damaged regions, the non-trivial part, is invisible in $F$; it shows in local observables.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{kjma_fidelity_sites.png}
+\caption{One depolarizing jump at $t = 0$ on site $0$, $6$, $12$ or $18$ of $\ket{-}^{\otimes 24}$, noiseless Floquet circuit, $\Delta t = 0.025$. Left: fidelity with the noiseless scar state. Right: $\sum_j\langle R_{j,j+1}\rangle$ of the same runs (\texttt{floquet\_kicks\_bond.rs}, \texttt{plot\_kicks\_fidelity.py}, \texttt{data/kjma\_jumps/floquet\_kicks\_fidelity\_L24\_dt0.025\_site<k>.csv}).}
+\label{fig:kjma-fidelity}
+\end{figure}
+
+%----------------------------------------------------------------------
+\subsection{Bond dimension}
+\label{sec:kjma-bonddim}
+
+Fig.~\ref{fig:kjma-bonddim}: $L = 20$, one depolarizing jump on site $10$ at $t = 0$, noiseless Floquet circuit, $\Delta t = 0.025$. For each branch, the Schmidt spectrum across every cut $\ell$ (block = sites $0, \dots, \ell - 1$, i.e.\ the MPS bond between sites $\ell - 1$ and $\ell$ in the order $0, \dots, 19$, the link $19|0$ being the long-range bond of the ring), and $\chi_\epsilon$, the smallest number of Schmidt values with discarded weight $\le\epsilon$.
+\begin{itemize}
+\item The scar branch ($\sigma^x$ image $= \psi_0(t)$) has $\chi = 1$ and $S < 10^{-10}$ at every cut and every time: $H$ never entangles the scar state, it only turns the spins.
+\item The damaged branch grows from the jump, with a light cone over the cuts (panel b). At the middle cut:
+\begin{center}
+\begin{tabular}{cccccccc}
+\toprule
+$t$ & $0$ & $0.5$ & $1$ & $1.5$ & $2$ & $3$ & $4$ \\
+\midrule
+$\chi_{10^{-10}}$ & $1$ & $88$ & $531$ & $888$ & $997$ & $1021$ & $1024$ \\
+$\chi_{10^{-6}}$ & $1$ & $15$ & $66$ & $263$ & $652$ & $958$ & $992$ \\
+$S$ & $0$ & $0.86$ & $1.28$ & $1.53$ & $1.86$ & $2.75$ & $3.64$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+By $t \approx 3$ every cut except the middle one is at its maximum $2^{\min(\ell, L - \ell)}$ at $\epsilon = 10^{-6}$: at $L = 20$ the damage has reached every cut.
+\end{itemize}
+The entanglement, and the cost of an MPS trajectory, lives only in the damaged regions and grows from each jump with its front, while $F$ stays at $1/3$ (panel d).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{kjma_bonddim.png}
+\caption{One depolarizing jump on site $10$ of $\ket{-}^{\otimes 20}$, noiseless Floquet circuit, $\Delta t = 0.025$. (a) $\langle R_{j,j+1}\rangle$, average over the jump. (b) Bond dimension $\chi_{10^{-6}}$ of the damaged branch at every cut. (c) $\chi$ at the middle cut: damaged branch at $\epsilon = 10^{-10}$, $10^{-6}$, and scar branch (squares). (d) Fidelity with $\psi_0(t)$ and the overlaps of the two branches (\texttt{rust/examples/floquet\_kick\_bonddim.rs}, \texttt{plot\_kick\_bonddim.py}, \texttt{data/kjma\_jumps/floquet\_kick\_bonddim\_L20\_dt0.025\_site10.csv}).}
+\label{fig:kjma-bonddim}
+\end{figure}
+
+%----------------------------------------------------------------------
+\subsection{Tower weight and the surviving oscillation}
+\label{sec:kjma-weight}
+
+Suppose the bath is switched off at time $T$. The probability of finding the chain anywhere in the scar tower is
+\begin{equation}
+ W_L(T)=\Tr(P\rho(T)),\qquad P=\Ptow=\sum_{n=0}^{L}\dyad{\Phi_n}{\Phi_n}.
+\end{equation}
+The noiseless Floquet cycle preserves $P$, so $W_L(t)=W_L(T)$ until the bath is switched on again. The fidelity $F$ in Sec.~\ref{sec:kjma-fidelity} projects onto one state in the tower and obeys $F\le W_L$. The value near $1/9$ after two separated kicks measures the survival of that particular state.
+
+For $\ket{-}^{\otimes L}$ a depolarizing jump leaves the chain unchanged with weight $1/3$. The other branch has one flipped spin. Its overlap with the normalized symmetric superposition of a flip at all $L$ sites is $1/\sqrt L$, giving tower weight $1/L$. The average after one jump and the initial slope under continuous dissipation~\eqref{eq:kjma-dep} are therefore
+\begin{equation}
+ W_L^{\mathrm{one\ jump}}=\frac13+\frac{2}{3L},\qquad
+ \dot W_L(0)=3\gamma L\big(W_L^{\mathrm{one\ jump}}-1\big)=-2\gamma(L-1).
+ \label{eq:kjma-leakage}
+\end{equation}
+This gives an extensive initial leakage rate. To ask when the remaining weight is exponentially small in $L$, fix $a>0$ and measure the first time that $-L^{-1}\ln W_L(t)$ reaches $a$. Histories with zero jumps alone give $W_L(t)\ge e^{-3\gamma Lt}$, so this time is at least $a/(3\gamma)$ in the continuous-time convention. The actual crossing time still requires a tower-weight measurement.
+
+Write $S^+_{\rm tot}=\sum_j(\sigma^x_j+i\sigma^y_j)/2$ and $Q=\mathds 1-P$. Total spin raising commutes with $P$, so the transverse magnetization splits exactly into two complex amplitudes,
+\begin{equation}
+ m_x+i m_y =
+ \underbrace{\frac{2}{L}\Tr(\rho\,P S^+_{\rm tot}P)}_{M_{\rm tower}}
+ +\underbrace{\frac{2}{L}\Tr(\rho\,Q S^+_{\rm tot}Q)}_{M_{\rm outside}},
+ \qquad m_\perp=|M_{\rm tower}+M_{\rm outside}|.
+ \label{eq:kjma-osc-sectors}
+\end{equation}
+During a noiseless interval the tower amplitude acquires only the phase $e^{ih(t-T)}$. The outside amplitude can change in magnitude and relative phase. Thus $m_\perp$ can fall at fixed $W_L$ and fixed $|M_{\rm tower}|$. The singlet weight $r_j=\Tr(\rho R_{j,j+1})$ locates violations of the scar condition. Its relation to the oscillation amplitude requires dynamics. For example, a tower state of definite $S^z_{\rm tot}$ has $r_j=0$ on all bonds and also $m_\perp=0$.
+
+\subsection{Switching the dissipation off during an oscillation}
+\label{sec:kjma-pulses}
+
+We evolved the full Floquet density matrix from $\ket{-}^{\otimes12}$ with the same couplings (seed 1) throughout. With $\gamma=0.025$ continuously on and $\Delta t=0.1$, the first sampled $m_\perp\le 1/e$ occurs at $t_e=3.3$. Each pulse window lasts $t_e/3=1.1$ (11 cycles). Turning the bath off sets $\gamma=0$ while retaining all Hamiltonian gates. Both protocols stop at the first cycle with $m_\perp\le 1/e$.
+
+\begin{itemize}
+\item \emph{Start on.} Two on/off pairs are followed by continuous dissipation. During the off windows $1.1$--$2.2$ and $3.3$--$4.4$, $m_\perp$ falls from $0.8440$ to $0.7416$ and from $0.5266$ to $0.4552$, respectively. The first threshold crossing is at $t=5.3$.
+\item \emph{Start off.} The bath alternates off and on until the threshold. During $0$--$1.1$, the clean spins precess at $m_\perp=1$. During the next off window ($2.2$--$3.3$), the amplitude falls from $0.8038$ to $0.6723$ ($16.4\%$). During $4.4$--$5.5$ it falls from $0.5478$ to $0.4351$ ($20.6\%$). The third on pulse brings the first crossing at $t=6.1$.
+\end{itemize}
+The first off window in the second run controls for clean precession. Its later off windows show that a prior pulse prepares a state whose net transverse amplitude can decay under unitary evolution. The one-kick bond maps supply a possible spatial mechanism: violations seeded during a pulse spread after the bath is switched off. The switching runs measure magnetization. Establishing a KJMA law requires the spatial and rate tests below.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.76\textwidth]{kjma_pulses_on_first.png}\\[1ex]
+\includegraphics[width=0.76\textwidth]{kjma_pulses_off_first.png}
+\caption{Pulsed depolarization at $L=12$. The upper figure starts with the bath on and the lower figure starts with it off. Gold intervals have $\gamma=0.025$ and blue intervals have $\gamma=0$. Each figure shows $m_\perp$ above its components $m_x,m_y$. The dashed grey curve is the continuously dissipative reference and the dotted line is the stopping threshold (\texttt{floquet\_on\_off.rs}, \texttt{plot\_floquet\_on\_off.py}).}
+\label{fig:kjma-pulses}
+\end{figure}
+
+\subsection{What is established and what is open}
+\label{sec:kjma-summary}
+
+Established:
+\begin{itemize}
+\item One kick nucleates a region that grows ballistically and stays damaged (Fig.~\ref{fig:kjma-one}).
+\item Regions of different kicks move through each other; where they overlap, their damages add (Figs.~\ref{fig:kjma-two-z}, \ref{fig:kjma-two-dep}).
+\item A jump on a damaged bond adds in proportion to the undamaged part (Eq.~\eqref{eq:kjma-bond}, Fig.~\ref{fig:kjma-jumps-30}), and the Avrami counting reproduces the averaged $\rho$ at $L = 12$ to $0.003$ (Fig.~\ref{fig:kjma-rho}).
+\item The fidelity with the precessing product state stays constant between jumps. The singlet weight and entanglement show the growth of the damaged branch (Figs.~\ref{fig:kjma-fidelity}, \ref{fig:kjma-bonddim}). The pulse experiment shows that $m_\perp$ can decay during a noiseless interval, when the total tower weight is conserved (Fig.~\ref{fig:kjma-pulses}).
+\end{itemize}
+Record $W_L(t)$, $m_\perp(t)$ and the mean singlet weight $\bar r(t)=L^{-1}\sum_j r_j(t)$ in the same runs at several $\gamma$ and $L$. Two measurements remain open.
+\begin{enumerate}
+\item \emph{Local lifetime.} For ballistic fronts at speed $v$ and a seed rate $I\propto\gamma$, Eq.~\eqref{eq:kjma} predicts a time of order $(Iv)^{-1/2}$. Measure the $1/e$ time of $m_\perp$ and the time for $\bar r$ to reach a fixed fraction of its plateau. Fit their exponents separately and test whether rescaling either time by $\sqrt{\gamma}$ gives a constant in the weak-noise, large-$L$ regime. Measure $v$ independently from single-kick profiles. Use rings with $\ell^*=\sqrt{v/I}\ll L$ so that regions from different random kicks can meet before a front wraps around.
+\item \emph{Tower survival.} Track $-L^{-1}\ln W_L(t)$ at the same times and find its fixed-$a$ crossing. Measure both terms of Eq.~\eqref{eq:kjma-osc-sectors} to determine how much of the oscillation is carried outside the exact tower as its population falls. Their relative phase determines how the two contributions combine during a noiseless window.
+\end{enumerate}

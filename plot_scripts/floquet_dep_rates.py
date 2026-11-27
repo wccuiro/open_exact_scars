@@ -22,7 +22,13 @@ the latest stretch below 1/e); Néel ρ at L ≤ 12, γ ≤ 0.2 to t = 2.5.
 error σ_Γ = Γ² σ_S(t_e)/|dE/dt| (slope over ± 4 output steps, as fit_small_gamma.rate), σ_S with the covariance of
 the means (m_⊥, s_⊥). Γ_∞ = A of Γ_e = A + B/L on L ≥ 8, unweighted, z-Néel without L = 8 at γ ≤ 0.02
 (fit_states_inverse_L.sizes_used: finite-size revivals); error = max(fit error, |A − A without the smallest size|), as
-fit_channels.py for the channels other than σᶻ.
+fit_channels.py for the channels other than σᶻ. γ_dep ≥ 5 has only L = 8, 12 (no ρ at L = 16 there; the two agree to
+≤ 0.15 %): Γ_∞ = Γ_e(L = 12), error |Γ_e(12) − Γ_e(8)|.
+
+γ convention: the runs use --channel dep (jumps √(γ_dep/2) σ^α, every Pauli at 2γ_dep), and so do the exact runs and
+channels_inverse_L.csv. The outputs quote γ = γ_dep/2 (jumps √γ σ^α, dissipator γ Σ_j Σ_α (σ^α ρ σ^α − ρ), every
+Pauli at 4γ; CLAUDE.md "Depolarizing γ"): column gamma, with gamma_dep alongside; the figure's axis is γ, the free-spin
+line 4γ. The rates Γ are unchanged (time units).
 
 Exact reference: the dep runs of fit_channels.py (<data>/used_data/lean/: exact L = 8, 10, 12, diffusive trajectories
 L = 16, 20 for γ ≤ 2) and its Γ_∞ (channels_inverse_L.csv, L = 8 – 20 including L = 10). Their output grid is coarse
@@ -31,9 +37,11 @@ For the comparison (panels c, d) the Floquet signal is therefore also evaluated 
 of the same (state, L, γ) (linear interpolation of the fine Floquet grid; columns *_grid), and the exact Γ_e are
 refitted on the same sizes (Gamma_inf_exact_same): the differences are then the Trotter error alone.
 
-Output in <data>/floquet_dep/: floquet_dep_rates.csv (state, L, gamma, method, Gamma_e, sigma_Gamma_e, Gamma_e_grid,
-Gamma_e_exact, t_end), floquet_dep_inverse_L.csv (state, gamma, sizes, A_lin, sigma_A_lin, B_lin, Gamma_inf,
-sigma_Gamma_inf, Gamma_inf_grid, Gamma_inf_exact_same, Gamma_inf_exact, sigma_Gamma_inf_exact), floquet_dep_rates.png.
+Output in <data>/floquet_dep/: floquet_dep_rates.csv (state, L, gamma, gamma_dep, method, Gamma_e, sigma_Gamma_e,
+Gamma_e_grid, Gamma_e_exact, t_end), floquet_dep_inverse_L.csv (state, gamma, gamma_dep, sizes, A_lin, sigma_A_lin,
+B_lin, Gamma_inf, sigma_Gamma_inf, Gamma_inf_grid, Gamma_inf_exact_same, Gamma_inf_exact, sigma_Gamma_inf_exact),
+floquet_dep_thermodynamic_rate.png (one panel: Γ_∞ against γ, Floquet filled, exact open, as the depolarizing panel of
+Fig. 19). The same-grid comparison columns are printed and written, not plotted.
 """
 
 import re
@@ -43,7 +51,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.colors import LinearSegmentedColormap
 
 import fit_states_inverse_L as fsi  # also sets the plot style of the notes
 from fit_states import crossing
@@ -58,9 +65,7 @@ else:
     USED = DATA / "used_data" if (DATA / "used_data").is_dir() or not WSL_USED.is_dir() else WSL_USED
 NAME = re.compile(r"floquet_(traj_)?(minus-x|neel-x|neel)_L(\d+)_g([0-9.]+?)_dt([0-9.]+)_chdep\.csv$")
 LIN_MIN, MIN_SIZES = 8, 3
-SHORT = {"minus-x": "scar, $m_\\perp$", "neel-x": "x-Néel, $s_\\perp$", "neel": "z-Néel, $|s_z|$"}
-L_MARKERS = {8: "o", 12: "s", 16: "^", 20: "D", 24: "v"}
-DT = {"minus-x": 0.1, "neel-x": 0.02, "neel": 0.02}  # main Trotter step (--dt) per state
+DT ={"minus-x": 0.1, "neel-x": 0.02, "neel": 0.02}  # main Trotter step (--dt) per state
 
 
 def signal_error(state, run):
@@ -158,7 +163,12 @@ def extrapolate(rates):
         d = d.set_index("L")
         own = linear(state, g, d["Gamma_e"])
         if own is None:
-            continue
+            # two sizes only (γ_dep ≥ 5: L = 8, 12, which agree to ≤ 0.15 %): Γ_e of the larger, error the difference
+            two = sorted(d["Gamma_e"].dropna().index)
+            if len(two) != 2:
+                continue
+            ge = d.loc[two, "Gamma_e"].to_numpy()
+            own = two, ge[1], np.nan, np.nan, abs(ge[1] - ge[0])
         lin, a, s_a, b, err = own
         # the comparison: Floquet on the exact grid and exact, both on the sizes where both exist
         both = d[["Gamma_e_grid", "Gamma_e_exact"]].dropna()
@@ -172,90 +182,41 @@ def extrapolate(rates):
                                        "sigma_Gamma_inf_exact"])
 
 
-def figure(rates, table):
-    fig, axes = plt.subplots(2, 2, figsize=(9.6, 7.6))
-    (ax_a, ax_b), (ax_c, ax_d) = axes
+def figure(table):
+    """The depolarizing panel of Fig. chinf with the Floquet circuit: Γ_∞ against γ (convention √γ σ^α), one panel."""
+    fig, ax = plt.subplots(figsize=(6.4, 4.6), layout="constrained")
     gs = np.geomspace(table["gamma"].min(), table["gamma"].max(), 100)
-
-    # (a) Γ_∞ against γ: Floquet (filled) and exact (open, dashed; Fig. chinf, depolarizing panel)
-    ax_a.plot(gs, 2 * gs, color=fsi.MUTED, ls=":", lw=1, label="$2\\gamma$")
+    ax.plot(gs, 4 * gs, color=fsi.MUTED, ls=":", lw=1, label="$4\\gamma$ (free spin)")
     for state in fsi.STATES:
         d = table[table["state"] == state].sort_values("gamma")
-        ax_a.errorbar(d["gamma"], d["Gamma_inf_exact"], yerr=d["sigma_Gamma_inf_exact"], fmt="--o", ms=6.5, lw=0.9,
-                      capsize=2, mfc="none", mew=1.0, color=fsi.SERIES[state], alpha=0.7)
-        ax_a.errorbar(d["gamma"], d["Gamma_inf"], yerr=d["sigma_Gamma_inf"], fmt="-o", ms=3.2, lw=1.3, capsize=2,
-                      color=fsi.SERIES[state], label=SHORT[state])
-    ax_a.plot([], [], "-o", ms=3.2, color=fsi.INK_SECONDARY, label="Floquet, $L$ = 8 – 20")
-    ax_a.plot([], [], "--o", ms=6.5, mfc="none", color=fsi.INK_SECONDARY, label="exact (Fig. 19)")
-    ax_a.set(xscale="log", yscale="log", xlabel="$\\gamma$", ylabel="$\\Gamma_\\infty$",
-             title="(a) Depolarizing noise: $\\Gamma_\\infty$ ($A + B/L$)")
-    ax_a.legend(fontsize=7.5, loc="upper left")
-
-    # (b) scar Γ_e against 1/L with the fits; exact per size (crosses) and its Γ_∞ (cross at 1/L = 0)
-    gammas = sorted(table["gamma"].unique())
-    blues = LinearSegmentedColormap.from_list("blues", fsi.RAMP)
-    colors = {g: blues(i / max(len(gammas) - 1, 1)) for i, g in enumerate(gammas)}
-    xs = np.linspace(0, 1 / 8, 50)
-    for g in gammas:
-        d = rates[(rates["state"] == "minus-x") & (rates["gamma"] == g)].sort_values("L")
-        t = table[(table["state"] == "minus-x") & (table["gamma"] == g)]
-        if d.empty or t.empty:
-            continue
-        t = t.iloc[0]
-        ax_b.errorbar(1 / d["L"], d["Gamma_e"], yerr=d["sigma_Gamma_e"], fmt="o", ms=3.5, capsize=1.5,
-                      color=colors[g], label=f"{g:g}")
-        ax_b.plot(1 / d["L"], d["Gamma_e_exact"], "x", ms=5, mew=0.9, color=colors[g])
-        ax_b.plot(xs, t["A_lin"] + t["B_lin"] * xs, "--", lw=0.9, color=colors[g])
-        ax_b.plot(0, t["Gamma_inf_exact"], "x", ms=6, mew=1.2, color=colors[g], clip_on=False)
-    ax_b.set(yscale="log", xlim=(-0.004, 0.13), xlabel="$1/L$", ylabel="$\\Gamma_e$",
-             title="(b) Scar: $\\Gamma_e$ against $1/L$ (×: exact)")
-    ax_b.set_xticks([0, 1 / 20, 1 / 16, 1 / 12, 1 / 8], ["0", "1/20", "1/16", "1/12", "1/8"])
-    ax_b.legend(title="$\\gamma$", fontsize=6.5, title_fontsize=7, ncol=2, loc="lower left")
-
-    # (c) the same size on the same output grid: Γ_e(Floquet)/Γ_e(exact) − 1, the Trotter error
-    ax_c.axhline(0, color=fsi.MUTED, lw=0.8)
-    for state in fsi.STATES:
-        for l, marker in L_MARKERS.items():
-            d = rates[(rates["state"] == state) & (rates["L"] == l)].dropna(subset=["Gamma_e_exact"])
-            d = d.sort_values("gamma")
-            if d.empty:
-                continue
-            ax_c.errorbar(d["gamma"], 100 * (d["Gamma_e_grid"] / d["Gamma_e_exact"] - 1),
-                          yerr=100 * d["sigma_Gamma_e"] / d["Gamma_e_exact"], fmt=marker, ls="-", lw=0.6, ms=3.5,
-                          capsize=1.5, color=fsi.SERIES[state], mfc=fsi.SERIES[state] if l <= 12 else "none")
-    handles = [plt.Line2D([], [], color=fsi.SERIES[s], lw=1.5, label=SHORT[s]) for s in fsi.STATES]
-    handles += [plt.Line2D([], [], color=fsi.INK_SECONDARY, marker=m, ls="none", ms=4,
-                           mfc=fsi.INK_SECONDARY if l <= 12 else "none",
-                           label=f"$L$ = {l}" + (" (ρ)" if l <= 12 else " (traj.)")) for l, m in L_MARKERS.items()]
-    ax_c.legend(handles=handles, fontsize=6.8, ncol=2)
-    ax_c.set(xscale="log", xlabel="$\\gamma$", ylabel="$\\Gamma_e^{\\rm Floquet}/\\Gamma_e^{\\rm exact} - 1$ (%)",
-             title="(c) Each size, same output grid as exact")
-
-    # (d) extrapolated rates: same grid and same sizes (filled) / as plotted in (a) (open)
-    ax_d.axhline(0, color=fsi.MUTED, lw=0.8)
-    for k, state in enumerate(fsi.STATES):
-        d = table[table["state"] == state].sort_values("gamma")
-        shift = 1.07 ** (k - 1)  # small horizontal offsets so the error bars do not overlap
-        ax_d.errorbar(d["gamma"] * shift, 100 * (d["Gamma_inf_grid"] / d["Gamma_inf_exact_same"] - 1),
-                      fmt="-o", ms=3.5, color=fsi.SERIES[state], label=SHORT[state])
-        err = np.hypot(d["sigma_Gamma_inf"], d["sigma_Gamma_inf_exact"]) / d["Gamma_inf_exact"]
-        ax_d.errorbar(d["gamma"] * shift, 100 * (d["Gamma_inf"] / d["Gamma_inf_exact"] - 1), yerr=100 * err,
-                      fmt="o", ms=5, mfc="none", mew=0.9, lw=0.7, capsize=1.5, color=fsi.SERIES[state], alpha=0.7)
-    ax_d.plot([], [], "-o", ms=3.5, color=fsi.INK_SECONDARY, label="same grid, same sizes")
-    ax_d.plot([], [], "o", ms=5, mfc="none", color=fsi.INK_SECONDARY, label="as in (a), with errors")
-    ax_d.set(xscale="log", xlabel="$\\gamma$",
-             ylabel="$\\Gamma_\\infty^{\\rm Floquet}/\\Gamma_\\infty^{\\rm exact} - 1$ (%)",
-             title="(d) Extrapolated rates, Floquet against exact")
-    ax_d.legend(fontsize=7)
-    fig.tight_layout()
-    out = RUNS / "floquet_dep_rates.png"
+        ax.errorbar(d["gamma"], d["Gamma_inf_exact"], yerr=d["sigma_Gamma_inf_exact"], fmt="--o", ms=6.5, lw=0.9,
+                    capsize=2, mfc="none", mew=1.0, color=fsi.SERIES[state], alpha=0.6)
+        ax.errorbar(d["gamma"], d["Gamma_inf"], yerr=d["sigma_Gamma_inf"], fmt="-o", ms=3.5, lw=1.3, capsize=2,
+                    color=fsi.SERIES[state], label=fsi.NAMES[state])
+    ax.plot([], [], "-o", ms=3.5, color=fsi.INK_SECONDARY, label="Floquet circuit")
+    ax.plot([], [], "--o", ms=6.5, mfc="none", color=fsi.INK_SECONDARY, alpha=0.6, label="exact Lindblad (Fig. 19)")
+    ax.set(xscale="log", yscale="log", xlabel="$\\gamma$   (jumps $\\sqrt{\\gamma}\\,\\sigma^\\alpha_j$)",
+           ylabel="$\\Gamma_\\infty$")
+    ax.legend(fontsize=7.5, loc="upper left")
+    fig.suptitle("Depolarizing noise, Floquet circuit: thermodynamic decay rate $\\Gamma_\\infty$ ($A + B/L$, "
+                 "$1/L \\to 0$)", x=0.01, ha="left", fontsize=10, fontweight="bold")
+    out = RUNS / "floquet_dep_thermodynamic_rate.png"
     fig.savefig(out)
     print(f"-> {out}")
+
+
+def to_convention(d):
+    """γ of the files and of channels_inverse_L.csv (--channel dep, jumps √(γ_dep/2) σ^α) → γ = γ_dep/2 (jumps √γ σ^α,
+    CLAUDE.md "Depolarizing γ"); both columns are written."""
+    d = d.rename(columns={"gamma": "gamma_dep"})
+    d.insert(d.columns.get_loc("gamma_dep"), "gamma", d["gamma_dep"] / 2)
+    return d
 
 
 def main():
     rates = collect()
     table = extrapolate(rates)
+    rates, table = to_convention(rates), to_convention(table)
     rates.to_csv(RUNS / "floquet_dep_rates.csv", index=False, float_format="%.6g")
     table.to_csv(RUNS / "floquet_dep_inverse_L.csv", index=False, float_format="%.6g")
     with pd.option_context("display.width", 200, "display.max_rows", 500):
@@ -265,7 +226,7 @@ def main():
                            rel_same=table["Gamma_inf_grid"] / table["Gamma_inf_exact_same"] - 1).to_string(
             index=False, float_format=lambda x: f"{x:.4g}"))
     if not table.empty:
-        figure(rates, table)
+        figure(table)
 
 
 if __name__ == "__main__":

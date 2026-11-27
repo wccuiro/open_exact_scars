@@ -200,7 +200,10 @@ methods and their limits), `theory` (generator and adjoint, spectral decompositi
 middle for ρ only, scars and entanglement incl. Liouvillian modes, exact results, weak dissipation, channels at
 H_I = 0, operator observables), `results` (scar vs thermal, channels, single kick, damage spreading, operator size at
 t_e, Mori), `summary` (γ exponent), `floquet` (2026-11-25: the Trotter circuit of `floquet-circuit.md`, TikZ
-circuits for L = 8, 12, 10, 14, checks against the exact evolution), `data` (run inventory from `plot_scripts/report_runs.py`), appendices
+circuits for L = 8, 12, 10, 14, checks against the exact evolution), `kjma` (2026-11-26, "Understanding the KJMA
+mechanism": KJMA formula, one kick, two-kick collisions, averaged ρ and one Poisson trajectory, scheduled jumps at
+L = 24, fidelity 1/3 per jump, bond dimension; γ in the user's depolarizing convention; figures
+`latex/figures/kjma_*.png` copied from `data/` and `data/kjma_jumps/`; also in the `floquet` part), `data` (run inventory from `plot_scripts/report_runs.py`), appendices
 `app_methods`, `app_rates` (incl. the Néel envelope example), `app_other` (tensor networks, CLIK, forward/backward,
 eigenvalues without LAPACK). **Notes rules (from the user's review, 2026-11-03):** nothing below γ = 0.01 (no L ≤ 22
 reaches the thermodynamic rate there; the γ < 0.01 runs stay on disk but are not mentioned), no data with the previous
@@ -297,8 +300,36 @@ Open:
 - Two checkouts on the laptop: Windows `C:\Users\wey09\Documents\repos\open_exact_scars` (work here: code, job scripts,
   new data and outputs) and WSL `~/repos/open_exact_scars` (`\\wsl.localhost\Ubuntu\home\wccuirom\repos\open_exact_scars`),
   which holds the original `data/` (used_data, non_used_data, earlier runs). Use WSL only where needed: to read data
-  that exists only there, or to run something that needs Linux. The Windows `data/` (since 2026-11-26) has only
-  `bashes/` (jobs_common.sh, floquet/) and `floquet_dep/`.
+  that exists only there, or to run something that needs Linux. The Windows `data/` (since 2026-11-26) has
+  `bashes/` (jobs_common.sh, floquet/), `floquet_dep/`, the KJMA files (`floquet_bond*`, `floquet_traj_bond*`,
+  `kjma_*`) and `kjma_jumps/` (scheduled depolarizing jumps at L = 24 from `floquet_kicks_bond.rs`).
+
+## Equations in replies (T3 Code)
+
+The user reads the replies in T3 Code. It typesets math (KaTeX, remark-math) only when Settings → "Render math" is on
+(`"mathRenderingEnabled"` in `C:\Users\wey09\.t3\userdata\client-settings.json`, default false). It was off until
+2026-11-26, so every equation showed as raw LaTeX whatever the syntax; turned on then. If the user again cannot read the
+equations, check that setting first. Write every equation so it renders:
+
+- Inline math between single dollars, `$\langle R_{j,j+1}\rangle$`; display math between double dollars on their own
+  lines, with a blank line before and after:
+
+  ```
+  $$
+  F(n)=\sum_b w_b\,|\langle\psi_0(n)|\phi_b(n)\rangle|^2
+  $$
+  ```
+- Only `$…$` and `$$…$$`, not `\( … \)` or `\[ … \]` (one convention; the raw `\[ … \]` the user saw before was the
+  setting above being off, not the syntax).
+- Never put an equation in backticks or a code block (that shows the LaTeX source instead of the formula).
+- Anything with a subscript, superscript, fraction or bracket goes inside `$…$`: `$\sigma^z_{18}$`, not σᶻ_{18};
+  `$\langle\sigma^x_j\rangle_t$`, not ⟨σ^x_j⟩_t. Unicode symbols without indices (γ, L, ⟨…⟩ around a plain name) are
+  fine in prose.
+- No space just inside the delimiters (`$x$`, not `$ x $`). A literal dollar sign is `\$`.
+- Inside a Markdown table a `|` ends the cell, also inside math: write `\lvert C\rvert^2`, `\langle a\vert b\rangle`.
+- Multi-line display math: `\begin{aligned} … \end{aligned}` or `\begin{cases} … \end{cases}` inside `$$ … $$`
+  (KaTeX; no `\label`, `\eqref`, or packages beyond KaTeX's built-ins).
+- This is for chat replies only; the notes (`latex/`) keep normal LaTeX.
 
 ## Layout and commands
 
@@ -624,14 +655,35 @@ Néel, dt/2 at L = 8, 12 and optionally 16; trajectories L = 16, 20, 24, 224 eac
 (2026-11-26) `make_floquet_dep_jobs.sh`: the same for depolarizing noise (`--channel dep`, Fig. 19 of the notes with
 the Floquet circuit; analysis `plot_scripts/floquet_dep_rates.py`): ρ L = 8, 12 every γ = 0.01 … 20 at dt and dt/2,
 ρ L = 16 γ ≤ 2, trajectories L = 16, 20, 24 (224) γ ≤ 0.1; run lengths from the exact dep t_e per (state, L, γ),
-stop at 2 t₁, cap 3.5 t_e; output `$REPO/data/floquet_dep`. Default cost model (not benchmarked): submit_floquet_dep.sh
-≈ 8.3 node-h expected (12.9 at the caps; ρ L = 16 6.4, trajectories L = 24 1.6), submit_floquet_dep_halfdt16.sh
-≈ 12.3 (19.3); without ρ L = 16 and with trajectories for γ ≤ 2 ≈ 3.0 (4.7). Laptop runs of the same plan
+stop at 2 t₁, cap 3.5 t_e; output `$REPO/data/floquet_dep`. Bench (2026-11-26, `make_bench_floquet.sh`, xyz,
+γ = 0.01, 3 steps): `floquet` 0.081 (L = 12), 18.9 (16) s per step on 112 threads; `floquet_traj`, 112 trajectories,
+total time / steps 0.63 (L = 20), 12.5 (24) s per step (the printed "s per step" leaves out the observables, 26 –
+28 %), i.e. 12.5 core-s per trajectory and step at L = 24 (2.7× the default 4.6). With RHO16_S=18.931
+TRAJ24_CORE_S=12.5: submit_floquet_dep.sh ≈ 10.9 node-h expected (17.0 at the caps; ρ L = 16 6.1, trajectories
+L = 24 4.4, limit 9:15), submit_floquet_dep_halfdt16.sh ≈ 11.7 (18.3); without ρ L = 16 and with trajectories for
+γ ≤ 2 ≈ 7.8 (12.2; traj L = 24 alone 7.2, limit 14:57). (Default model, before the bench: 8.3 (12.9), 12.3 (19.3),
+3.0 (4.7).) Laptop runs of the same plan
 (2026-11-26, stopped): ρ L = 8 complete (dt and dt/2) and L = 16 trajectories (scar every γ ≤ 0.1, x-Néel
 γ ≤ 0.05), in the Windows `data/floquet_dep/` (first made in WSL; the copies there are the same). The generator,
 `jobs_common.sh` and the generated scripts are in the Windows `data/bashes/` (Git Bash reproduces the WSL output byte
 for byte); `floquet_dep_rates.py` runs on Windows and takes the exact references from the WSL `used_data/` (second
-argument, default WSL_USED when the checkout has no used_data). Not submitted. The generators of the finished batches below, the bench
+argument, default WSL_USED when the checkout has no used_data). **Done 2026-11-26** (both submit files, 10 jobs
+65296586 – 65296605, all COMPLETED, 216 runs exit 0; elapsed 0:24 min (traj L = 16) to 5:02 h (ρ L = 16 scar dt/2),
+traj L = 24 3:13 h, ρ L = 16 scar 2:46 h). Data in the Windows `data/floquet_dep/` (the cluster's L = 8 ρ and L = 16
+traj files are identical to the laptop ones, ρ to 0, traj to 1e-16; 7 laptop scar traj L = 16 at γ_dep ≥ 0.2, not in
+the plan, moved to `floquet_dep/laptop_extra/`, not read), logs and sacct in `data/bashes/floquet/logs_floquet_dep/`.
+`floquet_dep_rates.py` → `floquet_dep_thermodynamic_rate.png` (one panel, the depolarizing panel of Fig. 19 with the
+circuit; Floquet filled, exact open; axis γ = γ_dep/2, free-spin line 4γ), `floquet_dep_rates.csv`,
+`floquet_dep_inverse_L.csv` (columns gamma = γ_dep/2 and gamma_dep). Fit sizes: L = 8, 12, 16 (ρ), 20, 24 (traj) at
+γ_dep ≤ 0.1; 8, 12, 16 at 0.2 – 2; z-Néel without L = 8 at γ_dep ≤ 0.02; γ_dep ≥ 5: only L = 8, 12 (agree to ≤ 0.15 %),
+Γ_∞ = Γ_e(12), error the difference. Floquet against exact Γ_∞ (Fig. 19): within 1.2 combined errors everywhere except
+the scar at γ = 0.25 (γ_dep 0.5, −2.6 %, 2.2σ); scar −4.7 … +3.2 %, x-Néel −2.9 … +1.8 %, z-Néel −1.9 … −6.7 %. Per size
+on the exact output grid the circuit is within ≈ 2 % of exact; the z-Néel offset is the size set, not the circuit:
+per-size Γ_e agree to 0.1 %, but the c realization puts L = 20 ≈ 4 % high and L = 24 ≈ 3 % low, and the exact fit has
+L = 20 without L = 24 (on L = 12, 16, 20 the Floquet Γ_∞ is 5.40 against exact 5.43). Trotter error from the dt/2 runs
+(first order, Γ(dt) − Γ(0) ≈ 2[Γ(dt) − Γ(dt/2)], same at L = 8, 12, 16): scar −1.5 … −2 % at γ = 0.05 – 0.25 (dt 0.1),
+−0.3 % at γ = 1; Néel ≤ +0.6 % (dt 0.02). **It uses `--channel dep` (jumps √(γ/2) σ^α): its γ is twice the γ the user now uses
+(√γ σ^α, see "Depolarizing γ"): γ_user = γ_dep / 2, also for the laptop `floquet_dep/` runs.** The generators of the finished batches below, the bench
 scripts (`make_bench_jobs.sh`, `summarize_bench.py`, `bench_machine.sh`, `bench_summary.py`) are in
 `data/non_used_data/bashes_old/`, and the per-job Slurm scripts they generated (old `states_*`, `exact_*`, `traj_*`,
 `bench_L*`, `submit_*`) in `data/non_used_data/bashes_old/generated_jobs/`. To rerun one, copy it back next to
@@ -868,6 +920,15 @@ cd $REPO/data && tar czf states_traj.tar.gz states/states_traj_* states/states_r
   1.5 · ‖H‖_est · τ ≤ 4. `states_traj` validated against the exact ρ at L = 8, γ = 0.1 (scar and x-Néel, 2000
   trajectories): rms deviation ≈ 1 standard error.
 - Trajectories: σᶻ_j is Hermitian, so the dephasing is unravelled as a real-noise diffusion that keeps the state normalized (a fluctuating z field on every spin). One step is e^{−iH dt/2} · Π_j e^{−i√γ ΔW_j σᶻ_j} · e^{−iH dt/2}, ΔW_j ~ N(0, dt); the error of the average is O(dt²). This is the default (`--unravel diffusive`).
+- **Depolarizing γ (user's definition, 2026-11-26).** γ is the prefactor of the dissipator:
+  D(ρ) = γ Σ_j Σ_α (σ^α_j ρ σ^α_j − ρ), jumps √γ σ^α_j = `--channel xyz` (every Pauli decays at 4γ, jump rate 3γ per
+  site, kick probability per site and Floquet cycle (3/4)(1 − e^{−4γ dt})). Quote γ this way. `--channel dep`
+  (√(γ/2) σ^α, Paulis at 2γ, matched to σᶻ dephasing) is the same channel with γ_dep = 2γ, and is still what every
+  earlier depolarizing result used: the lean channel study and its notes figures, `floquet_dep` (laptop and the
+  cluster submission), `data/floquet_bond*.csv`, `data/floquet_traj_bond.csv`. The KJMA examples
+  (`rust/examples/floquet_bond.rs`, `floquet_traj_bond.rs`, `floquet_kicks_bond.rs`) use `xyz` since 2026-11-26 and
+  write a `channel` column; `plot_floquet_bond.py`, `plot_floquet_bond_perkick.py`, `plot_floquet_traj_bond.py` halve
+  the γ of files without that column (checked: `xyz` at γ/2 reproduces `dep` at γ exactly). `noise.rs` is unchanged.
 - Noise channels (`noise.rs`, `--channel`): jump operators √γ σᶻ (default), √γ σˣ, √γ σʸ, √(γ/2) σ^α (depolarizing,
   every Pauli factor decays at 2γ), √γ σ⁻ (decay, σ⁻ = |↓⟩⟨↑|), √(γ(n̄+1)) σ⁻ and √(γ n̄) σ⁺ (thermal). In the Pauli
   basis the adjoint dissipator is diagonal (per unit γ on σˣ, σʸ, σᶻ: z −2, −2, 0; x 0, −2, −2; y −2, 0, −2;

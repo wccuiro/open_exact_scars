@@ -374,8 +374,18 @@ impl FloquetTraj {
         FloquetTraj { l, layers, gates, kicks }
     }
 
-    /// One step of one trajectory: ψ → (Π gates, each followed by its random rotations) ψ.
+    /// One step of one trajectory: ψ → (Π gates, each followed by its random rotations) ψ. Sequential (the
+    /// parallelism of `floquet_traj` is over trajectories).
     pub fn step(&self, psi: &mut [Amp], rng: &mut Rng) {
+        self.step_with(psi, rng, false);
+    }
+
+    /// The same step with every gate split over threads (one large trajectory); identical result.
+    pub fn step_parallel(&self, psi: &mut [Amp], rng: &mut Rng) {
+        self.step_with(psi, rng, true);
+    }
+
+    fn step_with(&self, psi: &mut [Amp], rng: &mut Rng, parallel: bool) {
         assert_eq!(psi.len(), 1usize << self.l);
         for gate in &self.gates {
             let mut w = gate.w;
@@ -391,7 +401,7 @@ impl FloquetTraj {
                     left_multiply_qubit(&mut w, q, &k);
                 }
             }
-            apply16(&w, &gate.offsets, &gate.free, psi);
+            apply16(&w, &gate.offsets, &gate.free, psi, parallel);
         }
     }
 }
@@ -409,44 +419,78 @@ fn left_multiply_qubit(w: &mut M16, q: usize, k: &[[C; 2]; 2]) {
     }
 }
 
-/// ψ ← W ψ for a 16 × 16 W on the qubits of `offsets` (sequential; the parallelism is over trajectories).
-fn apply16(w: &M16, offsets: &[usize; 16], free: &[u32], psi: &mut [Amp]) {
+/// ψ ← W ψ for a 16 × 16 W on the qubits of `offsets`: sequential (the parallelism of `floquet_traj` is over
+/// trajectories), or with the batches of bases split over threads (`parallel`, one large trajectory).
+fn apply16(w: &M16, offsets: &[usize; 16], free: &[u32], psi: &mut [Amp], parallel: bool) {
     let n_bases = 1usize << free.len();
     let batch = BATCH.min(n_bases);
     let (wr, wi): (Vec<f64>, Vec<f64>) = w.iter().flatten().map(|z| (z[0], z[1])).unzip();
-    let mut buf = vec![0.0; 4 * 16 * batch];
+    let ptr = AmpPtr(psi.as_mut_ptr());
+    let init = || (vec![0.0; 4 * 16 * batch], vec![0usize; batch]);
+    // SAFETY: every chunk reads and writes only the amplitudes base | offset of its own bases, which are disjoint
+    // from those of every other chunk, and all of them lie inside psi (bases and offsets use the bits 0 … L − 1).
+    let run = |(buf, bases): &mut (Vec<f64>, Vec<usize>), chunk: usize| unsafe {
+        apply16_chunk(&wr, &wi, offsets, free, chunk, buf, bases, ptr.get())
+    };
+    if parallel {
+        (0..n_bases / batch).into_par_iter().for_each_init(init, run);
+    } else {
+        let mut scratch = init();
+        (0..n_bases / batch).for_each(|chunk| run(&mut scratch, chunk));
+    }
+}
+
+/// Raw pointer to the amplitudes, shared by the threads of `apply16` (they touch disjoint amplitudes).
+struct AmpPtr(*mut Amp);
+unsafe impl Sync for AmpPtr {}
+impl AmpPtr {
+    fn get(&self) -> *mut Amp {
+        self.0
+    }
+}
+
+/// One batch of `bases.len()` bases of `apply16`. Safety: see `apply16`.
+#[allow(clippy::too_many_arguments)]
+unsafe fn apply16_chunk(
+    wr: &[f64],
+    wi: &[f64],
+    offsets: &[usize; 16],
+    free: &[u32],
+    chunk: usize,
+    buf: &mut [f64],
+    bases: &mut [usize],
+    psi: *mut Amp,
+) {
+    let batch = bases.len();
     let (in_re, rest) = buf.split_at_mut(16 * batch);
     let (in_im, rest) = rest.split_at_mut(16 * batch);
     let (out_re, out_im) = rest.split_at_mut(16 * batch);
-    let mut bases = vec![0usize; batch];
-    for chunk in 0..n_bases / batch {
-        for (i, base) in bases.iter_mut().enumerate() {
-            *base = deposit(chunk * batch + i, free);
+    for (i, base) in bases.iter_mut().enumerate() {
+        *base = deposit(chunk * batch + i, free);
+    }
+    for (a, &off) in offsets.iter().enumerate() {
+        for (i, &base) in bases.iter().enumerate() {
+            let z = *psi.add(base | off);
+            in_re[a * batch + i] = z[0];
+            in_im[a * batch + i] = z[1];
         }
-        for (a, &off) in offsets.iter().enumerate() {
-            for (i, &base) in bases.iter().enumerate() {
-                let z = psi[base | off];
-                in_re[a * batch + i] = z[0];
-                in_im[a * batch + i] = z[1];
+    }
+    out_re.fill(0.0);
+    out_im.fill(0.0);
+    for a2 in 0..16 {
+        let (o_re, o_im) = (&mut out_re[a2 * batch..(a2 + 1) * batch], &mut out_im[a2 * batch..(a2 + 1) * batch]);
+        for a in 0..16 {
+            let (cr, ci) = (wr[a2 * 16 + a], wi[a2 * 16 + a]);
+            let (x_re, x_im) = (&in_re[a * batch..(a + 1) * batch], &in_im[a * batch..(a + 1) * batch]);
+            for i in 0..batch {
+                o_re[i] += cr * x_re[i] - ci * x_im[i];
+                o_im[i] += cr * x_im[i] + ci * x_re[i];
             }
         }
-        out_re.fill(0.0);
-        out_im.fill(0.0);
-        for a2 in 0..16 {
-            let (o_re, o_im) = (&mut out_re[a2 * batch..(a2 + 1) * batch], &mut out_im[a2 * batch..(a2 + 1) * batch]);
-            for a in 0..16 {
-                let (cr, ci) = (wr[a2 * 16 + a], wi[a2 * 16 + a]);
-                let (x_re, x_im) = (&in_re[a * batch..(a + 1) * batch], &in_im[a * batch..(a + 1) * batch]);
-                for i in 0..batch {
-                    o_re[i] += cr * x_re[i] - ci * x_im[i];
-                    o_im[i] += cr * x_im[i] + ci * x_re[i];
-                }
-            }
-        }
-        for (a, &off) in offsets.iter().enumerate() {
-            for (i, &base) in bases.iter().enumerate() {
-                psi[base | off] = [out_re[a * batch + i], out_im[a * batch + i]];
-            }
+    }
+    for (a, &off) in offsets.iter().enumerate() {
+        for (i, &base) in bases.iter().enumerate() {
+            *psi.add(base | off) = [out_re[a * batch + i], out_im[a * batch + i]];
         }
     }
 }

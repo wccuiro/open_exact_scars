@@ -194,7 +194,7 @@ def figure(table):
         ax.errorbar(d["gamma"], d["Gamma_inf"], yerr=d["sigma_Gamma_inf"], fmt="-o", ms=3.5, lw=1.3, capsize=2,
                     color=fsi.SERIES[state], label=fsi.NAMES[state])
     ax.plot([], [], "-o", ms=3.5, color=fsi.INK_SECONDARY, label="Floquet circuit")
-    ax.plot([], [], "--o", ms=6.5, mfc="none", color=fsi.INK_SECONDARY, alpha=0.6, label="exact Lindblad (Fig. 19)")
+    ax.plot([], [], "--o", ms=6.5, mfc="none", color=fsi.INK_SECONDARY, alpha=0.6, label="exact Lindblad")
     ax.set(xscale="log", yscale="log", xlabel="$\\gamma$   (jumps $\\sqrt{\\gamma}\\,\\sigma^\\alpha_j$)",
            ylabel="$\\Gamma_\\infty$")
     ax.legend(fontsize=7.5, loc="upper left")

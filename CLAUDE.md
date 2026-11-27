@@ -200,7 +200,7 @@ methods and their limits), `theory` (generator and adjoint, spectral decompositi
 middle for ρ only, scars and entanglement incl. Liouvillian modes, exact results, weak dissipation, channels at
 H_I = 0, operator observables), `results` (scar vs thermal, channels, single kick, damage spreading, operator size at
 t_e, Mori), `summary` (γ exponent), `floquet` (2026-11-25: the Trotter circuit of `floquet-circuit.md`, TikZ
-circuits for L = 8, 12, 10, 14, checks against the exact evolution), `kjma` (2026-11-26, "Understanding the KJMA
+circuits for L = 8, 12, 10, 14, checks against the exact evolution; 2026-11-27: last Sec. `sec:floquet-dep`, the depolarizing panel of Fig. `fig:chinf` with the circuit, its Lindblad equation in the user's γ, figure `floquet_dep_thermodynamic_rate.png`), `kjma` (2026-11-26, "Understanding the KJMA
 mechanism": KJMA formula, one kick, two-kick collisions, averaged ρ and one Poisson trajectory, scheduled jumps at
 L = 24, fidelity 1/3 per jump, bond dimension; γ in the user's depolarizing convention; figures
 `latex/figures/kjma_*.png` copied from `data/` and `data/kjma_jumps/`; also in the `floquet` part), `data` (run inventory from `plot_scripts/report_runs.py`), appendices
@@ -674,7 +674,7 @@ traj files are identical to the laptop ones, ρ to 0, traj to 1e-16; 7 laptop sc
 the plan, moved to `floquet_dep/laptop_extra/`, not read), logs and sacct in `data/bashes/floquet/logs_floquet_dep/`.
 `floquet_dep_rates.py` → `floquet_dep_thermodynamic_rate.png` (one panel, the depolarizing panel of Fig. 19 with the
 circuit; Floquet filled, exact open; axis γ = γ_dep/2, free-spin line 4γ), `floquet_dep_rates.csv`,
-`floquet_dep_inverse_L.csv` (columns gamma = γ_dep/2 and gamma_dep). Fit sizes: L = 8, 12, 16 (ρ), 20, 24 (traj) at
+`floquet_dep_inverse_L.csv` (columns gamma = γ_dep/2 and gamma_dep); in the notes as Sec. `sec:floquet-dep` (end of `floquet.tex`, Fig. `fig:floquet-dep`, legend "exact Lindblad" without a figure number). Fit sizes: L = 8, 12, 16 (ρ), 20, 24 (traj) at
 γ_dep ≤ 0.1; 8, 12, 16 at 0.2 – 2; z-Néel without L = 8 at γ_dep ≤ 0.02; γ_dep ≥ 5: only L = 8, 12 (agree to ≤ 0.15 %),
 Γ_∞ = Γ_e(12), error the difference. Floquet against exact Γ_∞ (Fig. 19): within 1.2 combined errors everywhere except
 the scar at γ = 0.25 (γ_dep 0.5, −2.6 %, 2.2σ); scar −4.7 … +3.2 %, x-Néel −2.9 … +1.8 %, z-Néel −1.9 … −6.7 %. Per size
